@@ -56,8 +56,80 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/buildings/nearby?lat=10.79&lng=106.72&radius=5 - Tìm tòa nhà gần vị trí (GIS)
-// radius tính bằng km
+// GET /api/buildings/geojson - Trả danh sách tòa nhà dạng GeoJSON FeatureCollection
+router.get("/geojson", async (req, res) => {
+  try {
+    const { district, city, ward } = req.query;
+
+    const conditions = [];
+    if (district) conditions.push(eq(buildings.district, String(district)));
+    if (city) conditions.push(eq(buildings.city, String(city)));
+    if (ward) conditions.push(eq(buildings.ward, String(ward)));
+
+    const result =
+      conditions.length > 0
+        ? await db
+            .select({
+              id: buildings.id,
+              name: buildings.name,
+              address: buildings.address,
+              ward: buildings.ward,
+              district: buildings.district,
+              city: buildings.city,
+              totalFloors: buildings.totalFloors,
+              imageUrl: buildings.imageUrl,
+              model3dUrl: buildings.model3dUrl,
+              lng: sql<number>`ST_X(${buildings.location})`,
+              lat: sql<number>`ST_Y(${buildings.location})`,
+            })
+            .from(buildings)
+            .where(and(...conditions))
+        : await db
+            .select({
+              id: buildings.id,
+              name: buildings.name,
+              address: buildings.address,
+              ward: buildings.ward,
+              district: buildings.district,
+              city: buildings.city,
+              totalFloors: buildings.totalFloors,
+              imageUrl: buildings.imageUrl,
+              model3dUrl: buildings.model3dUrl,
+              lng: sql<number>`ST_X(${buildings.location})`,
+              lat: sql<number>`ST_Y(${buildings.location})`,
+            })
+            .from(buildings);
+
+    const featureCollection = {
+      type: "FeatureCollection" as const,
+      features: result.map((b) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [b.lng, b.lat],
+        },
+        properties: {
+          id: b.id,
+          name: b.name,
+          address: b.address,
+          ward: b.ward,
+          district: b.district,
+          city: b.city,
+          totalFloors: b.totalFloors,
+          imageUrl: b.imageUrl,
+          model3dUrl: b.model3dUrl,
+        },
+      })),
+    };
+
+    res.json(featureCollection);
+  } catch (error) {
+    res.status(500).json({ error: "Lỗi khi lấy dữ liệu GeoJSON" });
+  }
+});
+
+// GET /api/buildings/nearby?lat=10.79&lng=106.72&radius=5000 - Tìm tòa nhà gần vị trí (PostGIS)
+// radius tính bằng mét
 router.get("/nearby", async (req, res) => {
   try {
     const { lat, lng, radius } = req.query;
@@ -65,29 +137,20 @@ router.get("/nearby", async (req, res) => {
       return res.status(400).json({ error: "Cần cung cấp lat và lng" });
     }
 
-    const radiusKm = Number(radius) || 5;
+    const radiusMeters = Number(radius) || 5000;
+    const point = sql`ST_SetSRID(ST_MakePoint(${Number(lng)}, ${Number(lat)}), 4326)`;
 
-    // Haversine formula trong SQL
+    // ST_DWithin với geography để tính bằng mét
     const result = await db
       .select({
         building: buildings,
-        distance: sql<number>`
-          6371 * acos(
-            cos(radians(${Number(lat)})) * cos(radians(${buildings.latitude}::numeric))
-            * cos(radians(${buildings.longitude}::numeric) - radians(${Number(lng)}))
-            + sin(radians(${Number(lat)})) * sin(radians(${buildings.latitude}::numeric))
-          )
-        `.as("distance"),
+        distance: sql<number>`ST_Distance(${buildings.location}::geography, ${point}::geography)`.as(
+          "distance"
+        ),
       })
       .from(buildings)
       .where(
-        sql`
-          6371 * acos(
-            cos(radians(${Number(lat)})) * cos(radians(${buildings.latitude}::numeric))
-            * cos(radians(${buildings.longitude}::numeric) - radians(${Number(lng)}))
-            + sin(radians(${Number(lat)})) * sin(radians(${buildings.latitude}::numeric))
-          ) <= ${radiusKm}
-        `
+        sql`ST_DWithin(${buildings.location}::geography, ${point}::geography, ${radiusMeters})`
       )
       .orderBy(sql`distance`);
 
@@ -140,9 +203,17 @@ router.get("/:id/occupancy", async (req, res) => {
 });
 
 // POST /api/buildings - Thêm tòa nhà
+// Body cần có longitude và latitude, sẽ tự tạo geometry point
 router.post("/", async (req, res) => {
   try {
-    const result = await db.insert(buildings).values(req.body).returning();
+    const { longitude, latitude, ...rest } = req.body;
+    const result = await db
+      .insert(buildings)
+      .values({
+        ...rest,
+        location: sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}), 4326)`,
+      })
+      .returning();
     res.status(201).json(result[0]);
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi thêm tòa nhà" });
@@ -152,9 +223,18 @@ router.post("/", async (req, res) => {
 // PUT /api/buildings/:id - Cập nhật tòa nhà
 router.put("/:id", async (req, res) => {
   try {
+    const { longitude, latitude, ...rest } = req.body;
+    const updateData: Record<string, unknown> = {
+      ...rest,
+      updatedAt: new Date(),
+    };
+    if (longitude && latitude) {
+      updateData.location = sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}), 4326)`;
+    }
+
     const result = await db
       .update(buildings)
-      .set({ ...req.body, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(buildings.id, Number(req.params.id)))
       .returning();
     if (result.length === 0) {

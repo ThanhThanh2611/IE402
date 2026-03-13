@@ -7,8 +7,7 @@ Table buildings {
   ward varchar [note: 'Phường/Xã']
   district varchar [note: 'Quận/Huyện']
   city varchar [note: 'Thành phố/Tỉnh']
-  latitude decimal [not null, note: 'Tọa độ GIS']
-  longitude decimal [not null, note: 'Tọa độ GIS']
+  location geometry(Point,4326) [not null, note: 'Tọa độ GIS - PostGIS Point']
   total_floors integer [not null]
   description text
   image_url varchar

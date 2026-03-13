@@ -158,27 +158,35 @@ GET /api/dashboard/map-snapshot
 GET /api/dashboard/map-snapshot?date=2025-06-01
 ```
 
-**Response:** `200`
+**Response:** `200` — GeoJSON FeatureCollection
 
 ```json
 {
-  "date": "2025-06-01",
-  "buildings": [
+  "type": "FeatureCollection",
+  "metadata": { "date": "2025-06-01" },
+  "features": [
     {
-      "id": 1,
-      "name": "Vinhomes Central Park",
-      "address": "208 Nguyen Huu Canh",
-      "district": "Binh Thanh",
-      "city": "Ho Chi Minh",
-      "latitude": "10.7942000",
-      "longitude": "106.7214000",
-      "totalApartments": 50,
-      "rentedApartments": 35,
-      "availableApartments": 15,
-      "occupancyRate": "70.0"
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [106.7214, 10.7942]
+      },
+      "properties": {
+        "id": 1,
+        "name": "Vinhomes Central Park",
+        "address": "208 Nguyen Huu Canh",
+        "district": "Binh Thanh",
+        "city": "Ho Chi Minh",
+        "totalApartments": 50,
+        "rentedApartments": 35,
+        "availableApartments": 15,
+        "occupancyRate": "70.0"
+      }
     }
   ]
 }
 ```
+
+> Tọa độ được trích xuất từ PostGIS bằng `ST_X()` và `ST_Y()`
 
 **Logic:** Tính số căn hộ có hợp đồng active tại thời điểm `date` (start_date <= date AND end_date >= date).

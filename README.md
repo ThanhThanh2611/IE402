@@ -43,8 +43,9 @@ Server chạy tại `http://localhost:3000`.
 | POST | `/api/auth/login` | Đăng nhập |
 | GET | `/api/auth/users` | Danh sách users |
 | **Buildings** | | |
-| GET | `/api/buildings` | Danh sách tòa nhà (hỗ trợ filter: district, city, ward, minPrice, maxPrice) |
-| GET | `/api/buildings/nearby` | Tìm tòa nhà gần vị trí (lat, lng, radius) |
+| GET | `/api/buildings` | Danh sách tòa nhà (filter: district, city, ward, minPrice, maxPrice) |
+| GET | `/api/buildings/geojson` | Danh sách tòa nhà dạng GeoJSON FeatureCollection |
+| GET | `/api/buildings/nearby` | Tìm tòa nhà gần vị trí - PostGIS ST_DWithin (lat, lng, radius mét) |
 | GET | `/api/buildings/:id` | Chi tiết tòa nhà |
 | GET | `/api/buildings/:id/occupancy` | Tỷ lệ lấp đầy tòa nhà |
 | POST/PUT/DELETE | `/api/buildings/:id` | Thêm / Sửa / Xóa tòa nhà |
@@ -71,6 +72,7 @@ Server chạy tại `http://localhost:3000`.
 | GET | `/api/dashboard/revenue?from=&to=` | Thống kê doanh thu |
 | GET | `/api/dashboard/revenue-by-month?year=` | Doanh thu theo tháng |
 | GET | `/api/dashboard/occupancy-history?from=&to=` | Lấp đầy theo thời gian |
+| GET | `/api/dashboard/map-snapshot?date=` | Dữ liệu bản đồ tại thời điểm (GeoJSON) |
 | **Status History** | | |
 | GET | `/api/status-history?apartmentId=X` | Lịch sử trạng thái căn hộ |
 | POST | `/api/status-history` | Thêm lịch sử trạng thái |

@@ -2,6 +2,8 @@
 
 Base URL: `/api/buildings`
 
+> Tọa độ được lưu dạng PostGIS `geometry(Point, 4326)`. Khi tạo/cập nhật tòa nhà, truyền `longitude` và `latitude` trong body.
+
 ---
 
 ## Danh sách tòa nhà (có lọc)
@@ -24,35 +26,53 @@ GET /api/buildings
 
 ```
 GET /api/buildings?district=Binh Thanh&city=Ho Chi Minh
-GET /api/buildings?minPrice=5000000&maxPrice=15000000
 ```
+
+**Response:** `200` - Mảng tòa nhà (location trả về dạng GeoJSON Point)
+
+---
+
+## Danh sách tòa nhà dạng GeoJSON
+
+```
+GET /api/buildings/geojson
+```
+
+Trả về chuẩn GeoJSON `FeatureCollection`, FE (Leaflet/Mapbox) dùng trực tiếp.
+
+**Query params:** Hỗ trợ filter `district`, `city`, `ward`
 
 **Response:** `200`
 
 ```json
-[
-  {
-    "id": 1,
-    "name": "Vinhomes Central Park",
-    "address": "208 Nguyen Huu Canh",
-    "ward": "22",
-    "district": "Binh Thanh",
-    "city": "Ho Chi Minh",
-    "latitude": "10.7942000",
-    "longitude": "106.7214000",
-    "totalFloors": 10,
-    "description": null,
-    "imageUrl": null,
-    "model3dUrl": null,
-    "createdAt": "2025-01-01T00:00:00.000Z",
-    "updatedAt": "2025-01-01T00:00:00.000Z"
-  }
-]
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [106.7214, 10.7942]
+      },
+      "properties": {
+        "id": 1,
+        "name": "Vinhomes Central Park",
+        "address": "208 Nguyen Huu Canh",
+        "district": "Binh Thanh",
+        "city": "Ho Chi Minh",
+        "totalFloors": 10,
+        "model3dUrl": "/uploads/models/building.glb"
+      }
+    }
+  ]
+}
 ```
+
+> Tọa độ được trích xuất từ PostGIS bằng `ST_X()` và `ST_Y()`
 
 ---
 
-## Tìm tòa nhà gần vị trí (GIS)
+## Tìm tòa nhà gần vị trí (PostGIS ST_DWithin)
 
 ```
 GET /api/buildings/nearby
@@ -64,12 +84,12 @@ GET /api/buildings/nearby
 |-------|------|----------|-------|
 | lat | number | Yes | Vĩ độ |
 | lng | number | Yes | Kinh độ |
-| radius | number | No | Bán kính tìm kiếm (km), mặc định 5 |
+| radius | number | No | Bán kính tìm kiếm (mét), mặc định 5000 |
 
 **Ví dụ:**
 
 ```
-GET /api/buildings/nearby?lat=10.79&lng=106.72&radius=3
+GET /api/buildings/nearby?lat=10.79&lng=106.72&radius=3000
 ```
 
 **Response:** `200`
@@ -78,10 +98,12 @@ GET /api/buildings/nearby?lat=10.79&lng=106.72&radius=3
 [
   {
     "building": { ... },
-    "distance": 1.23
+    "distance": 1234.56
   }
 ]
 ```
+
+> Sử dụng PostGIS `ST_DWithin` với `geography` cast để tính khoảng cách bằng mét. `ST_Distance` trả khoảng cách thực tế.
 
 ---
 
@@ -130,12 +152,14 @@ POST /api/buildings
 | ward | string | No | Phường/Xã |
 | district | string | No | Quận/Huyện |
 | city | string | No | Thành phố |
-| latitude | number | Yes | Vĩ độ |
 | longitude | number | Yes | Kinh độ |
+| latitude | number | Yes | Vĩ độ |
 | totalFloors | number | Yes | Tổng số tầng |
 | description | string | No | Mô tả |
 | imageUrl | string | No | URL hình ảnh |
 | model3dUrl | string | No | URL mô hình 3D |
+
+> `longitude` và `latitude` được chuyển thành PostGIS Point bằng `ST_SetSRID(ST_MakePoint(lng, lat), 4326)`
 
 **Response:** `201` - Object tòa nhà đã tạo
 
@@ -147,7 +171,7 @@ POST /api/buildings
 PUT /api/buildings/:id
 ```
 
-**Body:** Các field cần cập nhật (tương tự POST)
+**Body:** Các field cần cập nhật (nếu có longitude + latitude sẽ cập nhật geometry)
 
 **Response:** `200` - Object tòa nhà đã cập nhật
 

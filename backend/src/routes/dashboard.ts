@@ -164,8 +164,18 @@ router.get("/map-snapshot", async (req, res) => {
 
     const snapshotDate = String(date);
 
-    // Lấy tất cả buildings kèm tọa độ
-    const allBuildings = await db.select().from(buildings);
+    // Lấy tất cả buildings kèm tọa độ (PostGIS ST_X, ST_Y)
+    const allBuildings = await db
+      .select({
+        id: buildings.id,
+        name: buildings.name,
+        address: buildings.address,
+        district: buildings.district,
+        city: buildings.city,
+        lng: sql<number>`ST_X(${buildings.location})`,
+        lat: sql<number>`ST_Y(${buildings.location})`,
+      })
+      .from(buildings);
 
     // Với mỗi building, tính số căn hộ có hợp đồng active tại thời điểm đó
     const result = await Promise.all(
@@ -202,8 +212,8 @@ router.get("/map-snapshot", async (req, res) => {
           address: building.address,
           district: building.district,
           city: building.city,
-          latitude: building.latitude,
-          longitude: building.longitude,
+          lng: building.lng,
+          lat: building.lat,
           totalApartments: total,
           rentedApartments: rented,
           availableApartments: total - rented,
@@ -212,7 +222,29 @@ router.get("/map-snapshot", async (req, res) => {
       })
     );
 
-    res.json({ date: snapshotDate, buildings: result });
+    // Trả về dạng GeoJSON FeatureCollection
+    res.json({
+      type: "FeatureCollection",
+      metadata: { date: snapshotDate },
+      features: result.map((b) => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [b.lng, b.lat],
+        },
+        properties: {
+          id: b.id,
+          name: b.name,
+          address: b.address,
+          district: b.district,
+          city: b.city,
+          totalApartments: b.totalApartments,
+          rentedApartments: b.rentedApartments,
+          availableApartments: b.availableApartments,
+          occupancyRate: b.occupancyRate,
+        },
+      })),
+    });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy dữ liệu bản đồ theo thời gian" });
   }

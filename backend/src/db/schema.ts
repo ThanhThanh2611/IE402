@@ -9,7 +9,21 @@ import {
   date,
   pgEnum,
   unique,
+  customType,
 } from "drizzle-orm/pg-core";
+
+// Custom PostGIS geometry type tương thích với drizzle-kit
+const geometry = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "geometry(Point, 4326)";
+  },
+  toDriver(value: string): string {
+    return value;
+  },
+  fromDriver(value: string): string {
+    return value;
+  },
+});
 
 // Enums
 export const apartmentStatusEnum = pgEnum("apartment_status", [
@@ -53,8 +67,7 @@ export const buildings = pgTable("buildings", {
   ward: varchar("ward", { length: 100 }),
   district: varchar("district", { length: 100 }),
   city: varchar("city", { length: 100 }),
-  latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
-  longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+  location: geometry("location").notNull(),
   totalFloors: integer("total_floors").notNull(),
   description: text("description"),
   imageUrl: varchar("image_url", { length: 500 }),
