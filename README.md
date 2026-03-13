@@ -5,7 +5,7 @@ Hệ thống quản lý cho thuê chung cư tích hợp bản đồ GIS 3D.
 ## Yêu cầu
 
 - [Node.js](https://nodejs.org/) >= 18
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Docker](https://docs.docker.com/get-docker/) (Docker Engine hoặc Docker Desktop)
 
 ## Khởi chạy
 
