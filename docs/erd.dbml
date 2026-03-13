@@ -1,0 +1,95 @@
+// 3D GIS Apartment Management System - ERD
+
+Table buildings {
+  id integer [pk, increment]
+  name varchar [not null]
+  address varchar [not null]
+  latitude decimal [not null, note: 'Tọa độ GIS']
+  longitude decimal [not null, note: 'Tọa độ GIS']
+  total_floors integer [not null]
+  description text
+  image_url varchar
+  model_3d_url varchar [note: 'Đường dẫn mô hình 3D']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table floors {
+  id integer [pk, increment]
+  building_id integer [not null, ref: > buildings.id]
+  floor_number integer [not null]
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (building_id, floor_number) [unique]
+  }
+}
+
+Table apartments {
+  id integer [pk, increment]
+  floor_id integer [not null, ref: > floors.id]
+  code varchar [not null, unique, note: 'Mã căn hộ']
+  area decimal [not null, note: 'Diện tích (m2)']
+  num_bedrooms integer
+  num_bathrooms integer
+  rental_price decimal [not null, note: 'Giá thuê (VND/tháng)']
+  status apartment_status [not null, default: 'available', note: 'Trạng thái: available, rented, maintenance']
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table tenants {
+  id integer [pk, increment]
+  full_name varchar [not null]
+  phone varchar [not null]
+  email varchar
+  id_card varchar [not null, unique, note: 'CCCD/CMND']
+  address varchar [note: 'Địa chỉ thường trú']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table rental_contracts {
+  id integer [pk, increment]
+  apartment_id integer [not null, ref: > apartments.id]
+  tenant_id integer [not null, ref: > tenants.id]
+  start_date date [not null]
+  end_date date [not null]
+  monthly_rent decimal [not null, note: 'Giá thuê thực tế (VND/tháng)']
+  deposit decimal [note: 'Tiền đặt cọc']
+  status contract_status [not null, default: 'active', note: 'Trạng thái: active, expired, cancelled']
+  note text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table users {
+  id integer [pk, increment]
+  username varchar [not null, unique]
+  password varchar [not null]
+  full_name varchar [not null]
+  email varchar [unique]
+  role user_role [not null, default: 'user', note: 'Vai trò: user, manager']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Enum apartment_status {
+  available [note: 'Còn trống']
+  rented [note: 'Đã thuê']
+  maintenance [note: 'Đang bảo trì']
+}
+
+Enum contract_status {
+  active [note: 'Đang hiệu lực']
+  expired [note: 'Hết hạn']
+  cancelled [note: 'Đã hủy']
+}
+
+Enum user_role {
+  user [note: 'Người dùng thông thường']
+  manager [note: 'Quản lý']
+}
