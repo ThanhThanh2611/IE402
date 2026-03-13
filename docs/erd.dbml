@@ -102,6 +102,7 @@ Table users {
   full_name varchar [not null]
   email varchar [unique]
   role user_role [not null, default: 'user', note: 'Vai trò: user, manager']
+  is_active boolean [not null, default: true, note: 'Trạng thái kích hoạt']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
   deleted_at timestamp [note: 'Xóa mềm']

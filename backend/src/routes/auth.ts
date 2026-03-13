@@ -50,12 +50,18 @@ router.post("/login", async (req, res) => {
     }
 
     const user = result[0];
+
+    if (!user.isActive) {
+      return res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa" });
+    }
+
     res.json({
       id: user.id,
       username: user.username,
       fullName: user.fullName,
       email: user.email,
       role: user.role,
+      isActive: user.isActive,
     });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi đăng nhập" });

@@ -10,6 +10,7 @@ import {
   pgEnum,
   unique,
   customType,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 // Custom PostGIS geometry type tương thích với drizzle-kit
@@ -54,6 +55,7 @@ export const users = pgTable("users", {
   fullName: varchar("full_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).unique(),
   role: userRoleEnum("role").notNull().default("user"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),

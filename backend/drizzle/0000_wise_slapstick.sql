@@ -103,6 +103,7 @@ CREATE TABLE "users" (
 	"full_name" varchar(255) NOT NULL,
 	"email" varchar(255),
 	"role" "user_role" DEFAULT 'user' NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
 	"deleted_at" timestamp,

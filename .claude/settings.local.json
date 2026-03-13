@@ -8,7 +8,8 @@
       "Bash(sleep 3 && curl -s http://localhost:3000/api/health 2>&1)",
       "Bash(cd D:/Workspace/IE402/backend && npm ls drizzle-orm drizzle-kit drizzle-postgis 2>&1)",
       "Bash(cd D:/Workspace/IE402/backend && npm info drizzle-postgis peerDependencies 2>&1)",
-      "Bash(cd D:/Workspace/IE402/backend && node -e \"const p = require\\('./node_modules/drizzle-postgis/package.json'\\); console.log\\(JSON.stringify\\({peer: p.peerDependencies, deps: p.dependencies}, null, 2\\)\\)\" 2>&1)"
+      "Bash(cd D:/Workspace/IE402/backend && node -e \"const p = require\\('./node_modules/drizzle-postgis/package.json'\\); console.log\\(JSON.stringify\\({peer: p.peerDependencies, deps: p.dependencies}, null, 2\\)\\)\" 2>&1)",
+      "Bash(cd D:/Workspace/IE402/backend && npx drizzle-kit generate)"
     ]
   }
 }
