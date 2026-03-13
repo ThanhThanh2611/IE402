@@ -135,3 +135,50 @@ GET /api/dashboard/occupancy-history
   { "month": "2025-03", "newContracts": 7 }
 ]
 ```
+
+---
+
+## Dữ liệu bản đồ theo thời gian (Map Snapshot)
+
+Trả về tất cả tòa nhà kèm tỷ lệ lấp đầy tại một thời điểm cụ thể. Dùng để hiển thị bản đồ 2D/3D thay đổi theo timeline.
+
+```
+GET /api/dashboard/map-snapshot
+```
+
+**Query params:**
+
+| Param | Type | Bắt buộc | Mô tả |
+|-------|------|----------|-------|
+| date | string | Yes | Thời điểm cần xem (YYYY-MM-DD) |
+
+**Ví dụ:**
+
+```
+GET /api/dashboard/map-snapshot?date=2025-06-01
+```
+
+**Response:** `200`
+
+```json
+{
+  "date": "2025-06-01",
+  "buildings": [
+    {
+      "id": 1,
+      "name": "Vinhomes Central Park",
+      "address": "208 Nguyen Huu Canh",
+      "district": "Binh Thanh",
+      "city": "Ho Chi Minh",
+      "latitude": "10.7942000",
+      "longitude": "106.7214000",
+      "totalApartments": 50,
+      "rentedApartments": 35,
+      "availableApartments": 15,
+      "occupancyRate": "70.0"
+    }
+  ]
+}
+```
+
+**Logic:** Tính số căn hộ có hợp đồng active tại thời điểm `date` (start_date <= date AND end_date >= date).

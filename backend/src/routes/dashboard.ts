@@ -153,4 +153,69 @@ router.get("/occupancy-history", async (req, res) => {
   }
 });
 
+// GET /api/dashboard/map-snapshot?date=2025-06-01 - Dữ liệu bản đồ tại thời điểm cụ thể
+// Trả về tất cả buildings kèm tỷ lệ lấp đầy tại thời điểm đó
+router.get("/map-snapshot", async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: "Cần cung cấp tham số date (YYYY-MM-DD)" });
+    }
+
+    const snapshotDate = String(date);
+
+    // Lấy tất cả buildings kèm tọa độ
+    const allBuildings = await db.select().from(buildings);
+
+    // Với mỗi building, tính số căn hộ có hợp đồng active tại thời điểm đó
+    const result = await Promise.all(
+      allBuildings.map(async (building) => {
+        // Tổng căn hộ của tòa nhà
+        const [totalResult] = await db
+          .select({ count: count() })
+          .from(apartments)
+          .innerJoin(floors, eq(apartments.floorId, floors.id))
+          .where(eq(floors.buildingId, building.id));
+
+        // Số căn hộ đang được thuê tại thời điểm date
+        // (có hợp đồng active mà start_date <= date và end_date >= date)
+        const [rentedResult] = await db
+          .select({ count: count() })
+          .from(rentalContracts)
+          .innerJoin(apartments, eq(rentalContracts.apartmentId, apartments.id))
+          .innerJoin(floors, eq(apartments.floorId, floors.id))
+          .where(
+            and(
+              eq(floors.buildingId, building.id),
+              lte(rentalContracts.startDate, snapshotDate),
+              gte(rentalContracts.endDate, snapshotDate),
+              eq(rentalContracts.status, "active")
+            )
+          );
+
+        const total = Number(totalResult.count);
+        const rented = Number(rentedResult.count);
+
+        return {
+          id: building.id,
+          name: building.name,
+          address: building.address,
+          district: building.district,
+          city: building.city,
+          latitude: building.latitude,
+          longitude: building.longitude,
+          totalApartments: total,
+          rentedApartments: rented,
+          availableApartments: total - rented,
+          occupancyRate: total > 0 ? ((rented / total) * 100).toFixed(1) : "0",
+        };
+      })
+    );
+
+    res.json({ date: snapshotDate, buildings: result });
+  } catch (error) {
+    res.status(500).json({ error: "Lỗi khi lấy dữ liệu bản đồ theo thời gian" });
+  }
+});
+
 export default router;
