@@ -4,6 +4,9 @@ Table buildings {
   id integer [pk, increment]
   name varchar [not null]
   address varchar [not null]
+  ward varchar [note: 'Phường/Xã']
+  district varchar [note: 'Quận/Huyện']
+  city varchar [note: 'Thành phố/Tỉnh']
   latitude decimal [not null, note: 'Tọa độ GIS']
   longitude decimal [not null, note: 'Tọa độ GIS']
   total_floors integer [not null]
@@ -37,8 +40,11 @@ Table apartments {
   rental_price decimal [not null, note: 'Giá thuê (VND/tháng)']
   status apartment_status [not null, default: 'available', note: 'Trạng thái: available, rented, maintenance']
   description text
+  created_by_id integer [ref: > users.id, note: 'Manager tạo']
+  updated_by_id integer [ref: > users.id, note: 'Manager cập nhật']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Xóa mềm']
 }
 
 Table tenants {
@@ -50,6 +56,7 @@ Table tenants {
   address varchar [note: 'Địa chỉ thường trú']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Xóa mềm']
 }
 
 Table rental_contracts {
@@ -62,8 +69,31 @@ Table rental_contracts {
   deposit decimal [note: 'Tiền đặt cọc']
   status contract_status [not null, default: 'active', note: 'Trạng thái: active, expired, cancelled']
   note text
+  created_by_id integer [ref: > users.id, note: 'Manager tạo']
+  updated_by_id integer [ref: > users.id, note: 'Manager cập nhật']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Xóa mềm']
+}
+
+Table payments {
+  id integer [pk, increment]
+  contract_id integer [not null, ref: > rental_contracts.id]
+  amount decimal [not null, note: 'Số tiền thanh toán (VND)']
+  payment_date date [not null]
+  status payment_status [not null, default: 'paid', note: 'Trạng thái thanh toán']
+  note text
+  created_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Xóa mềm']
+}
+
+Table apartment_status_history {
+  id integer [pk, increment]
+  apartment_id integer [not null, ref: > apartments.id]
+  status apartment_status [not null]
+  changed_by_id integer [ref: > users.id, note: 'Manager thay đổi']
+  changed_at timestamp [not null, default: `now()`]
+  note text
 }
 
 Table users {
@@ -75,6 +105,7 @@ Table users {
   role user_role [not null, default: 'user', note: 'Vai trò: user, manager']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Xóa mềm']
 }
 
 Enum apartment_status {
@@ -87,6 +118,12 @@ Enum contract_status {
   active [note: 'Đang hiệu lực']
   expired [note: 'Hết hạn']
   cancelled [note: 'Đã hủy']
+}
+
+Enum payment_status {
+  pending [note: 'Chờ thanh toán']
+  paid [note: 'Đã thanh toán']
+  overdue [note: 'Quá hạn']
 }
 
 Enum user_role {

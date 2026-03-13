@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd D:/Workspace/IE402/backend && npm init -y)",
+      "Bash(cd D:/Workspace/IE402/backend && npm install express drizzle-orm postgres dotenv cors @turf/turf multer drizzle-postgis)",
+      "Bash(cd D:/Workspace/IE402/backend && npm install -D typescript tsx @types/node @types/express @types/cors @types/multer drizzle-kit)",
+      "Bash(cd D:/Workspace/IE402/backend && npx tsc --noEmit 2>&1)",
+      "Bash(sleep 3 && curl -s http://localhost:3000/api/health 2>&1)"
+    ]
+  }
+}
