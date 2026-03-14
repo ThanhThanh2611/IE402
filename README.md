@@ -141,4 +141,5 @@ cd frontend && npm install && npm run dev
 - [`docs/BA.md`](docs/BA.md) — Phân tích nghiệp vụ (Use Case, DFD, Sequence Diagram)
 - [`docs/erd.dbml`](docs/erd.dbml) — ERD
 - [`docs/frontend/`](docs/frontend/) — Tài liệu frontend (setup, pages, từng nhóm chức năng, data models)
+- [`docs/git-workflow.md`](docs/git-workflow.md) — Quy trình Git (branching, commit, PR, rebase)
 - [`docs/api/`](docs/api/) — API documentation

@@ -68,5 +68,6 @@ Hệ thống gồm 2 actors chính:
 
 - `docs/BA.md` - Tài liệu phân tích nghiệp vụ (Use Case, DFD, Sequence Diagram)
 - `docs/erd.dbml` - ERD định dạng DBML
+- `docs/git-workflow.md` - Quy trình Git (branching, commit, PR, rebase)
 - `docs/api/` - API documentation cho từng nhóm chức năng
 - `docs/frontend/` - Tài liệu frontend (setup, pages, từng nhóm chức năng, data models)
