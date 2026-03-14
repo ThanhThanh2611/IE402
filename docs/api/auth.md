@@ -2,39 +2,7 @@
 
 Base URL: `/api/auth`
 
----
-
-## Đăng ký
-
-```
-POST /api/auth/register
-```
-
-**Body:**
-
-| Field | Type | Bắt buộc | Mô tả |
-|-------|------|----------|-------|
-| username | string | Yes | Tên đăng nhập |
-| password | string | Yes | Mật khẩu |
-| fullName | string | Yes | Họ tên |
-| email | string | No | Email |
-| role | string | No | `user` (mặc định) hoặc `manager` |
-
-**Response:** `201`
-
-```json
-{
-  "id": 1,
-  "username": "admin",
-  "fullName": "Nguyen Van A",
-  "email": "admin@example.com",
-  "role": "manager"
-}
-```
-
-**Lỗi:**
-
-- `400` - Username đã tồn tại
+> **Lưu ý:** Hệ thống không hỗ trợ tự đăng ký. Tài khoản phải do Manager tạo thông qua API `/api/users` (xem [users.md](./users.md)).
 
 ---
 
@@ -59,13 +27,15 @@ POST /api/auth/login
   "username": "admin",
   "fullName": "Nguyen Van A",
   "email": "admin@example.com",
-  "role": "manager"
+  "role": "manager",
+  "isActive": true
 }
 ```
 
 **Lỗi:**
 
 - `401` - Sai username hoặc password
+- `403` - Tài khoản đã bị vô hiệu hóa
 
 ---
 

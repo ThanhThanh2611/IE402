@@ -4,10 +4,10 @@ Hệ thống quản lý cho thuê chung cư tích hợp bản đồ GIS 3D.
 
 ## Yêu cầu
 
-- [Node.js](https://nodejs.org/) >= 18
+- [Node.js](https://nodejs.org/) >= 20
 - [Docker](https://docs.docker.com/get-docker/) (Docker Engine hoặc Docker Desktop)
 
-## Khởi chạy
+## Khởi chạy nhanh
 
 ### 1. Database (PostgreSQL + PostGIS)
 
@@ -15,7 +15,7 @@ Hệ thống quản lý cho thuê chung cư tích hợp bản đồ GIS 3D.
 docker compose up -d
 ```
 
-Database sẽ chạy tại `localhost:5434`.
+Database chạy tại `localhost:5434` (user: `postgres`, password: `password`, db: `ie402_gis`).
 
 ### 2. Backend
 
@@ -31,7 +31,34 @@ Server chạy tại `http://localhost:3000`.
 
 ### 3. Frontend
 
-(Sẽ cập nhật)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+App chạy tại `http://localhost:5173`.
+
+### Chạy toàn bộ (tóm tắt)
+
+```bash
+# Terminal 1 — Database
+docker compose up -d
+
+# Terminal 2 — Backend
+cd backend && cp .env.example .env && npm install && npm run db:push && npm run dev
+
+# Terminal 3 — Frontend
+cd frontend && npm install && npm run dev
+```
+
+## Tech Stack
+
+| | Công nghệ |
+|---|---|
+| **Backend** | Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL + PostGIS |
+| **Frontend** | React 19, Vite 7, TypeScript, Tailwind CSS v4, shadcn/ui |
+| **Font** | Geist Variable |
 
 ## API Endpoints
 
@@ -39,7 +66,6 @@ Server chạy tại `http://localhost:3000`.
 |--------|----------|-------|
 | GET | `/api/health` | Health check |
 | **Auth** | | |
-| POST | `/api/auth/register` | Đăng ký |
 | POST | `/api/auth/login` | Đăng nhập |
 | GET | `/api/auth/users` | Danh sách users |
 | **Buildings** | | |
@@ -79,11 +105,6 @@ Server chạy tại `http://localhost:3000`.
 
 > Chi tiết API: xem `docs/api/`
 
-## Tech Stack
-
-- **Backend**: Node.js, Express, Drizzle ORM, PostgreSQL + PostGIS
-- **Frontend**: React, Tailwind CSS v3
-
 ## Cấu trúc thư mục
 
 ```
@@ -91,22 +112,33 @@ Server chạy tại `http://localhost:3000`.
 │   ├── src/
 │   │   ├── db/              # Schema & kết nối DB
 │   │   ├── routes/          # API routes
-│   │   │   ├── auth.ts
-│   │   │   ├── buildings.ts
-│   │   │   ├── floors.ts
-│   │   │   ├── apartments.ts
-│   │   │   ├── contracts.ts
-│   │   │   ├── tenants.ts
-│   │   │   ├── payments.ts
-│   │   │   ├── dashboard.ts
-│   │   │   └── statusHistory.ts
 │   │   └── index.ts         # Entry point
 │   ├── drizzle.config.js
 │   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── ui/          # shadcn/ui components
+│   │   ├── hooks/           # Custom hooks
+│   │   ├── lib/             # Utilities (cn, ...)
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── index.css        # Tailwind v4 + theme
+│   ├── components.json      # shadcn/ui config
+│   └── package.json
 ├── docs/
 │   ├── api/                 # API documentation
+│   ├── frontend/            # Tài liệu frontend (setup, pages, chức năng, data models)
 │   ├── BA.md                # Tài liệu phân tích nghiệp vụ
 │   └── erd.dbml             # ERD
 ├── docker-compose.yml
-└── CLAUDE.md
+├── CLAUDE.md
+└── README.md
 ```
+
+## Tài liệu
+
+- [`docs/BA.md`](docs/BA.md) — Phân tích nghiệp vụ (Use Case, DFD, Sequence Diagram)
+- [`docs/erd.dbml`](docs/erd.dbml) — ERD
+- [`docs/frontend/`](docs/frontend/) — Tài liệu frontend (setup, pages, từng nhóm chức năng, data models)
+- [`docs/api/`](docs/api/) — API documentation

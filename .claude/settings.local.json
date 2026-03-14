@@ -9,7 +9,14 @@
       "Bash(cd D:/Workspace/IE402/backend && npm ls drizzle-orm drizzle-kit drizzle-postgis 2>&1)",
       "Bash(cd D:/Workspace/IE402/backend && npm info drizzle-postgis peerDependencies 2>&1)",
       "Bash(cd D:/Workspace/IE402/backend && node -e \"const p = require\\('./node_modules/drizzle-postgis/package.json'\\); console.log\\(JSON.stringify\\({peer: p.peerDependencies, deps: p.dependencies}, null, 2\\)\\)\" 2>&1)",
-      "Bash(cd D:/Workspace/IE402/backend && npx drizzle-kit generate)"
+      "Bash(cd D:/Workspace/IE402/backend && npx drizzle-kit generate)",
+      "Bash(cd D:/Workspace/IE402 && npm create vite@latest frontend -- --template react-ts 2>&1)",
+      "Bash(cd D:/Workspace/IE402/frontend && npm install 2>&1)",
+      "Bash(cd D:/Workspace/IE402/frontend && npm install tailwindcss @tailwindcss/vite 2>&1)",
+      "Bash(cd D:/Workspace/IE402/frontend && npx shadcn@latest init -d 2>&1)",
+      "Bash(cd D:/Workspace/IE402/frontend && npx vite build 2>&1)",
+      "Bash(cd D:/Workspace/IE402/frontend && npx shadcn@latest add card input label dialog dropdown-menu select table tabs avatar badge separator sheet tooltip textarea checkbox switch popover command sidebar breadcrumb pagination skeleton scroll-area alert alert-dialog form sonner -y 2>&1)",
+      "Bash(cd D:/Workspace/IE402/frontend && npx shadcn@latest add card input label dialog dropdown-menu select table tabs avatar badge separator sheet tooltip textarea checkbox switch popover command sidebar breadcrumb pagination skeleton scroll-area alert alert-dialog form sonner -yo 2>&1)"
     ]
   }
 }

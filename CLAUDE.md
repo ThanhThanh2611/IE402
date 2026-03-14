@@ -25,8 +25,12 @@ Repo này chứa cả **Frontend** và **Backend** (monorepo).
 - **Ngôn ngữ**: TypeScript
 
 ### Frontend
-- **Framework**: React
-- **CSS**: Tailwind CSS v3
+- **Framework**: React 19
+- **Build tool**: Vite 7
+- **CSS**: Tailwind CSS v4 (CSS-first config, không có `tailwind.config.js`)
+- **UI Library**: shadcn/ui v4 (style: `base-nova`, icon: `lucide`)
+- **Font**: Geist Variable
+- **Ngôn ngữ**: TypeScript
 
 ## Quy ước kỹ thuật
 
@@ -50,8 +54,19 @@ Hệ thống gồm 2 actors chính:
 6. **Dashboard & Thống kê** (UC22-25): Tổng quan, tỷ lệ lấp đầy, doanh thu, time series
 7. **Quản lý người dùng** (UC26-31): Xem danh sách, thêm, sửa, xóa, kích hoạt, vô hiệu hóa user
 
+## Quy ước Frontend
+
+- **Không hardcode màu** — luôn dùng design token (`bg-primary`, `text-foreground`, ...)
+- **Dùng shadcn component** trước khi tự viết
+- **Component tự viết** đặt ở `src/components/`, không đặt trong `src/components/ui/` (thư mục đó dành cho shadcn)
+- **Import component** từ barrel index: `import { Button, Card } from '@/components/ui'`
+- **Merge class có điều kiện** dùng `cn()` từ `@/lib/utils`
+- **Path alias**: `@/` trỏ tới `src/`
+- Khi thêm shadcn component mới → cập nhật `src/components/ui/index.ts`
+
 ## Tài liệu tham khảo
 
 - `docs/BA.md` - Tài liệu phân tích nghiệp vụ (Use Case, DFD, Sequence Diagram)
 - `docs/erd.dbml` - ERD định dạng DBML
 - `docs/api/` - API documentation cho từng nhóm chức năng
+- `docs/frontend/` - Tài liệu frontend (setup, pages, từng nhóm chức năng, data models)
