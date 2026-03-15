@@ -64,6 +64,12 @@ Hệ thống gồm 2 actors chính:
 - **Path alias**: `@/` trỏ tới `src/`
 - Khi thêm shadcn component mới → cập nhật `src/components/ui/index.ts`
 
+## Quản lý tiến độ
+
+- Mỗi khi bắt đầu task mới, kiểm tra `implement-plan.md` và `todo.md` trước để xem còn tồn đọng gì không
+- Nếu không còn tồn đọng thì update plan mới vào 2 file đó
+- Sau khi hoàn thành task, đánh dấu `[x]` trong `todo.md` và `implement-plan.md`
+
 ## Tài liệu tham khảo
 
 - `docs/BA.md` - Tài liệu phân tích nghiệp vụ (Use Case, DFD, Sequence Diagram)
@@ -71,3 +77,4 @@ Hệ thống gồm 2 actors chính:
 - `docs/git-workflow.md` - Quy trình Git (branching, commit, PR, rebase)
 - `docs/api/` - API documentation cho từng nhóm chức năng
 - `docs/frontend/` - Tài liệu frontend (setup, pages, từng nhóm chức năng, data models)
+- `docs/user-guide/` - Hướng dẫn sử dụng theo vai trò (User, Manager)

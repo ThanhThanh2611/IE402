@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
@@ -60,9 +61,10 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Username đã tồn tại" });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db
       .insert(users)
-      .values({ username, password, fullName, email, role })
+      .values({ username, password: hashedPassword, fullName, email, role })
       .returning(userFields);
 
     res.status(201).json(result[0]);

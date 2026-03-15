@@ -1,7 +1,9 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { generateToken } from "../middleware/auth";
 
 const router = Router();
 
@@ -15,46 +17,40 @@ router.post("/login", async (req, res) => {
       .from(users)
       .where(and(eq(users.username, username), isNull(users.deletedAt)));
 
-    if (result.length === 0 || result[0].password !== password) {
+    if (result.length === 0) {
       return res.status(401).json({ error: "Sai username hoặc password" });
     }
 
     const user = result[0];
 
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      return res.status(401).json({ error: "Sai username hoặc password" });
+    }
+
     if (!user.isActive) {
       return res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa" });
     }
 
-    res.json({
+    const token = generateToken({
       id: user.id,
       username: user.username,
-      fullName: user.fullName,
-      email: user.email,
       role: user.role,
-      isActive: user.isActive,
+    });
+
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+      },
+      token,
     });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi đăng nhập" });
-  }
-});
-
-// GET /api/auth/users - Lấy danh sách users
-router.get("/users", async (_req, res) => {
-  try {
-    const result = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        fullName: users.fullName,
-        email: users.email,
-        role: users.role,
-        createdAt: users.createdAt,
-      })
-      .from(users)
-      .where(isNull(users.deletedAt));
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: "Lỗi khi lấy danh sách users" });
   }
 });
 
