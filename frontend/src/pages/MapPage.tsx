@@ -34,7 +34,9 @@ import type {
   BuildingGeoJsonFeature,
   BuildingGeoJsonFeatureCollection,
   BuildingOccupancyDetail,
+  MapSnapshotFeatureCollection,
   NearbyBuildingResult,
+  OccupancyHistoryPoint,
 } from "@/types";
 import { Filter, Loader2, MapPinned, Navigation, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +51,46 @@ type MapFilters = {
 
 const DEFAULT_CENTER: LatLngExpression = [10.7769, 106.7009];
 const DEFAULT_RADIUS_METERS = "3000";
+
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function normalizeMonthValue(value: string): string | null {
+  const match = value.match(/^(\d{4})-(\d{2})/);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}`;
+}
+
+function monthToSnapshotDate(month: string): string {
+  const normalized = normalizeMonthValue(month);
+  if (!normalized) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }
+
+  const [yearStr, monthStr] = normalized.split("-");
+  const year = Number(yearStr);
+  const monthNumber = Number(monthStr);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+
+  return `${yearStr}-${monthStr}-${String(lastDay).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(month: string): string {
+  const normalized = normalizeMonthValue(month);
+  if (!normalized) return month;
+
+  const [year, monthNumber] = normalized.split("-");
+  return `Th${Number(monthNumber)}/${year}`;
+}
+
+function formatDateLabel(dateValue: string): string {
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return new Intl.DateTimeFormat("vi-VN").format(date);
+}
 
 function createEmptyFilters(): MapFilters {
   return {
@@ -117,6 +159,7 @@ function MapAutoFit({ bounds }: { bounds: LatLngBounds | null }) {
 
 export default function MapPage() {
   const navigate = useNavigate();
+  const currentMonth = useMemo(() => getCurrentMonth(), []);
 
   const [allBuildings, setAllBuildings] = useState<Building[]>([]);
   const [filters, setFilters] = useState<MapFilters>(() => createEmptyFilters());
@@ -124,6 +167,12 @@ export default function MapPage() {
   const [mapFeatures, setMapFeatures] = useState<BuildingGeoJsonFeature[]>([]);
   const [occupancyMap, setOccupancyMap] = useState<Record<number, BuildingOccupancyDetail>>({});
   const [loadingMap, setLoadingMap] = useState(true);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false);
+
+  const [timelineMonths, setTimelineMonths] = useState<string[]>([]);
+  const [selectedTimelineMonth, setSelectedTimelineMonth] = useState("");
+  const [debouncedTimelineMonth, setDebouncedTimelineMonth] = useState("");
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
 
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_RADIUS_METERS);
   const [searchingNearby, setSearchingNearby] = useState(false);
@@ -196,6 +245,17 @@ export default function MapPage() {
     );
   }, [appliedFilters]);
 
+  const selectedTimelineIndex = useMemo(() => {
+    if (timelineMonths.length === 0 || !selectedTimelineMonth) return 0;
+    const foundIndex = timelineMonths.indexOf(selectedTimelineMonth);
+    return foundIndex >= 0 ? foundIndex : Math.max(timelineMonths.length - 1, 0);
+  }, [timelineMonths, selectedTimelineMonth]);
+
+  const snapshotDate = useMemo(() => {
+    if (!debouncedTimelineMonth) return "";
+    return monthToSnapshotDate(debouncedTimelineMonth);
+  }, [debouncedTimelineMonth]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -218,6 +278,48 @@ export default function MapPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTimelineMonths = async () => {
+      setLoadingTimeline(true);
+      try {
+        const history = await api.get<OccupancyHistoryPoint[]>("/dashboard/occupancy-history");
+        if (cancelled) return;
+
+        const monthSet = new Set<string>([currentMonth]);
+        for (const point of history) {
+          const normalized = normalizeMonthValue(point.month);
+          if (normalized) monthSet.add(normalized);
+        }
+
+        const months = Array.from(monthSet).sort((a, b) => a.localeCompare(b));
+        const fallbackMonth = months[months.length - 1] || currentMonth;
+
+        setTimelineMonths(months);
+        setSelectedTimelineMonth((prev) => (prev && months.includes(prev) ? prev : fallbackMonth));
+      } catch (err) {
+        if (cancelled) return;
+
+        const message = err instanceof ApiError ? err.message : "Không thể tải dữ liệu timeline";
+        toast.error(message);
+
+        setTimelineMonths([currentMonth]);
+        setSelectedTimelineMonth(currentMonth);
+      } finally {
+        if (!cancelled) {
+          setLoadingTimeline(false);
+        }
+      }
+    };
+
+    void loadTimelineMonths();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentMonth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,34 +356,7 @@ export default function MapPage() {
 
         if (filteredFeatures.length === 0) {
           setOccupancyMap({});
-          return;
         }
-
-        const occupancyResults = await Promise.all(
-          filteredFeatures.map(async (feature) => {
-            try {
-              const occupancy = await api.get<BuildingOccupancyDetail>(
-                `/buildings/${feature.properties.id}/occupancy`,
-              );
-              return {
-                id: feature.properties.id,
-                occupancy,
-              };
-            } catch {
-              return null;
-            }
-          }),
-        );
-
-        if (cancelled) return;
-
-        const nextOccupancyMap: Record<number, BuildingOccupancyDetail> = {};
-        for (const item of occupancyResults) {
-          if (!item) continue;
-          nextOccupancyMap[item.id] = item.occupancy;
-        }
-
-        setOccupancyMap(nextOccupancyMap);
       } catch (err) {
         if (cancelled) return;
 
@@ -300,6 +375,60 @@ export default function MapPage() {
       cancelled = true;
     };
   }, [appliedFilters]);
+
+  useEffect(() => {
+    if (!selectedTimelineMonth) return;
+
+    const timeout = window.setTimeout(() => {
+      setDebouncedTimelineMonth(selectedTimelineMonth);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [selectedTimelineMonth]);
+
+  useEffect(() => {
+    if (!debouncedTimelineMonth) return;
+
+    let cancelled = false;
+
+    const loadMapSnapshot = async () => {
+      setLoadingSnapshot(true);
+      try {
+        const date = monthToSnapshotDate(debouncedTimelineMonth);
+        const snapshot = await api.get<MapSnapshotFeatureCollection>(`/dashboard/map-snapshot?date=${date}`);
+
+        if (cancelled) return;
+
+        const nextOccupancyMap: Record<number, BuildingOccupancyDetail> = {};
+        for (const feature of snapshot.features) {
+          nextOccupancyMap[feature.properties.id] = {
+            totalApartments: feature.properties.totalApartments,
+            rentedApartments: feature.properties.rentedApartments,
+            occupancyRate: feature.properties.occupancyRate,
+          };
+        }
+
+        setOccupancyMap(nextOccupancyMap);
+      } catch (err) {
+        if (cancelled) return;
+
+        const message = err instanceof ApiError ? err.message : "Không thể tải snapshot bản đồ";
+        toast.error(message);
+      } finally {
+        if (!cancelled) {
+          setLoadingSnapshot(false);
+        }
+      }
+    };
+
+    void loadMapSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedTimelineMonth]);
 
   const applyFilters = () => {
     const minPrice = filters.minPrice ? Number(filters.minPrice) : null;
@@ -380,6 +509,12 @@ export default function MapPage() {
         maximumAge: 0,
       },
     );
+  };
+
+  const handleTimelineChange = (value: number) => {
+    const month = timelineMonths[value];
+    if (!month) return;
+    setSelectedTimelineMonth(month);
   };
 
   return (
@@ -593,7 +728,12 @@ export default function MapPage() {
                 <MapPinned className="h-4 w-4" />
                 Vị trí tòa nhà ({mapFeatures.length})
               </CardTitle>
-              {hasActiveFilter && <Badge variant="secondary">Đang lọc dữ liệu</Badge>}
+              <div className="flex items-center gap-2">
+                {hasActiveFilter && <Badge variant="secondary">Đang lọc dữ liệu</Badge>}
+                {selectedTimelineMonth && (
+                  <Badge variant="outline">Mốc dữ liệu: {formatMonthLabel(selectedTimelineMonth)}</Badge>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
@@ -704,6 +844,53 @@ export default function MapPage() {
                 </MapContainer>
               </div>
             )}
+
+            <div className="space-y-3 border-t border-border bg-muted/25 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Timeline tỷ lệ lấp đầy</p>
+                  <p className="text-xs text-muted-foreground">
+                    Kéo thanh để xem trạng thái lấp đầy của từng mốc thời gian.
+                  </p>
+                </div>
+                <div className="text-right">
+                  {selectedTimelineMonth && (
+                    <Badge variant="secondary">{formatMonthLabel(selectedTimelineMonth)}</Badge>
+                  )}
+                  {snapshotDate && (
+                    <p className="mt-1 text-xs text-muted-foreground">Snapshot: {formatDateLabel(snapshotDate)}</p>
+                  )}
+                </div>
+              </div>
+
+              {loadingTimeline ? (
+                <Skeleton className="h-8 w-full" />
+              ) : (
+                <>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(timelineMonths.length - 1, 0)}
+                    step={1}
+                    value={selectedTimelineIndex}
+                    onChange={(event) => handleTimelineChange(Number(event.target.value))}
+                    className="h-2 w-full cursor-pointer accent-primary"
+                    disabled={timelineMonths.length <= 1}
+                  />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{formatMonthLabel(timelineMonths[0] || currentMonth)}</span>
+                    <span>{formatMonthLabel(timelineMonths[timelineMonths.length - 1] || currentMonth)}</span>
+                  </div>
+                </>
+              )}
+
+              {loadingSnapshot && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Đang cập nhật bản đồ theo timeline...
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

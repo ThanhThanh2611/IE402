@@ -82,6 +82,38 @@ export interface NearbyBuildingResult {
   distance: number;
 }
 
+export interface OccupancyHistoryPoint {
+  month: string;
+  newContracts: number;
+}
+
+export interface MapSnapshotFeature {
+  type: "Feature";
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    id: number;
+    name: string;
+    address: string;
+    district: string | null;
+    city: string | null;
+    totalApartments: number;
+    rentedApartments: number;
+    availableApartments: number;
+    occupancyRate: number | string;
+  };
+}
+
+export interface MapSnapshotFeatureCollection {
+  type: "FeatureCollection";
+  metadata: {
+    date: string;
+  };
+  features: MapSnapshotFeature[];
+}
+
 export interface Floor {
   id: number;
   buildingId: number;
