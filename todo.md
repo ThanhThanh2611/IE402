@@ -35,6 +35,7 @@
 - [x] Docs: Tạo hướng dẫn sử dụng theo vai trò (docs/user-guide/)
 - [x] Docs: Cập nhật README.md (hướng dẫn chạy, seed, auth, scripts)
 - [x] FE: Tích hợp Leaflet cho bản đồ GIS (UC01-05)
+- [x] FE: Thêm timeline map snapshot theo thời gian (UC25)
 
 ## Backlog
 - [ ] FE: Tích hợp Three.js cho mô hình 3D tòa nhà
