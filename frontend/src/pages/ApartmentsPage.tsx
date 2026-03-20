@@ -48,9 +48,9 @@ const statusLabels = {
   maintenance: "Bảo trì",
 };
 const statusColors = {
-  available: "bg-green-100 text-green-800",
-  rented: "bg-red-100 text-red-800",
-  maintenance: "bg-gray-100 text-gray-800",
+  available: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
+  rented: "bg-primary/10 text-primary border border-primary/20",
+  maintenance: "bg-muted text-muted-foreground border border-border",
 };
 
 const emptyForm: ApartmentInput = {

@@ -22,6 +22,7 @@ import {
   CreditCard,
   UserCog,
   LogOut,
+  Globe,
 } from "lucide-react";
 
 const mainMenu = [
@@ -51,18 +52,27 @@ export function AppLayout() {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <Sidebar>
-          <SidebarHeader className="p-4">
-            <h1 className="text-lg font-bold text-sidebar-primary">
-              GIS Apartment
-            </h1>
-            <p className="text-xs text-sidebar-foreground/60">
-              {user?.fullName}
-            </p>
+          <SidebarHeader className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary/20 glow-primary-sm">
+                <Globe className="h-5 w-5 text-sidebar-primary" />
+              </div>
+              <div>
+                <h1 className="text-sm font-semibold tracking-wide text-sidebar-foreground">
+                  GIS Apartment
+                </h1>
+                <p className="text-[11px] text-sidebar-foreground/50">
+                  {user?.fullName}
+                </p>
+              </div>
+            </div>
           </SidebarHeader>
 
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Tổng quan</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40">
+                Tổng quan
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {mainMenu.map((item) => (
@@ -82,7 +92,9 @@ export function AppLayout() {
 
             {isManager && (
               <SidebarGroup>
-                <SidebarGroupLabel>Quản lý</SidebarGroupLabel>
+                <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40">
+                  Quản lý
+                </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {managerMenu.map((item) => (
@@ -114,7 +126,7 @@ export function AppLayout() {
           </SidebarFooter>
         </Sidebar>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto gradient-mesh">
           <div className="p-6">
             <Outlet />
           </div>

@@ -44,9 +44,9 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 
 const statusLabels = { active: "Đang hoạt động", expired: "Hết hạn", cancelled: "Đã hủy" };
 const statusColors = {
-  active: "bg-green-100 text-green-800",
-  expired: "bg-gray-100 text-gray-800",
-  cancelled: "bg-red-100 text-red-800",
+  active: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
+  expired: "bg-muted text-muted-foreground border border-border",
+  cancelled: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
 const emptyForm: ContractInput = {

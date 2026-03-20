@@ -44,9 +44,9 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 
 const statusLabels = { pending: "Chờ thanh toán", paid: "Đã thanh toán", overdue: "Quá hạn" };
 const statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  paid: "bg-green-100 text-green-800",
-  overdue: "bg-red-100 text-red-800",
+  pending: "bg-amber-500/10 text-amber-600 border border-amber-500/20",
+  paid: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
+  overdue: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
 const emptyForm: PaymentInput = {
