@@ -35,7 +35,7 @@ router.get("/overview", async (_req, res) => {
       rentedApartments: rentedCount.count,
       occupancyRate:
         apartmentCount.count > 0
-          ? ((Number(rentedCount.count) / Number(apartmentCount.count)) * 100).toFixed(1)
+          ? Number((Number(rentedCount.count) / Number(apartmentCount.count)).toFixed(3))
           : 0,
       activeContracts: contractCount.count,
     });
@@ -63,8 +63,8 @@ router.get("/occupancy", async (_req, res) => {
       ...row,
       occupancyRate:
         Number(row.totalApartments) > 0
-          ? ((Number(row.rentedApartments) / Number(row.totalApartments)) * 100).toFixed(1)
-          : "0",
+          ? Number((Number(row.rentedApartments) / Number(row.totalApartments)).toFixed(3))
+          : 0,
     }));
 
     res.json(data);
@@ -217,7 +217,7 @@ router.get("/map-snapshot", async (req, res) => {
           totalApartments: total,
           rentedApartments: rented,
           availableApartments: total - rented,
-          occupancyRate: total > 0 ? ((rented / total) * 100).toFixed(1) : "0",
+          occupancyRate: total > 0 ? Number((rented / total).toFixed(3)) : 0,
         };
       })
     );

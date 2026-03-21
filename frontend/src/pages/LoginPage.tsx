@@ -12,7 +12,7 @@ import {
   Label,
 } from "@/components/ui";
 import { toast } from "sonner";
-import { Building2 } from "lucide-react";
+import { Globe } from "lucide-react";
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -50,23 +50,44 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-[#0A0F1C] relative overflow-hidden">
+      {/* Background mesh gradient */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(0,87,255,0.15)_0%,transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_80%,rgba(99,102,241,0.1)_0%,transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_50%,rgba(139,92,246,0.05)_0%,transparent_70%)]" />
+      </div>
+
+      {/* Grid overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }}
+      />
+
+      <Card className="w-full max-w-md relative z-10 bg-white/[0.04] backdrop-blur-xl border-white/[0.08] shadow-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-primary/10 p-4">
-              <Building2 className="h-8 w-8 text-primary" />
+          <div className="flex justify-center mb-5">
+            <div className="rounded-2xl bg-primary/20 p-4 glow-primary">
+              <Globe className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">GIS Apartment Management</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <CardTitle className="text-2xl text-white tracking-tight">
+            GIS Apartment
+          </CardTitle>
+          <p className="text-sm text-white/40">
             Đăng nhập để tiếp tục
           </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label className="text-white/60 text-xs uppercase tracking-wider">
+                Username
+              </Label>
               <Input
                 id="username"
                 value={form.username}
@@ -74,13 +95,16 @@ export default function LoginPage() {
                   setForm((f) => ({ ...f, username: e.target.value }))
                 }
                 placeholder="Nhập username"
+                className="bg-white/[0.06] border-white/[0.1] text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
               />
               {errors.username && (
                 <p className="text-sm text-destructive">{errors.username}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Mật khẩu</Label>
+              <Label className="text-white/60 text-xs uppercase tracking-wider">
+                Mật khẩu
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -89,12 +113,17 @@ export default function LoginPage() {
                   setForm((f) => ({ ...f, password: e.target.value }))
                 }
                 placeholder="Nhập mật khẩu"
+                className="bg-white/[0.06] border-white/[0.1] text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
               />
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full glow-primary font-medium tracking-wide"
+              disabled={loading}
+            >
               {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </Button>
           </form>

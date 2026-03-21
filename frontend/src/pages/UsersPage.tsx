@@ -186,7 +186,7 @@ export default function UsersPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className={u.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                      <Badge className={u.isActive ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-destructive/10 text-destructive border border-destructive/20"}>
                         {u.isActive ? "Hoạt động" : "Vô hiệu"}
                       </Badge>
                     </TableCell>

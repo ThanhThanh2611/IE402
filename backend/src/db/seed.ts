@@ -7,6 +7,7 @@ import {
   tenants,
   rentalContracts,
   payments,
+  apartmentStatusHistory,
 } from "./schema";
 import { sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -15,13 +16,16 @@ async function seed() {
   console.log("Seeding database...");
 
   // Clear existing data (reverse order of dependencies)
+  console.log("Clearing old data...");
   await db.delete(payments);
   await db.delete(rentalContracts);
+  await db.delete(apartmentStatusHistory);
   await db.delete(apartments);
   await db.delete(floors);
   await db.delete(buildings);
   await db.delete(tenants);
   await db.delete(users);
+  console.log("Old data cleared.");
 
   // Reset sequences
   await db.execute(sql`ALTER SEQUENCE users_id_seq RESTART WITH 1`);
@@ -31,6 +35,8 @@ async function seed() {
   await db.execute(sql`ALTER SEQUENCE tenants_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE rental_contracts_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE payments_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE apartment_status_history_id_seq RESTART WITH 1`);
+  console.log("Sequences reset.");
 
   // 1. Users (hash passwords)
   const hashPw = async (pw: string) => bcrypt.hash(pw, 10);
