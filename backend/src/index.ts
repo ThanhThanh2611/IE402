@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 import "dotenv/config";
 
 import { authenticate, requireManager } from "./middleware/auth";
@@ -20,6 +21,9 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Mở Public thư mục uploads để FE có thể truy cập link Model 3D
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Public routes
 app.use("/api/auth", authRouter);
