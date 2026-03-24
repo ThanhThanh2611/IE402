@@ -1,22 +1,26 @@
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
+  status: number;
+
+  constructor(status: number, message: string) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
   }
 }
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem("token");
+  const isFormDataBody = typeof FormData !== "undefined" && options?.body instanceof FormData;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((options?.headers as Record<string, string>) || {}),
   };
+
+  if (!isFormDataBody && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -55,6 +59,12 @@ export const api = {
     request<T>(endpoint, {
       method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  postFormData: <T>(endpoint: string, formData: FormData) =>
+    request<T>(endpoint, {
+      method: "POST",
+      body: formData,
     }),
 
   delete: <T>(endpoint: string) => request<T>(endpoint, { method: "DELETE" }),
