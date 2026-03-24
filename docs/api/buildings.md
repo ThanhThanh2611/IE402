@@ -192,3 +192,41 @@ DELETE /api/buildings/:id
 ```
 
 **Lỗi:** `404` - Không tìm thấy
+
+---
+
+## Upload mô hình 3D cho tòa nhà
+
+```
+POST /api/buildings/:id/model
+```
+
+Upload file mô hình 3D cho tòa nhà bằng `multipart/form-data`.
+
+**Form-data:**
+
+| Field | Type | Bắt buộc | Mô tả |
+|-------|------|----------|-------|
+| file | File | Yes | File mô hình `.glb` hoặc `.gltf` |
+
+**Giới hạn:**
+- Chỉ chấp nhận định dạng `.glb` / `.gltf`
+- Kích thước tối đa: 50MB
+
+**Response:** `200`
+
+```json
+{
+  "message": "Upload mô hình 3D thành công!",
+  "data": {
+    "id": 1,
+    "name": "Vinhomes Central Park",
+    "model3dUrl": "/uploads/models/building-1-1774088091878.glb"
+  }
+}
+```
+
+**Lỗi thường gặp:**
+- `400`: không có file đính kèm
+- `404`: không tìm thấy tòa nhà
+- `500`: lỗi upload hoặc lỗi hệ thống

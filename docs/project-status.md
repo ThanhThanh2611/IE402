@@ -1,6 +1,6 @@
 # Tình hình dự án — 3D GIS Apartment Management System
 
-> Cập nhật lần cuối: 22/03/2026
+> Cập nhật lần cuối: 24/03/2026
 
 ## Tổng quan tiến độ
 
@@ -10,10 +10,10 @@
 | Frontend — Trang quản lý | ✅ Hoàn thành | 100% |
 | Xác thực & Phân quyền | ✅ Hoàn thành | 100% |
 | Bản đồ GIS (2D) | ✅ Hoàn thành | 100% |
-| Mô hình 3D tòa nhà | 🔲 Chưa bắt đầu | 0% |
+| Mô hình 3D tòa nhà | 🟡 Đang triển khai | 70% |
 | Hoàn thiện & Tối ưu | 🔲 Chưa bắt đầu | 0% |
 
-**Tiến độ tổng thể: ~75%** — Toàn bộ phần nền tảng, API, giao diện quản lý và bản đồ GIS 2D đã hoàn thành. Phần 3D (trọng tâm môn học) chưa triển khai.
+**Tiến độ tổng thể: ~82%** — Đã hoàn thành nền tảng, API, giao diện quản lý, bản đồ GIS 2D, và đã nối xong luồng 3D chính (render model, xoay/zoom, click căn hộ hiển thị popup).
 
 ---
 
@@ -36,6 +36,13 @@
 | Quản lý người thuê | Xem/Thêm/Sửa/Xóa, validation SĐT & CCCD | Manager |
 | Quản lý thanh toán | Xem/Thêm/Sửa/Xóa, tự điền số tiền theo hợp đồng | Manager |
 | Quản lý người dùng | Xem/Thêm/Sửa/Xóa, kích hoạt/vô hiệu hóa tài khoản | Manager |
+
+### Frontend — GIS/3D (mới cập nhật)
+- Trang `/buildings/:id` đã render mô hình 3D bằng React Three Fiber + Three.js
+- Hỗ trợ thao tác xoay/zoom/pan camera và nút reset góc nhìn
+- Có UI bật/tắt tầng để nhìn xuyên (phụ thuộc metadata tầng trong file model)
+- Bắt sự kiện click mesh căn hộ theo ID/mã phòng để gọi API và hiển thị popup (diện tích, giá thuê, hợp đồng)
+- Có luồng upload model `.glb/.gltf` từ frontend lên endpoint `/api/buildings/:id/model`
 
 ### Tài liệu
 - README hướng dẫn cài đặt & chạy dự án
@@ -60,9 +67,9 @@
 
 | # | Đầu việc | Mô tả | Liên quan |
 |---|----------|-------|-----------|
-| 4 | Hiển thị 3D tòa nhà | Three.js / React Three Fiber, hiển thị mô hình tòa nhà, xoay/zoom | UC06–UC09 |
-| 5 | Xem tầng & căn hộ trong 3D | Click tầng → hiện danh sách căn hộ, click căn hộ → chi tiết | UC07–UC08 |
-| 6 | BE: Upload mô hình 3D | API upload file `.glb/.gltf` cho từng tòa nhà | Cần cho #4 |
+| 4 | ✅ Hiển thị 3D tòa nhà | Three.js / React Three Fiber, hiển thị mô hình tòa nhà, xoay/zoom | UC06–UC09 |
+| 5 | ✅ Xem tầng & căn hộ trong 3D | Click tầng → lọc danh sách căn hộ, click căn hộ → popup thông tin | UC07–UC08 |
+| 6 | ✅ BE: Upload mô hình 3D | API upload file `.glb/.gltf` cho từng tòa nhà | Cần cho #4 |
 
 ### 🟡 Ưu tiên trung bình — Hoàn thiện (Phase 3)
 
@@ -85,9 +92,9 @@
 
 | Rủi ro | Mức độ | Ghi chú |
 |--------|--------|---------|
-| Phần GIS/3D chiếm ~40% công việc còn lại nhưng là trọng tâm môn học | 🔴 Cao | Cần ưu tiên tối đa |
+| Phần GIS/3D vẫn là trọng tâm môn học | 🟡 Trung bình | Cần hoàn thiện trang chi tiết căn hộ riêng (`/buildings/:id/apartments/:apartmentId`) |
 | Chưa xác nhận giảng viên về việc dùng PostGIS | 🟡 Trung bình | Đang chờ phản hồi |
-| Mô hình 3D cần file `.glb/.gltf` — chưa có dữ liệu mẫu | 🟡 Trung bình | Có thể dùng mô hình miễn phí hoặc tự tạo bằng Blender |
+| Chất lượng metadata trong model 3D không đồng nhất | 🟡 Trung bình | Cần team đồ họa thống nhất naming/userData cho tầng và ID phòng để click chính xác |
 
 ---
 

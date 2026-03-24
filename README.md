@@ -25,6 +25,7 @@ cp .env.example .env
 npm install
 npm run db:push    # Tạo tables
 npm run db:seed    # Seed dữ liệu mẫu
+npm run db:import:geojson # Import dữ liệu tòa nhà từ GeoJSON
 npm run dev        # Chạy server
 ```
 
@@ -49,7 +50,7 @@ App chạy tại `http://localhost:5173`.
 docker compose up -d
 
 # Terminal 2 — Backend
-cd backend && cp .env.example .env && npm install && npm run db:push && npm run db:seed && npm run dev
+cd backend && cp .env.example .env && npm install && npm run db:push && npm run db:seed && npm run db:import:geojson && npm run dev
 
 # Terminal 3 — Frontend
 cd frontend && npm install && npm run dev
@@ -94,6 +95,7 @@ cd frontend && npm install && npm run dev
 | `npm run db:generate` | Generate migrations |
 | `npm run db:migrate` | Chạy migrations |
 | `npm run db:seed` | Seed dữ liệu mẫu |
+| `npm run db:import:geojson` | Import dữ liệu tòa nhà từ `backend/src/db/geojson/apartments_r10km_cleaned.geojson` |
 | `npm run db:studio` | Mở Drizzle Studio (GUI) |
 
 ### Frontend (`cd frontend`)

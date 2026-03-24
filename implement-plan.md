@@ -41,7 +41,7 @@
 
 ## Phase 2: GIS & 3D
 - [x] `/map` - Bản đồ GIS (Mapbox/Leaflet, markers, filters, popup, timeline snapshot)
-- [ ] `/buildings/:id` - Chi tiết tòa nhà + mô hình 3D (Three.js/React Three Fiber)
+- [x] `/buildings/:id` - Chi tiết tòa nhà + mô hình 3D (Three.js/React Three Fiber, upload model, click apartment popup)
 - [ ] `/buildings/:id/apartments/:apartmentId` - Chi tiết căn hộ (linked from 3D view)
 
 ## Phase 3: Polish
