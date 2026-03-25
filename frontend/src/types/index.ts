@@ -45,6 +45,75 @@ export interface Building {
   updatedAt: string;
 }
 
+export interface BuildingGeoJsonProperties {
+  id: number;
+  name: string;
+  address: string;
+  ward: string | null;
+  district: string | null;
+  city: string | null;
+  totalFloors: number;
+  imageUrl: string | null;
+  model3dUrl: string | null;
+}
+
+export interface BuildingGeoJsonFeature {
+  type: "Feature";
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: BuildingGeoJsonProperties;
+}
+
+export interface BuildingGeoJsonFeatureCollection {
+  type: "FeatureCollection";
+  features: BuildingGeoJsonFeature[];
+}
+
+export interface BuildingOccupancyDetail {
+  totalApartments: number;
+  rentedApartments: number;
+  occupancyRate: number | string;
+}
+
+export interface NearbyBuildingResult {
+  building: Building;
+  distance: number;
+}
+
+export interface OccupancyHistoryPoint {
+  month: string;
+  newContracts: number;
+}
+
+export interface MapSnapshotFeature {
+  type: "Feature";
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    id: number;
+    name: string;
+    address: string;
+    district: string | null;
+    city: string | null;
+    totalApartments: number;
+    rentedApartments: number;
+    availableApartments: number;
+    occupancyRate: number | string;
+  };
+}
+
+export interface MapSnapshotFeatureCollection {
+  type: "FeatureCollection";
+  metadata: {
+    date: string;
+  };
+  features: MapSnapshotFeature[];
+}
+
 export interface Floor {
   id: number;
   buildingId: number;

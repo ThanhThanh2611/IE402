@@ -1,20 +1,62 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../db";
 import { buildings, floors, apartments } from "../db/schema";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, sql, count, SQL } from "drizzle-orm";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = Router();
 
-// GET /api/buildings - Lấy danh sách tòa nhà (UC03 - Filter)
-// Query params: district, city, ward, minPrice, maxPrice
-router.get("/", async (req, res) => {
-  try {
-    const { district, city, ward, minPrice, maxPrice } = req.query;
+// CẤU HÌNH MULTER: Nơi lưu và tên file 3D Model
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = "uploads/models";
+    // Tạo folder nếu chưa tồn tại
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const buildingId = req.params.id;
+    const ext = path.extname(file.originalname);
+    cb(null, `building-${buildingId}-${Date.now()}${ext}`);
+  },
+});
 
-    const conditions = [];
-    if (district) conditions.push(eq(buildings.district, String(district)));
-    if (city) conditions.push(eq(buildings.city, String(city)));
-    if (ward) conditions.push(eq(buildings.ward, String(ward)));
+const fileFilter = (req: any, file: any, cb: any) => {
+  const allowedExts = [".glb", ".gltf"];
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  if (allowedExts.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Hệ thống chỉ chấp nhận định dạng mô hình 3D: .glb hoặc .gltf"), false);
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 50 * 1024 * 1024 }, // Giới hạn file 50MB
+});
+
+// GET /api/buildings - Lấy danh sách tòa nhà (UC03 - Filter)
+router.get("/", async (req: Request, res: Response) => {
+  try {
+    // Dùng typeof để triệt tiêu hoàn toàn lỗi string | string[]
+    const district = typeof req.query.district === "string" ? req.query.district : undefined;
+    const city = typeof req.query.city === "string" ? req.query.city : undefined;
+    const ward = typeof req.query.ward === "string" ? req.query.ward : undefined;
+    const minPrice = typeof req.query.minPrice === "string" ? req.query.minPrice : undefined;
+    const maxPrice = typeof req.query.maxPrice === "string" ? req.query.maxPrice : undefined;
+
+    const conditions: SQL[] = [];
+    
+    if (district) conditions.push(eq(buildings.district, district));
+    if (city) conditions.push(eq(buildings.city, city));
+    if (ward) conditions.push(eq(buildings.ward, ward));
 
     let result;
     if (conditions.length > 0) {
@@ -26,7 +68,6 @@ router.get("/", async (req, res) => {
       result = await db.select().from(buildings);
     }
 
-    // Lọc theo giá thuê trung bình nếu có minPrice/maxPrice
     if (minPrice || maxPrice) {
       const buildingsWithPrice = await db
         .select({
@@ -57,14 +98,17 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/buildings/geojson - Trả danh sách tòa nhà dạng GeoJSON FeatureCollection
-router.get("/geojson", async (req, res) => {
+router.get("/geojson", async (req: Request, res: Response) => {
   try {
-    const { district, city, ward } = req.query;
+    const district = typeof req.query.district === "string" ? req.query.district : undefined;
+    const city = typeof req.query.city === "string" ? req.query.city : undefined;
+    const ward = typeof req.query.ward === "string" ? req.query.ward : undefined;
 
-    const conditions = [];
-    if (district) conditions.push(eq(buildings.district, String(district)));
-    if (city) conditions.push(eq(buildings.city, String(city)));
-    if (ward) conditions.push(eq(buildings.ward, String(ward)));
+    const conditions: SQL[] = [];
+    
+    if (district) conditions.push(eq(buildings.district, district));
+    if (city) conditions.push(eq(buildings.city, city));
+    if (ward) conditions.push(eq(buildings.ward, ward));
 
     const result =
       conditions.length > 0
@@ -129,10 +173,12 @@ router.get("/geojson", async (req, res) => {
 });
 
 // GET /api/buildings/nearby?lat=10.79&lng=106.72&radius=5000 - Tìm tòa nhà gần vị trí (PostGIS)
-// radius tính bằng mét
-router.get("/nearby", async (req, res) => {
+router.get("/nearby", async (req: Request, res: Response) => {
   try {
-    const { lat, lng, radius } = req.query;
+    const lat = typeof req.query.lat === "string" ? req.query.lat : undefined;
+    const lng = typeof req.query.lng === "string" ? req.query.lng : undefined;
+    const radius = typeof req.query.radius === "string" ? req.query.radius : undefined;
+
     if (!lat || !lng) {
       return res.status(400).json({ error: "Cần cung cấp lat và lng" });
     }
@@ -140,7 +186,6 @@ router.get("/nearby", async (req, res) => {
     const radiusMeters = Number(radius) || 5000;
     const point = sql`ST_SetSRID(ST_MakePoint(${Number(lng)}, ${Number(lat)}), 4326)`;
 
-    // ST_DWithin với geography để tính bằng mét
     const result = await db
       .select({
         building: buildings,
@@ -161,7 +206,7 @@ router.get("/nearby", async (req, res) => {
 });
 
 // GET /api/buildings/:id - Lấy chi tiết tòa nhà
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: Request, res: Response) => {
   try {
     const result = await db
       .select()
@@ -177,7 +222,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // GET /api/buildings/:id/occupancy - Tỷ lệ lấp đầy của tòa nhà (UC04)
-router.get("/:id/occupancy", async (req, res) => {
+router.get("/:id/occupancy", async (req: Request, res: Response) => {
   try {
     const result = await db
       .select({
@@ -203,8 +248,7 @@ router.get("/:id/occupancy", async (req, res) => {
 });
 
 // POST /api/buildings - Thêm tòa nhà
-// Body cần có longitude và latitude, sẽ tự tạo geometry point
-router.post("/", async (req, res) => {
+router.post("/", async (req: Request, res: Response) => {
   try {
     const { longitude, latitude, ...rest } = req.body;
     const result = await db
@@ -221,7 +265,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/buildings/:id - Cập nhật tòa nhà
-router.put("/:id", async (req, res) => {
+router.put("/:id", async (req: Request, res: Response) => {
   try {
     const { longitude, latitude, ...rest } = req.body;
     const updateData: Record<string, unknown> = {
@@ -247,7 +291,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/buildings/:id - Xóa tòa nhà
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const result = await db
       .delete(buildings)
@@ -259,6 +303,42 @@ router.delete("/:id", async (req, res) => {
     res.json({ message: "Đã xóa tòa nhà" });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi xóa tòa nhà" });
+  }
+});
+
+// POST /api/buildings/:id/model - Upload File Mô hình 3D (.glb, .gltf)
+router.post("/:id/model", upload.single("file"), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const buildingId = Number(req.params.id);
+
+    if (!req.file) {
+      res.status(400).json({ error: "Không tìm thấy tệp mô hình đính kèm." });
+      return;
+    }
+
+    const model3dUrl = `/uploads/models/${req.file.filename}`;
+
+    const result = await db
+      .update(buildings)
+      .set({
+        model3dUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(buildings.id, buildingId))
+      .returning();
+
+    if (result.length === 0) {
+      res.status(404).json({ error: "Không tìm thấy tòa nhà" });
+      return;
+    }
+
+    res.status(200).json({
+      message: "Upload mô hình 3D thành công!",
+      data: result[0],
+    });
+  } catch (error: any) {
+    console.error("Lỗi khi upload model 3D:", error);
+    res.status(500).json({ error: error.message || "Lỗi khi upload mô hình" });
   }
 });
 

@@ -34,11 +34,13 @@
 - [x] FE: Fix status badge-in-select styling (border-none, shadow-none)
 - [x] Docs: Tạo hướng dẫn sử dụng theo vai trò (docs/user-guide/)
 - [x] Docs: Cập nhật README.md (hướng dẫn chạy, seed, auth, scripts)
+- [x] FE: Tích hợp Leaflet cho bản đồ GIS (UC01-05)
+- [x] FE: Thêm timeline map snapshot theo thời gian (UC25)
+- [x] BE: File upload endpoint cho model 3D (.glb/.gltf)
+- [x] FE: Tích hợp Three.js + React Three Fiber cho mô hình 3D tòa nhà
+- [x] FE: Click mesh căn hộ 3D -> gọi API -> render popup diện tích/giá/hợp đồng
 
 ## Backlog
-- [ ] FE: Tích hợp Mapbox/Leaflet cho bản đồ GIS
-- [ ] FE: Tích hợp Three.js cho mô hình 3D tòa nhà
-- [ ] BE: File upload endpoint cho model 3D
 - [ ] FE+BE: Error boundaries + 404 page
 - [ ] FE: Responsive design tuning
 - [ ] FE: Dark mode support
