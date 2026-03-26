@@ -255,7 +255,7 @@ router.post("/", async (req: Request, res: Response) => {
       .insert(buildings)
       .values({
         ...rest,
-        location: sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}), 4326)`,
+        location: sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}, 0), 4326)`,
       })
       .returning();
     res.status(201).json(result[0]);
@@ -273,7 +273,7 @@ router.put("/:id", async (req: Request, res: Response) => {
       updatedAt: new Date(),
     };
     if (longitude && latitude) {
-      updateData.location = sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}), 4326)`;
+      updateData.location = sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}, 0), 4326)`;
     }
 
     const result = await db

@@ -13,10 +13,10 @@ import {
   boolean,
 } from "drizzle-orm/pg-core";
 
-// Custom PostGIS geometry type tương thích với drizzle-kit
+// Custom PostGIS geometry type — PointZ (x, y, z) cho tọa độ 3D
 const geometry = customType<{ data: string; driverData: string }>({
   dataType() {
-    return "geometry(Point, 4326)";
+    return "geometry(PointZ, 4326)";
   },
   toDriver(value: string): string {
     return value;
@@ -46,6 +46,19 @@ export const paymentStatusEnum = pgEnum("payment_status", [
 ]);
 
 export const userRoleEnum = pgEnum("user_role", ["user", "manager"]);
+
+export const nodeTypeEnum = pgEnum("node_type", [
+  "door",
+  "elevator",
+  "stairs",
+  "junction",
+]);
+
+export const edgeTypeEnum = pgEnum("edge_type", [
+  "hallway",
+  "stairs",
+  "elevator",
+]);
 
 // Users (đặt trước vì các bảng khác reference đến)
 export const users = pgTable("users", {
@@ -94,12 +107,43 @@ export const floors = pgTable(
   (table) => [unique().on(table.buildingId, table.floorNumber)]
 );
 
-// Apartments
+// Navigation Nodes — điểm giao cắt trong mạng lưới tòa nhà (cửa, thang máy, cầu thang, sảnh)
+export const navigationNodes = pgTable("navigation_nodes", {
+  id: serial("id").primaryKey(),
+  floorId: integer("floor_id")
+    .notNull()
+    .references(() => floors.id),
+  nodeType: nodeTypeEnum("node_type").notNull(),
+  label: varchar("label", { length: 255 }),
+  location: geometry("location").notNull(), // PointZ (x, y, z) — z xác định tầng
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Navigation Edges — đường nối giữa các nodes (hành lang, cầu thang, thang máy)
+export const navigationEdges = pgTable("navigation_edges", {
+  id: serial("id").primaryKey(),
+  startNodeId: integer("start_node_id")
+    .notNull()
+    .references(() => navigationNodes.id),
+  endNodeId: integer("end_node_id")
+    .notNull()
+    .references(() => navigationNodes.id),
+  edgeType: edgeTypeEnum("edge_type").notNull().default("hallway"),
+  distance: decimal("distance", { precision: 10, scale: 2 }).notNull(),
+  travelTime: decimal("travel_time", { precision: 10, scale: 2 }),
+  isAccessible: boolean("is_accessible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Apartments — thêm entryNodeId liên kết căn hộ với mạng lưới navigation
 export const apartments = pgTable("apartments", {
   id: serial("id").primaryKey(),
   floorId: integer("floor_id")
     .notNull()
     .references(() => floors.id),
+  entryNodeId: integer("entry_node_id").references(() => navigationNodes.id),
   code: varchar("code", { length: 50 }).notNull().unique(),
   area: decimal("area", { precision: 10, scale: 2 }).notNull(),
   numBedrooms: integer("num_bedrooms"),

@@ -3,13 +3,15 @@ import {
   users,
   buildings,
   floors,
+  navigationNodes,
+  navigationEdges,
   apartments,
   tenants,
   rentalContracts,
   payments,
   apartmentStatusHistory,
 } from "./schema";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 async function seed() {
@@ -21,6 +23,8 @@ async function seed() {
   await db.delete(rentalContracts);
   await db.delete(apartmentStatusHistory);
   await db.delete(apartments);
+  await db.delete(navigationEdges);
+  await db.delete(navigationNodes);
   await db.delete(floors);
   await db.delete(buildings);
   await db.delete(tenants);
@@ -36,6 +40,8 @@ async function seed() {
   await db.execute(sql`ALTER SEQUENCE rental_contracts_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE payments_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE apartment_status_history_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE navigation_nodes_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE navigation_edges_id_seq RESTART WITH 1`);
   console.log("Sequences reset.");
 
   // 1. Users (hash passwords)
@@ -52,69 +58,36 @@ async function seed() {
     .returning();
   console.log(`Inserted ${insertedUsers.length} users`);
 
-  // 2. Buildings (TP.HCM area)
+  // 2. Buildings (TP.HCM area) — totalFloors = số tầng thực tế sẽ seed
+  const buildingDefs = [
+    { name: "Sunrise Tower", address: "123 Nguyễn Hữu Thọ, Phường Tân Hưng", ward: "Tân Hưng", district: "Quận 7", city: "TP. Hồ Chí Minh", lng: 106.7004, lat: 10.7379, totalFloors: 5, description: "Chung cư cao cấp với view sông Sài Gòn", prefix: "SR", aptsPerFloor: 4, basePrice: 7000000 },
+    { name: "Golden Palace", address: "456 Võ Văn Kiệt, Phường Cầu Kho", ward: "Cầu Kho", district: "Quận 1", city: "TP. Hồ Chí Minh", lng: 106.6942, lat: 10.7626, totalFloors: 5, description: "Tổ hợp căn hộ thương mại trung tâm thành phố", prefix: "GP", aptsPerFloor: 3, basePrice: 12000000 },
+    { name: "Thủ Thiêm Residence", address: "789 Mai Chí Thọ, Phường An Phú", ward: "An Phú", district: "Thành phố Thủ Đức", city: "TP. Hồ Chí Minh", lng: 106.7219, lat: 10.7868, totalFloors: 4, description: "Khu căn hộ xanh gần khu đô thị Thủ Thiêm", prefix: "TT", aptsPerFloor: 3, basePrice: 8000000 },
+    { name: "Phú Mỹ Hưng Tower", address: "321 Nguyễn Lương Bằng, Phường Tân Phú", ward: "Tân Phú", district: "Quận 7", city: "TP. Hồ Chí Minh", lng: 106.7196, lat: 10.7291, totalFloors: 5, description: "Căn hộ cao cấp khu Phú Mỹ Hưng", prefix: "PM", aptsPerFloor: 4, basePrice: 15000000 },
+    { name: "Bình Thạnh Center", address: "55 Xô Viết Nghệ Tĩnh, Phường 26", ward: "Phường 26", district: "Quận Bình Thạnh", city: "TP. Hồ Chí Minh", lng: 106.7132, lat: 10.8014, totalFloors: 4, description: "Chung cư tiện ích gần trung tâm", prefix: "BT", aptsPerFloor: 3, basePrice: 5000000 },
+  ];
+
   const insertedBuildings = await db
     .insert(buildings)
-    .values([
-      {
-        name: "Sunrise Tower",
-        address: "123 Nguyễn Hữu Thọ, Phường Tân Hưng",
-        ward: "Tân Hưng",
-        district: "Quận 7",
-        city: "TP. Hồ Chí Minh",
-        location: sql`ST_SetSRID(ST_MakePoint(106.7004, 10.7379), 4326)`,
-        totalFloors: 25,
-        description: "Chung cư cao cấp với view sông Sài Gòn",
-      },
-      {
-        name: "Golden Palace",
-        address: "456 Võ Văn Kiệt, Phường Cầu Kho",
-        ward: "Cầu Kho",
-        district: "Quận 1",
-        city: "TP. Hồ Chí Minh",
-        location: sql`ST_SetSRID(ST_MakePoint(106.6942, 10.7626), 4326)`,
-        totalFloors: 30,
-        description: "Tổ hợp căn hộ thương mại trung tâm thành phố",
-      },
-      {
-        name: "Thủ Thiêm Residence",
-        address: "789 Mai Chí Thọ, Phường An Phú",
-        ward: "An Phú",
-        district: "Thành phố Thủ Đức",
-        city: "TP. Hồ Chí Minh",
-        location: sql`ST_SetSRID(ST_MakePoint(106.7219, 10.7868), 4326)`,
-        totalFloors: 20,
-        description: "Khu căn hộ xanh gần khu đô thị Thủ Thiêm",
-      },
-      {
-        name: "Phú Mỹ Hưng Tower",
-        address: "321 Nguyễn Lương Bằng, Phường Tân Phú",
-        ward: "Tân Phú",
-        district: "Quận 7",
-        city: "TP. Hồ Chí Minh",
-        location: sql`ST_SetSRID(ST_MakePoint(106.7196, 10.7291), 4326)`,
-        totalFloors: 35,
-        description: "Căn hộ cao cấp khu Phú Mỹ Hưng",
-      },
-      {
-        name: "Bình Thạnh Center",
-        address: "55 Xô Viết Nghệ Tĩnh, Phường 26",
-        ward: "Phường 26",
-        district: "Quận Bình Thạnh",
-        city: "TP. Hồ Chí Minh",
-        location: sql`ST_SetSRID(ST_MakePoint(106.7132, 10.8014), 4326)`,
-        totalFloors: 18,
-        description: "Chung cư tiện ích gần trung tâm",
-      },
-    ])
+    .values(
+      buildingDefs.map((b) => ({
+        name: b.name,
+        address: b.address,
+        ward: b.ward,
+        district: b.district,
+        city: b.city,
+        location: sql`ST_SetSRID(ST_MakePoint(${b.lng}, ${b.lat}, 0), 4326)`,
+        totalFloors: b.totalFloors,
+        description: b.description,
+      })),
+    )
     .returning();
   console.log(`Inserted ${insertedBuildings.length} buildings`);
 
-  // 3. Floors (tạo tầng cho mỗi tòa nhà, chỉ tạo vài tầng đại diện)
+  // 3. Floors — tạo đúng totalFloors tầng cho mỗi tòa
   const floorValues: { buildingId: number; floorNumber: number; description: string }[] = [];
   for (const building of insertedBuildings) {
-    const numFloors = Math.min(building.totalFloors, 5); // Seed tối đa 5 tầng mỗi tòa
-    for (let i = 1; i <= numFloors; i++) {
+    for (let i = 1; i <= building.totalFloors; i++) {
       floorValues.push({
         buildingId: building.id,
         floorNumber: i,
@@ -125,44 +98,234 @@ async function seed() {
   const insertedFloors = await db.insert(floors).values(floorValues).returning();
   console.log(`Inserted ${insertedFloors.length} floors`);
 
-  // 4. Apartments
-  const apartmentData = [
-    // Sunrise Tower (building 1)
-    { floorId: 1, code: "SR-101", area: "65.5", numBedrooms: 2, numBathrooms: 1, rentalPrice: "8000000", status: "rented" as const },
-    { floorId: 1, code: "SR-102", area: "45.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "5500000", status: "available" as const },
-    { floorId: 1, code: "SR-103", area: "80.0", numBedrooms: 3, numBathrooms: 2, rentalPrice: "12000000", status: "rented" as const },
-    { floorId: 2, code: "SR-201", area: "65.5", numBedrooms: 2, numBathrooms: 1, rentalPrice: "8500000", status: "available" as const },
-    { floorId: 2, code: "SR-202", area: "45.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "5800000", status: "maintenance" as const },
-    { floorId: 3, code: "SR-301", area: "90.0", numBedrooms: 3, numBathrooms: 2, rentalPrice: "15000000", status: "rented" as const },
-    { floorId: 3, code: "SR-302", area: "65.5", numBedrooms: 2, numBathrooms: 1, rentalPrice: "9000000", status: "available" as const },
-    // Golden Palace (building 2)
-    { floorId: 6, code: "GP-101", area: "75.0", numBedrooms: 2, numBathrooms: 2, rentalPrice: "15000000", status: "rented" as const },
-    { floorId: 6, code: "GP-102", area: "55.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "10000000", status: "rented" as const },
-    { floorId: 6, code: "GP-103", area: "120.0", numBedrooms: 3, numBathrooms: 2, rentalPrice: "25000000", status: "available" as const },
-    { floorId: 7, code: "GP-201", area: "75.0", numBedrooms: 2, numBathrooms: 2, rentalPrice: "15500000", status: "rented" as const },
-    { floorId: 7, code: "GP-202", area: "55.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "10500000", status: "available" as const },
-    // Thủ Thiêm Residence (building 3)
-    { floorId: 11, code: "TT-101", area: "70.0", numBedrooms: 2, numBathrooms: 1, rentalPrice: "9000000", status: "rented" as const },
-    { floorId: 11, code: "TT-102", area: "50.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "6500000", status: "available" as const },
-    { floorId: 12, code: "TT-201", area: "85.0", numBedrooms: 3, numBathrooms: 2, rentalPrice: "13000000", status: "rented" as const },
-    { floorId: 12, code: "TT-202", area: "70.0", numBedrooms: 2, numBathrooms: 1, rentalPrice: "9500000", status: "maintenance" as const },
-    // Phú Mỹ Hưng Tower (building 4)
-    { floorId: 16, code: "PM-101", area: "100.0", numBedrooms: 3, numBathrooms: 2, rentalPrice: "20000000", status: "rented" as const },
-    { floorId: 16, code: "PM-102", area: "60.0", numBedrooms: 2, numBathrooms: 1, rentalPrice: "12000000", status: "available" as const },
-    { floorId: 17, code: "PM-201", area: "100.0", numBedrooms: 3, numBathrooms: 2, rentalPrice: "21000000", status: "rented" as const },
-    { floorId: 17, code: "PM-202", area: "60.0", numBedrooms: 2, numBathrooms: 1, rentalPrice: "12500000", status: "rented" as const },
-    // Bình Thạnh Center (building 5)
-    { floorId: 21, code: "BT-101", area: "55.0", numBedrooms: 2, numBathrooms: 1, rentalPrice: "7000000", status: "rented" as const },
-    { floorId: 21, code: "BT-102", area: "40.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "4500000", status: "available" as const },
-    { floorId: 22, code: "BT-201", area: "55.0", numBedrooms: 2, numBathrooms: 1, rentalPrice: "7500000", status: "available" as const },
-    { floorId: 22, code: "BT-202", area: "40.0", numBedrooms: 1, numBathrooms: 1, rentalPrice: "4800000", status: "rented" as const },
+  // 4. Apartments — tự động generate cho MỖI tầng, đều nhau
+  const aptLayouts = [
+    { area: "45.0", numBedrooms: 1, numBathrooms: 1 },
+    { area: "65.5", numBedrooms: 2, numBathrooms: 1 },
+    { area: "80.0", numBedrooms: 3, numBathrooms: 2 },
+    { area: "100.0", numBedrooms: 3, numBathrooms: 2 },
   ];
+  const statusPool: ("available" | "rented" | "maintenance")[] = [
+    "rented", "available", "rented", "maintenance", "rented", "available", "rented", "available",
+    "rented", "rented", "available", "rented", "maintenance", "available", "rented", "rented",
+  ];
+
+  const apartmentData: {
+    floorId: number;
+    code: string;
+    area: string;
+    numBedrooms: number;
+    numBathrooms: number;
+    rentalPrice: string;
+    status: "available" | "rented" | "maintenance";
+  }[] = [];
+
+  let statusIdx = 0;
+  for (let bi = 0; bi < insertedBuildings.length; bi++) {
+    const bDef = buildingDefs[bi];
+    const bFloors = insertedFloors.filter((f) => f.buildingId === insertedBuildings[bi].id);
+
+    for (const floor of bFloors) {
+      for (let ai = 1; ai <= bDef.aptsPerFloor; ai++) {
+        const layout = aptLayouts[(ai - 1) % aptLayouts.length];
+        const priceMultiplier = 1 + (floor.floorNumber - 1) * 0.05; // tầng cao giá cao hơn 5%
+        const price = Math.round(bDef.basePrice * priceMultiplier / 100000) * 100000;
+        const code = `${bDef.prefix}-${floor.floorNumber}${String(ai).padStart(2, "0")}`;
+
+        apartmentData.push({
+          floorId: floor.id,
+          code,
+          area: layout.area,
+          numBedrooms: layout.numBedrooms,
+          numBathrooms: layout.numBathrooms,
+          rentalPrice: String(price),
+          status: statusPool[statusIdx % statusPool.length],
+        });
+        statusIdx++;
+      }
+    }
+  }
 
   const insertedApartments = await db
     .insert(apartments)
     .values(apartmentData.map((a) => ({ ...a, createdById: 1 })))
     .returning();
   console.log(`Inserted ${insertedApartments.length} apartments`);
+
+  // 4b. Navigation Nodes — tạo mạng lưới topology cho mỗi tòa nhà
+  // Mỗi tầng có: 1 sảnh (junction), 1 thang máy, 1 cầu thang, và 1 cửa (door) cho mỗi căn hộ
+  const FLOOR_HEIGHT = 3.5; // mét giữa các tầng
+  const buildingBaseCoords: Record<number, { lng: number; lat: number }> = {
+    1: { lng: 106.7004, lat: 10.7379 }, // Sunrise Tower
+    2: { lng: 106.6942, lat: 10.7626 }, // Golden Palace
+    3: { lng: 106.7219, lat: 10.7868 }, // Thủ Thiêm Residence
+    4: { lng: 106.7196, lat: 10.7291 }, // Phú Mỹ Hưng Tower
+    5: { lng: 106.7132, lat: 10.8014 }, // Bình Thạnh Center
+  };
+
+  // Tạo nodes cho mỗi tầng đã seed
+  const nodeInserts: {
+    floorId: number;
+    nodeType: "junction" | "elevator" | "stairs" | "door";
+    label: string;
+    lng: number;
+    lat: number;
+    z: number;
+  }[] = [];
+
+  // Map để theo dõi node theo tầng: floorId -> { junction, elevator, stairs, doors[] }
+  const floorNodeMap: Record<number, { junctionIdx: number; elevatorIdx: number; stairsIdx: number; doorIdxes: number[] }> = {};
+
+  for (const floor of insertedFloors) {
+    const buildingId = floor.buildingId;
+    const base = buildingBaseCoords[buildingId];
+    const z = floor.floorNumber * FLOOR_HEIGHT;
+    const offset = 0.0001; // ~11m offset giữa các node
+
+    const junctionIdx = nodeInserts.length;
+    nodeInserts.push({
+      floorId: floor.id,
+      nodeType: "junction",
+      label: `Sảnh tầng ${floor.floorNumber}`,
+      lng: base.lng,
+      lat: base.lat,
+      z,
+    });
+
+    const elevatorIdx = nodeInserts.length;
+    nodeInserts.push({
+      floorId: floor.id,
+      nodeType: "elevator",
+      label: `Thang máy tầng ${floor.floorNumber}`,
+      lng: base.lng + offset,
+      lat: base.lat,
+      z,
+    });
+
+    const stairsIdx = nodeInserts.length;
+    nodeInserts.push({
+      floorId: floor.id,
+      nodeType: "stairs",
+      label: `Cầu thang tầng ${floor.floorNumber}`,
+      lng: base.lng - offset,
+      lat: base.lat,
+      z,
+    });
+
+    // Tạo door nodes cho các căn hộ thuộc tầng này
+    const floorApartments = insertedApartments.filter((a) => a.floorId === floor.id);
+    const doorIdxes: number[] = [];
+    floorApartments.forEach((apt, i) => {
+      const doorIdx = nodeInserts.length;
+      doorIdxes.push(doorIdx);
+      nodeInserts.push({
+        floorId: floor.id,
+        nodeType: "door",
+        label: `Cửa căn ${apt.code}`,
+        lng: base.lng + offset * (i + 2),
+        lat: base.lat + offset,
+        z,
+      });
+    });
+
+    floorNodeMap[floor.id] = { junctionIdx, elevatorIdx, stairsIdx, doorIdxes };
+  }
+
+  // Insert tất cả nodes
+  const insertedNodes = [];
+  for (const node of nodeInserts) {
+    const result = await db
+      .insert(navigationNodes)
+      .values({
+        floorId: node.floorId,
+        nodeType: node.nodeType,
+        label: node.label,
+        location: sql`ST_SetSRID(ST_MakePoint(${node.lng}, ${node.lat}, ${node.z}), 4326)`,
+      })
+      .returning();
+    insertedNodes.push(result[0]);
+  }
+  console.log(`Inserted ${insertedNodes.length} navigation nodes`);
+
+  // 4c. Navigation Edges — kết nối nodes
+  const edgeInserts: {
+    startNodeId: number;
+    endNodeId: number;
+    edgeType: "hallway" | "stairs" | "elevator";
+    distance: string;
+    isAccessible: boolean;
+  }[] = [];
+
+  // Trong mỗi tầng: junction <-> elevator, junction <-> stairs, junction <-> mỗi door
+  for (const floor of insertedFloors) {
+    const map = floorNodeMap[floor.id];
+    const junctionId = insertedNodes[map.junctionIdx].id;
+    const elevatorId = insertedNodes[map.elevatorIdx].id;
+    const stairsId = insertedNodes[map.stairsIdx].id;
+
+    // Junction <-> Elevator (khoảng 10m)
+    edgeInserts.push({ startNodeId: junctionId, endNodeId: elevatorId, edgeType: "hallway", distance: "10.00", isAccessible: true });
+    // Junction <-> Stairs (khoảng 10m)
+    edgeInserts.push({ startNodeId: junctionId, endNodeId: stairsId, edgeType: "hallway", distance: "10.00", isAccessible: true });
+    // Junction <-> mỗi Door (khoảng 15-25m)
+    map.doorIdxes.forEach((doorIdx, i) => {
+      const doorId = insertedNodes[doorIdx].id;
+      edgeInserts.push({
+        startNodeId: junctionId,
+        endNodeId: doorId,
+        edgeType: "hallway",
+        distance: String(15 + i * 5) + ".00",
+        isAccessible: true,
+      });
+    });
+  }
+
+  // Nối tầng: elevator n <-> elevator n+1, stairs n <-> stairs n+1
+  for (const building of insertedBuildings) {
+    const buildingFloors = insertedFloors
+      .filter((f) => f.buildingId === building.id)
+      .sort((a, b) => a.floorNumber - b.floorNumber);
+
+    for (let i = 0; i < buildingFloors.length - 1; i++) {
+      const currentMap = floorNodeMap[buildingFloors[i].id];
+      const nextMap = floorNodeMap[buildingFloors[i + 1].id];
+
+      // Elevator liên tầng
+      edgeInserts.push({
+        startNodeId: insertedNodes[currentMap.elevatorIdx].id,
+        endNodeId: insertedNodes[nextMap.elevatorIdx].id,
+        edgeType: "elevator",
+        distance: String(FLOOR_HEIGHT),
+        isAccessible: true,
+      });
+      // Stairs liên tầng
+      edgeInserts.push({
+        startNodeId: insertedNodes[currentMap.stairsIdx].id,
+        endNodeId: insertedNodes[nextMap.stairsIdx].id,
+        edgeType: "stairs",
+        distance: String(FLOOR_HEIGHT * 1.5), // cầu thang dài hơn thang máy
+        isAccessible: true,
+      });
+    }
+  }
+
+  const insertedEdges = await db.insert(navigationEdges).values(edgeInserts).returning();
+  console.log(`Inserted ${insertedEdges.length} navigation edges`);
+
+  // 4d. Liên kết apartments với entry_node_id (door node tương ứng)
+  for (const floor of insertedFloors) {
+    const map = floorNodeMap[floor.id];
+    const floorApartments = insertedApartments.filter((a) => a.floorId === floor.id);
+    for (let i = 0; i < floorApartments.length; i++) {
+      if (i < map.doorIdxes.length) {
+        await db
+          .update(apartments)
+          .set({ entryNodeId: insertedNodes[map.doorIdxes[i]].id })
+          .where(eq(apartments.id, floorApartments[i].id));
+      }
+    }
+  }
+  console.log("Linked apartments with entry nodes");
 
   // 5. Tenants
   const insertedTenants = await db
@@ -184,24 +347,41 @@ async function seed() {
     .returning();
   console.log(`Inserted ${insertedTenants.length} tenants`);
 
-  // 6. Rental Contracts (cho các apartment đã rented)
+  // 6. Rental Contracts — rải đều nhiều thời điểm để timeline có nhiều mốc
   const rentedApartments = insertedApartments.filter((a) => a.status === "rented");
-  const contractValues = rentedApartments.map((apt, idx) => ({
-    apartmentId: apt.id,
-    tenantId: insertedTenants[idx % insertedTenants.length].id,
-    startDate: "2025-01-01",
-    endDate: "2026-01-01",
-    monthlyRent: apt.rentalPrice,
-    deposit: String(Number(apt.rentalPrice) * 2),
-    status: "active" as const,
-    note: `Hợp đồng thuê căn ${apt.code}`,
-    createdById: 1,
-  }));
+
+  // Mỗi hợp đồng bắt đầu ở tháng khác nhau (từ 2024-06 → 2025-12)
+  const contractStartDates = [
+    "2024-06-01", "2024-08-01", "2024-09-01", "2024-11-01",
+    "2025-01-01", "2025-02-01", "2025-03-01", "2025-05-01",
+    "2025-06-01", "2025-07-01", "2025-09-01", "2025-10-01",
+    "2025-12-01",
+  ];
+
+  const contractValues = rentedApartments.map((apt, idx) => {
+    const startDate = contractStartDates[idx % contractStartDates.length];
+    // Hợp đồng kéo dài 12 tháng
+    const startParts = startDate.split("-");
+    const endYear = Number(startParts[0]) + 1;
+    const endDate = `${endYear}-${startParts[1]}-${startParts[2]}`;
+
+    return {
+      apartmentId: apt.id,
+      tenantId: insertedTenants[idx % insertedTenants.length].id,
+      startDate,
+      endDate,
+      monthlyRent: apt.rentalPrice,
+      deposit: String(Number(apt.rentalPrice) * 2),
+      status: "active" as const,
+      note: `Hợp đồng thuê căn ${apt.code}`,
+      createdById: 1,
+    };
+  });
 
   const insertedContracts = await db.insert(rentalContracts).values(contractValues).returning();
   console.log(`Inserted ${insertedContracts.length} contracts`);
 
-  // 7. Payments (tạo thanh toán cho vài tháng)
+  // 7. Payments — tạo thanh toán hàng tháng từ ngày bắt đầu HĐ đến 2026-03
   const paymentValues: {
     contractId: number;
     amount: string;
@@ -210,20 +390,45 @@ async function seed() {
     note: string;
   }[] = [];
 
-  for (const contract of insertedContracts) {
-    // Tạo thanh toán cho 3 tháng gần đây
-    const months = ["2025-11-05", "2025-12-05", "2026-01-05"];
-    const statuses: ("paid" | "pending" | "overdue")[] = ["paid", "paid", "pending"];
+  const CUTOFF_YEAR = 2026;
+  const CUTOFF_MONTH = 3; // tháng hiện tại
 
-    months.forEach((date, i) => {
+  for (let ci = 0; ci < insertedContracts.length; ci++) {
+    const contract = insertedContracts[ci];
+    const startDate = contractValues[ci].startDate;
+    const [sYear, sMonth] = startDate.split("-").map(Number);
+
+    let year = sYear;
+    let month = sMonth;
+
+    while (year < CUTOFF_YEAR || (year === CUTOFF_YEAR && month <= CUTOFF_MONTH)) {
+      const payDate = `${year}-${String(month).padStart(2, "0")}-05`;
+      const isPast = year < CUTOFF_YEAR || (year === CUTOFF_YEAR && month < CUTOFF_MONTH);
+      const isCurrent = year === CUTOFF_YEAR && month === CUTOFF_MONTH;
+
+      let status: "paid" | "pending" | "overdue";
+      if (isPast) {
+        status = "paid";
+      } else if (isCurrent) {
+        status = "pending";
+      } else {
+        status = "pending";
+      }
+
       paymentValues.push({
         contractId: contract.id,
         amount: contract.monthlyRent,
-        paymentDate: date,
-        status: statuses[i],
-        note: `Thanh toán tháng ${11 + i}/2025`,
+        paymentDate: payDate,
+        status,
+        note: `Thanh toán tháng ${month}/${year}`,
       });
-    });
+
+      month++;
+      if (month > 12) {
+        month = 1;
+        year++;
+      }
+    }
   }
 
   const insertedPayments = await db.insert(payments).values(paymentValues).returning();
@@ -234,6 +439,8 @@ async function seed() {
   - Users: ${insertedUsers.length}
   - Buildings: ${insertedBuildings.length}
   - Floors: ${insertedFloors.length}
+  - Navigation Nodes: ${insertedNodes.length}
+  - Navigation Edges: ${insertedEdges.length}
   - Apartments: ${insertedApartments.length}
   - Tenants: ${insertedTenants.length}
   - Contracts: ${insertedContracts.length}
