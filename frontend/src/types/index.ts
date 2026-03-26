@@ -2,6 +2,8 @@ export type ApartmentStatus = "available" | "rented" | "maintenance";
 export type ContractStatus = "active" | "expired" | "cancelled";
 export type PaymentStatus = "pending" | "paid" | "overdue";
 export type UserRole = "user" | "manager";
+export type NodeType = "door" | "elevator" | "stairs" | "junction";
+export type EdgeType = "hallway" | "stairs" | "elevator";
 
 export interface User {
   id: number;
@@ -126,6 +128,7 @@ export interface Floor {
 export interface Apartment {
   id: number;
   floorId: number;
+  entryNodeId: number | null;
   code: string;
   area: string;
   numBedrooms: number | null;
@@ -196,4 +199,34 @@ export interface MonthlyRevenue {
   month: number;
   revenue: number;
   count: number;
+}
+
+// Navigation / Topology
+export interface NavigationNode {
+  id: number;
+  floorId: number;
+  nodeType: NodeType;
+  label: string | null;
+  lng: number;
+  lat: number;
+  z: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NavigationEdge {
+  id: number;
+  startNodeId: number;
+  endNodeId: number;
+  edgeType: EdgeType;
+  distance: string;
+  travelTime: string | null;
+  isAccessible: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuildingGraph {
+  nodes: NavigationNode[];
+  edges: NavigationEdge[];
 }

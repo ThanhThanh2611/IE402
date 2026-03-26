@@ -200,23 +200,23 @@ export default function ApartmentsPage() {
 
       {/* Filters */}
       <div className="flex gap-4">
-        <Select value={filterBuildingId} onValueChange={(v) => { setFilterBuildingId(v === "all" ? "" : v); setFilterFloorId(""); }}>
+        <Select value={filterBuildingId || undefined} onValueChange={(v) => { setFilterBuildingId(v === "__all__" ? "" : v); setFilterFloorId(""); }}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Tất cả tòa nhà" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả tòa nhà</SelectItem>
+            <SelectItem value="__all__">Tất cả tòa nhà</SelectItem>
             {buildings.map((b) => (
               <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select value={filterFloorId} onValueChange={(v) => setFilterFloorId(v === "all" ? "" : v)}>
+        <Select value={filterFloorId || undefined} onValueChange={(v) => setFilterFloorId(v === "__all__" ? "" : v)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Tất cả tầng" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả tầng</SelectItem>
+            <SelectItem value="__all__">Tất cả tầng</SelectItem>
             {filteredFloors.map((f) => (
               <SelectItem key={f.id} value={String(f.id)}>Tầng {f.floorNumber}</SelectItem>
             ))}

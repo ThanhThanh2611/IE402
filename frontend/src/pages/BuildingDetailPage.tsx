@@ -25,6 +25,17 @@ import { cn } from "@/lib/utils";
 import type { Apartment, Floor, Building, RentalContract, Tenant } from "@/types";
 import { toast } from "sonner";
 
+const statusLabels: Record<string, string> = {
+  available: "Còn trống",
+  rented: "Đã thuê",
+  maintenance: "Bảo trì",
+};
+const statusColors: Record<string, string> = {
+  available: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
+  rented: "bg-primary/10 text-primary border border-primary/20",
+  maintenance: "bg-muted text-muted-foreground border border-border",
+};
+
 type ApartmentPopupData = {
   apartment: Apartment;
   contract: RentalContract | null;
@@ -635,19 +646,8 @@ export default function BuildingDetailPage() {
 
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">Trạng thái:</span>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          popupData.apartment.status === "available" && "bg-emerald-100 text-emerald-700",
-                          popupData.apartment.status === "rented" && "bg-amber-100 text-amber-700",
-                          popupData.apartment.status === "maintenance" && "bg-slate-200 text-slate-700",
-                        )}
-                      >
-                        {popupData.apartment.status === "available"
-                          ? "Còn trống"
-                          : popupData.apartment.status === "rented"
-                            ? "Đã thuê"
-                            : "Bảo trì"}
+                      <Badge className={statusColors[popupData.apartment.status]}>
+                        {statusLabels[popupData.apartment.status]}
                       </Badge>
                     </div>
 

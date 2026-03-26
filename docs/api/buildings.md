@@ -2,7 +2,7 @@
 
 Base URL: `/api/buildings`
 
-> Tọa độ được lưu dạng PostGIS `geometry(Point, 4326)`. Khi tạo/cập nhật tòa nhà, truyền `longitude` và `latitude` trong body.
+> Tọa độ được lưu dạng PostGIS `geometry(PointZ, 4326)`. Khi tạo/cập nhật tòa nhà, truyền `longitude` và `latitude` trong body (z mặc định = 0).
 
 ---
 

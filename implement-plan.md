@@ -44,6 +44,15 @@
 - [x] `/buildings/:id` - Chi tiết tòa nhà + mô hình 3D (Three.js/React Three Fiber, upload model, click apartment popup)
 - [ ] `/buildings/:id/apartments/:apartmentId` - Chi tiết căn hộ (linked from 3D view)
 
+## Phase 2.5: Navigation & Topology
+- [x] BE: Schema navigation_nodes + navigation_edges (PointZ geometry, node_type/edge_type enums)
+- [x] BE: apartments.entry_node_id liên kết căn hộ với mạng lưới navigation
+- [x] BE: Geometry chuyển từ Point → PointZ cho tọa độ 3D
+- [x] BE: CRUD API routes cho navigation nodes/edges + graph query theo building
+- [x] BE: Seed data — nodes (junction, elevator, stairs, door) + edges (hallway, liên tầng) cho 5 tòa nhà
+- [x] FE: Types NavigationNode, NavigationEdge, BuildingGraph
+- [x] Docs: Cập nhật ERD (DBML) với bảng navigation, enums mới
+
 ## Phase 3: Polish
 - [ ] Responsive design tuning
 - [ ] Dark mode support

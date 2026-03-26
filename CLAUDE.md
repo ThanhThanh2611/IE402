@@ -19,8 +19,9 @@ Repo này chứa cả **Frontend** và **Backend** (monorepo).
 - **Runtime**: Node.js
 - **Framework**: Express
 - **ORM**: Drizzle ORM + `drizzle-postgis` (spatial query)
-- **Database**: PostgreSQL + PostGIS (Docker, port 5434)
+- **Database**: PostgreSQL + PostGIS (Docker, port 5434) — geometry PointZ cho tọa độ 3D
 - **GIS libs**: `@turf/turf` (tính toán không gian), GeoJSON format (trao đổi dữ liệu bản đồ)
+- **Navigation**: Mạng lưới topology (nodes & edges) cho tìm đường 3D (Dijkstra/A*)
 - **File upload**: `multer` (upload mô hình 3D .glb/.gltf)
 - **Ngôn ngữ**: TypeScript
 
@@ -38,6 +39,10 @@ Repo này chứa cả **Frontend** và **Backend** (monorepo).
 - Tất cả API GET tự động lọc bỏ bản ghi đã xóa mềm (`isNull(deletedAt)`)
 - Khi tạo hợp đồng → tự động set apartment status = `rented`
 - Khi xóa hợp đồng → tự động set apartment status = `available`
+- Geometry sử dụng **PointZ** (x, y, z) — z xác định cao độ/tầng cho tọa độ 3D
+- Bảng `navigation_nodes` + `navigation_edges` mô hình hóa mạng lưới topology tòa nhà
+- Mỗi căn hộ liên kết với `entry_node_id` (terminal node trong mạng navigation)
+- Edges phân loại: `hallway` (cùng tầng), `stairs`/`elevator` (liên tầng)
 
 ## Mô tả nghiệp vụ
 
@@ -75,6 +80,6 @@ Hệ thống gồm 2 actors chính:
 - `docs/BA.md` - Tài liệu phân tích nghiệp vụ (Use Case, DFD, Sequence Diagram)
 - `docs/erd.dbml` - ERD định dạng DBML
 - `docs/git-workflow.md` - Quy trình Git (branching, commit, PR, rebase)
-- `docs/api/` - API documentation cho từng nhóm chức năng
+- `docs/api/` - API documentation cho từng nhóm chức năng (bao gồm navigation API)
 - `docs/frontend/` - Tài liệu frontend (setup, pages, từng nhóm chức năng, data models)
 - `docs/user-guide/` - Hướng dẫn sử dụng theo vai trò (User, Manager)

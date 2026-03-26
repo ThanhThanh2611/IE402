@@ -1,6 +1,6 @@
 # Tình hình dự án — 3D GIS Apartment Management System
 
-> Cập nhật lần cuối: 24/03/2026
+> Cập nhật lần cuối: 26/03/2026
 
 ## Tổng quan tiến độ
 
@@ -11,17 +11,18 @@
 | Xác thực & Phân quyền | ✅ Hoàn thành | 100% |
 | Bản đồ GIS (2D) | ✅ Hoàn thành | 100% |
 | Mô hình 3D tòa nhà | 🟡 Đang triển khai | 70% |
+| Navigation & Topology | ✅ Hoàn thành | 100% |
 | Hoàn thiện & Tối ưu | 🔲 Chưa bắt đầu | 0% |
 
-**Tiến độ tổng thể: ~82%** — Đã hoàn thành nền tảng, API, giao diện quản lý, bản đồ GIS 2D, và đã nối xong luồng 3D chính (render model, xoay/zoom, click căn hộ hiển thị popup).
+**Tiến độ tổng thể: ~87%** — Đã hoàn thành nền tảng, API, giao diện quản lý, bản đồ GIS 2D, luồng 3D chính, và mạng lưới navigation topology (nodes, edges, graph query).
 
 ---
 
 ## Đã hoàn thành
 
 ### Backend (API Server)
-- 10 nhóm API: auth, buildings, floors, apartments, contracts, tenants, payments, users, dashboard, status-history
-- Database PostgreSQL + PostGIS với dữ liệu mẫu (5 tòa nhà TP.HCM, 24 căn hộ, 12 người thuê, hợp đồng, thanh toán)
+- 11 nhóm API: auth, buildings, floors, apartments, contracts, tenants, payments, users, dashboard, status-history, **navigation**
+- Database PostgreSQL + PostGIS với dữ liệu mẫu (5 tòa nhà TP.HCM, 24 căn hộ, 12 người thuê, hợp đồng, thanh toán, **navigation nodes/edges**)
 - Xác thực JWT + phân quyền theo vai trò (User / Manager)
 - Mật khẩu mã hóa bcrypt
 - Soft delete cho 5 bảng chính
@@ -44,9 +45,18 @@
 - Bắt sự kiện click mesh căn hộ theo ID/mã phòng để gọi API và hiển thị popup (diện tích, giá thuê, hợp đồng)
 - Có luồng upload model `.glb/.gltf` từ frontend lên endpoint `/api/buildings/:id/model`
 
+### Navigation & Topology (mới)
+- Bảng `navigation_nodes` và `navigation_edges` cho mạng lưới tòa nhà
+- Geometry PointZ cho tọa độ 3D (x, y, z)
+- Căn hộ liên kết với `entry_node_id` — terminal node trong mạng
+- Edges phân loại: hallway (cùng tầng), stairs/elevator (liên tầng)
+- Trọng số distance cho thuật toán tìm đường Dijkstra/A*
+- API CRUD nodes/edges + graph query theo tòa nhà
+- Seed data: nodes + edges cho 5 tòa nhà, 25 tầng
+
 ### Tài liệu
 - README hướng dẫn cài đặt & chạy dự án
-- API documentation (`docs/api/`)
+- API documentation (`docs/api/`) — bao gồm navigation API
 - Phân tích nghiệp vụ (`docs/BA.md`)
 - Hướng dẫn sử dụng theo vai trò (`docs/user-guide/`)
 - Quy trình Git (`docs/git-workflow.md`)

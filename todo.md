@@ -40,6 +40,15 @@
 - [x] FE: Tích hợp Three.js + React Three Fiber cho mô hình 3D tòa nhà
 - [x] FE: Click mesh căn hộ 3D -> gọi API -> render popup diện tích/giá/hợp đồng
 
+## Navigation / Topology
+- [x] BE: Schema navigation_nodes, navigation_edges, enums node_type/edge_type
+- [x] BE: Apartments thêm entry_node_id liên kết navigation
+- [x] BE: Geometry chuyển từ Point → PointZ (3D)
+- [x] BE: API routes CRUD navigation nodes/edges + graph query
+- [x] BE: Seed data navigation nodes, edges, liên kết apartments
+- [x] FE: Types NavigationNode, NavigationEdge, BuildingGraph
+- [x] Docs: Cập nhật ERD (DBML) với bảng navigation mới
+
 ## Backlog
 - [ ] FE+BE: Error boundaries + 404 page
 - [ ] FE: Responsive design tuning
