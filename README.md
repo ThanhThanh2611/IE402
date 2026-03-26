@@ -78,7 +78,7 @@ cd frontend && npm install && npm run dev
 
 | | Công nghệ |
 |---|---|
-| **Backend** | Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL + PostGIS, JWT, bcrypt |
+| **Backend** | Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL + PostGIS (PointZ), JWT, bcrypt |
 | **Frontend** | React 19, Vite 7, TypeScript, Tailwind CSS v4, shadcn/ui, React Router, Recharts, Zod |
 | **Font** | Geist Variable |
 
@@ -150,6 +150,14 @@ cd frontend && npm install && npm run dev
 | GET | `/api/dashboard/revenue-by-month?year=` | Doanh thu theo tháng | Login |
 | GET | `/api/dashboard/occupancy-history?from=&to=` | Lấp đầy theo thời gian | Login |
 | GET | `/api/dashboard/map-snapshot?date=` | GeoJSON snapshot | Login |
+| **Navigation** | | | |
+| GET | `/api/navigation/nodes?floorId=X` | Danh sách nodes theo tầng | Login |
+| GET | `/api/navigation/nodes/:id` | Chi tiết node | Login |
+| POST/PUT/DELETE | `/api/navigation/nodes/:id` | CRUD node | Login |
+| GET | `/api/navigation/edges?floorId=X` | Danh sách edges (lọc theo tầng) | Login |
+| GET | `/api/navigation/edges/:id` | Chi tiết edge | Login |
+| POST/PUT/DELETE | `/api/navigation/edges/:id` | CRUD edge | Login |
+| GET | `/api/navigation/graph/:buildingId` | Toàn bộ graph (nodes + edges) của tòa nhà | Login |
 | **Status History** | | | |
 | GET | `/api/status-history?apartmentId=X` | Lịch sử trạng thái | Manager |
 | POST | `/api/status-history` | Thêm lịch sử trạng thái | Manager |

@@ -18,7 +18,23 @@
       "Bash(cd D:/Workspace/IE402/frontend && npx shadcn@latest add card input label dialog dropdown-menu select table tabs avatar badge separator sheet tooltip textarea checkbox switch popover command sidebar breadcrumb pagination skeleton scroll-area alert alert-dialog form sonner -y 2>&1)",
       "Bash(cd D:/Workspace/IE402/frontend && npx shadcn@latest add card input label dialog dropdown-menu select table tabs avatar badge separator sheet tooltip textarea checkbox switch popover command sidebar breadcrumb pagination skeleton scroll-area alert alert-dialog form sonner -yo 2>&1)",
       "Bash(find:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(wc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(grep -r \"navigation\\\\|Navigation\\\\|node\\\\|Node\\\\|edge\\\\|Edge\" D:WorkspaceIE402frontendsrc --include=*.ts --include=*.tsx)",
+      "Bash(grep -r api. D:WorkspaceIE402frontendsrc --include=*.tsx --include=*.ts)",
+      "Bash(grep -r \"useApiQuery\\\\|useApiMutation\" D:WorkspaceIE402frontendsrc --include=*.tsx)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npx vite:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJtYW5hZ2VyMSIsInJvbGUiOiJtYW5hZ2VyIiwiaWF0IjoxNzc0NTMwNzU2LCJleHAiOjE3NzUxMzU1NTZ9.THRCko-XiA3j3zx2BAZcdK0I_4DVZ4Vo54pKBR18wqg\")",
+      "Bash(curl -s \"http://localhost:3000/api/buildings\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  ID={b[\"\"id\"\"]} {b[\"\"name\"\"]}: totalFloors={b[\"\"totalFloors\"\"]}''''\\) for b in data]\")",
+      "Bash(curl -s \"http://localhost:3000/api/floors\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(python3 -c \":*)",
+      "Bash(curl -s \"http://localhost:3000/api/apartments\" -H \"Authorization: Bearer $TOKEN\")"
     ]
   }
 }

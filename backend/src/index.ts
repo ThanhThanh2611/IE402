@@ -14,6 +14,7 @@ import authRouter from "./routes/auth";
 import dashboardRouter from "./routes/dashboard";
 import statusHistoryRouter from "./routes/statusHistory";
 import usersRouter from "./routes/users";
+import navigationRouter from "./routes/navigation";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,6 +46,7 @@ app.use("/api/tenants", authenticate, requireManager, tenantsRouter);
 app.use("/api/payments", authenticate, requireManager, paymentsRouter);
 app.use("/api/status-history", authenticate, requireManager, statusHistoryRouter);
 app.use("/api/users", authenticate, requireManager, usersRouter);
+app.use("/api/navigation", authenticate, navigationRouter);
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);

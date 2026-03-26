@@ -7,7 +7,7 @@ Table buildings {
   ward varchar [note: 'Phường/Xã']
   district varchar [note: 'Quận/Huyện']
   city varchar [note: 'Thành phố/Tỉnh']
-  location geometry(Point,4326) [not null, note: 'Tọa độ GIS - PostGIS Point']
+  location geometry(PointZ,4326) [not null, note: 'Tọa độ GIS 3D - PostGIS PointZ (x, y, z)']
   total_floors integer [not null]
   description text
   image_url varchar
@@ -29,9 +29,32 @@ Table floors {
   }
 }
 
+Table navigation_nodes {
+  id integer [pk, increment]
+  floor_id integer [not null, ref: > floors.id]
+  node_type node_type [not null, note: 'Loại node: door, elevator, stairs, junction']
+  label varchar [note: 'Nhãn mô tả node']
+  location geometry(PointZ,4326) [not null, note: 'Tọa độ 3D - z xác định tầng']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table navigation_edges {
+  id integer [pk, increment]
+  start_node_id integer [not null, ref: > navigation_nodes.id]
+  end_node_id integer [not null, ref: > navigation_nodes.id]
+  edge_type edge_type [not null, default: 'hallway', note: 'Loại cạnh: hallway, stairs, elevator']
+  distance decimal [not null, note: 'Khoảng cách (m) — trọng số cho Dijkstra/A*']
+  travel_time decimal [note: 'Thời gian di chuyển (giây)']
+  is_accessible boolean [not null, default: true, note: 'Có thể đi qua không (false khi hỏa hoạn, bảo trì)']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
 Table apartments {
   id integer [pk, increment]
   floor_id integer [not null, ref: > floors.id]
+  entry_node_id integer [ref: > navigation_nodes.id, note: 'Node cửa vào — terminal node trong mạng navigation']
   code varchar [not null, unique, note: 'Mã căn hộ']
   area decimal [not null, note: 'Diện tích (m2)']
   num_bedrooms integer
@@ -129,4 +152,17 @@ Enum payment_status {
 Enum user_role {
   user [note: 'Người dùng thông thường']
   manager [note: 'Quản lý']
+}
+
+Enum node_type {
+  door [note: 'Cửa căn hộ']
+  elevator [note: 'Thang máy']
+  stairs [note: 'Cầu thang']
+  junction [note: 'Sảnh/điểm giao cắt']
+}
+
+Enum edge_type {
+  hallway [note: 'Hành lang']
+  stairs [note: 'Cầu thang liên tầng']
+  elevator [note: 'Thang máy liên tầng']
 }

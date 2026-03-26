@@ -12,6 +12,10 @@ type ContractStatus = 'active' | 'expired' | 'cancelled'
 type PaymentStatus = 'pending' | 'paid' | 'overdue'
 
 type UserRole = 'user' | 'manager'
+
+type NodeType = 'door' | 'elevator' | 'stairs' | 'junction'
+
+type EdgeType = 'hallway' | 'stairs' | 'elevator'
 ```
 
 ## Label tiếng Việt cho Enum
@@ -38,6 +42,19 @@ const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
 const USER_ROLE_LABEL: Record<UserRole, string> = {
   user: 'Người dùng',
   manager: 'Quản lý',
+}
+
+const NODE_TYPE_LABEL: Record<NodeType, string> = {
+  door: 'Cửa căn hộ',
+  elevator: 'Thang máy',
+  stairs: 'Cầu thang',
+  junction: 'Sảnh/giao cắt',
+}
+
+const EDGE_TYPE_LABEL: Record<EdgeType, string> = {
+  hallway: 'Hành lang',
+  stairs: 'Cầu thang liên tầng',
+  elevator: 'Thang máy liên tầng',
 }
 ```
 
@@ -81,6 +98,7 @@ interface Floor {
 interface Apartment {
   id: number
   floorId: number
+  entryNodeId: number | null
   code: string
   area: number
   numBedrooms: number | null
@@ -177,6 +195,47 @@ interface BuildingOccupancy {
 interface MonthlyRevenue {
   month: number
   revenue: number
+}
+```
+
+### NavigationNode
+
+```typescript
+interface NavigationNode {
+  id: number
+  floorId: number
+  nodeType: NodeType
+  label: string | null
+  lng: number
+  lat: number
+  z: number
+  createdAt: string
+  updatedAt: string
+}
+```
+
+### NavigationEdge
+
+```typescript
+interface NavigationEdge {
+  id: number
+  startNodeId: number
+  endNodeId: number
+  edgeType: EdgeType
+  distance: string
+  travelTime: string | null
+  isAccessible: boolean
+  createdAt: string
+  updatedAt: string
+}
+```
+
+### BuildingGraph
+
+```typescript
+interface BuildingGraph {
+  nodes: NavigationNode[]
+  edges: NavigationEdge[]
 }
 ```
 

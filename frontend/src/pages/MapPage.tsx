@@ -538,9 +538,9 @@ export default function MapPage() {
             <div className="space-y-2">
               <Label>Thành phố</Label>
               <Select
-                value={filters.city || "all"}
+                value={filters.city || undefined}
                 onValueChange={(value) => {
-                  const nextCity = !value || value === "all" ? "" : value;
+                  const nextCity = !value || value === "__all__" ? "" : value;
                   setFilters((prev) => ({
                     ...prev,
                     city: nextCity,
@@ -553,7 +553,7 @@ export default function MapPage() {
                   <SelectValue placeholder="Tất cả thành phố" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tất cả thành phố</SelectItem>
+                  <SelectItem value="__all__">Tất cả thành phố</SelectItem>
                   {cityOptions.map((city) => (
                     <SelectItem key={city} value={city}>
                       {city}
@@ -566,9 +566,9 @@ export default function MapPage() {
             <div className="space-y-2">
               <Label>Quận/Huyện</Label>
               <Select
-                value={filters.district || "all"}
+                value={filters.district || undefined}
                 onValueChange={(value) => {
-                  const nextDistrict = !value || value === "all" ? "" : value;
+                  const nextDistrict = !value || value === "__all__" ? "" : value;
                   setFilters((prev) => ({
                     ...prev,
                     district: nextDistrict,
@@ -580,7 +580,7 @@ export default function MapPage() {
                   <SelectValue placeholder="Tất cả quận/huyện" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tất cả quận/huyện</SelectItem>
+                  <SelectItem value="__all__">Tất cả quận/huyện</SelectItem>
                   {districtOptions.map((district) => (
                     <SelectItem key={district} value={district}>
                       {district}
@@ -593,9 +593,9 @@ export default function MapPage() {
             <div className="space-y-2">
               <Label>Phường/Xã</Label>
               <Select
-                value={filters.ward || "all"}
+                value={filters.ward || undefined}
                 onValueChange={(value) => {
-                  const nextWard = !value || value === "all" ? "" : value;
+                  const nextWard = !value || value === "__all__" ? "" : value;
                   setFilters((prev) => ({
                     ...prev,
                     ward: nextWard,
@@ -606,7 +606,7 @@ export default function MapPage() {
                   <SelectValue placeholder="Tất cả phường/xã" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tất cả phường/xã</SelectItem>
+                  <SelectItem value="__all__">Tất cả phường/xã</SelectItem>
                   {wardOptions.map((ward) => (
                     <SelectItem key={ward} value={ward}>
                       {ward}
