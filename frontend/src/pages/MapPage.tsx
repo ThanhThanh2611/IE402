@@ -763,13 +763,13 @@ export default function MapPage() {
 
           <CardContent className="p-0">
             {loadingMap ? (
-              <Skeleton className="h-[70vh] min-h-[420px] w-full rounded-none" />
+              <Skeleton className="h-[70vh] min-h-105 w-full rounded-none" />
             ) : mapFeatures.length === 0 ? (
-              <div className="flex h-[70vh] min-h-[420px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
+              <div className="flex h-[70vh] min-h-105 items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 Không có tòa nhà phù hợp với bộ lọc hiện tại.
               </div>
             ) : (
-              <div className="h-[70vh] min-h-[420px] w-full">
+              <div className="h-[70vh] min-h-105 w-full">
                 <MapContainer
                   center={DEFAULT_CENTER}
                   zoom={12}
@@ -806,7 +806,7 @@ export default function MapPage() {
                           {feature.properties.name} - {occupancyRate.toFixed(1)}%
                         </Tooltip>
                         <Popup>
-                          <div className="min-w-[240px] space-y-3">
+                          <div className="min-w-60 space-y-3">
                             <div>
                               <p className="font-semibold">{feature.properties.name}</p>
                               <p className="text-xs text-muted-foreground">{feature.properties.address}</p>

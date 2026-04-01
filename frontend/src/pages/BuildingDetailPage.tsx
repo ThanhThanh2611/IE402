@@ -481,7 +481,7 @@ export default function BuildingDetailPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-1/3" />
-        <Skeleton className="h-[520px] w-full" />
+        <Skeleton className="h-130 w-full" />
       </div>
     );
   }
@@ -519,7 +519,7 @@ export default function BuildingDetailPage() {
             <CardTitle className="text-base">Danh sách tầng</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <ScrollArea className="h-[290px] pr-4">
+            <ScrollArea className="h-72.5 pr-4">
               <div className="space-y-2">
                 {floors.map((floor) => (
                   <div
@@ -601,7 +601,7 @@ export default function BuildingDetailPage() {
           </CardHeader>
 
           <CardContent>
-            <div className="relative h-[600px] overflow-hidden rounded-md border bg-muted/20">
+            <div className="relative h-150 overflow-hidden rounded-md border bg-muted/20">
               {modelUrl ? (
                 <ModelCanvas
                   modelUrl={modelUrl}
@@ -627,7 +627,7 @@ export default function BuildingDetailPage() {
               )}
 
               {popupData && !popupLoading && (
-                <Card className="absolute right-3 top-3 z-20 w-[340px] border shadow-lg">
+                <Card className="absolute right-3 top-3 z-20 w-85 border shadow-lg">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="text-base">Căn hộ {popupData.apartment.code}</CardTitle>
