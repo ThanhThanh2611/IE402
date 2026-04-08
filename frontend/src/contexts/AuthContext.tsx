@@ -1,33 +1,48 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { AuthUser, LoginResponse } from "@/types";
-import { api } from "@/lib/api";
+import { api, clearStoredAuth, setStoredAuth } from "@/lib/api";
 
 interface AuthContextType {
   user: AuthUser | null;
-  token: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isManager: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function getStoredUser(): AuthUser | null {
+  const saved = localStorage.getItem("user");
+
+  if (!saved) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(saved) as AuthUser;
+  } catch {
+    clearStoredAuth();
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem("token"),
+  const [user, setUser] = useState<AuthUser | null>(() => getStoredUser());
+  const [accessToken, setAccessToken] = useState<string | null>(() =>
+    localStorage.getItem("accessToken") || localStorage.getItem("token"),
+  );
+  const [refreshToken, setRefreshToken] = useState<string | null>(() =>
+    localStorage.getItem("refreshToken"),
   );
 
   useEffect(() => {
-    if (user && token) {
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("token", token);
+    if (user && accessToken && refreshToken) {
+      setStoredAuth({ user, accessToken, refreshToken });
     }
-  }, [user, token]);
+  }, [user, accessToken, refreshToken]);
 
   const login = useCallback(async (username: string, password: string) => {
     const data = await api.post<LoginResponse>("/auth/login", {
@@ -35,24 +50,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("token", data.token);
+    setAccessToken(data.accessToken);
+    setRefreshToken(data.refreshToken);
+    setStoredAuth({
+      user: data.user,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+    });
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-  }, []);
+  const logout = useCallback(async () => {
+    try {
+      if (refreshToken) {
+        await api.post("/auth/logout", { refreshToken });
+      }
+    } catch {
+      // Logout vẫn nên tiếp tục xóa phiên cục bộ dù revoke thất bại
+    } finally {
+      setUser(null);
+      setAccessToken(null);
+      setRefreshToken(null);
+      clearStoredAuth();
+    }
+  }, [refreshToken]);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
-        isAuthenticated: !!user && !!token,
+        accessToken,
+        refreshToken,
+        isAuthenticated: !!user && !!accessToken,
         isManager: user?.role === "manager",
         login,
         logout,

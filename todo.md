@@ -50,6 +50,41 @@
 - [x] Docs: Cập nhật ERD (DBML) với bảng navigation mới
 
 ## Backlog
-- [ ] FE+BE: Error boundaries + 404 page
-- [ ] FE: Responsive design tuning
 - [ ] FE: Dark mode support
+- [ ] FE: E2E test cho luồng chính
+
+## BA / ERD Alignment
+- [x] BE: Làm rõ quan hệ giữa `users` và `tenants` trong schema
+- [x] BE: Thêm mô hình không gian trong căn hộ (`apartment_spaces`) cho LoD4
+- [x] BE: Thêm schema thư viện nội thất, layout và furniture items cho kéo-thả
+- [x] BE: Thêm `apartment_access_grants` để phân quyền xem tenant/hợp đồng theo từng căn hộ
+- [x] BE: Mở rộng GIS 3D với `buildings.footprint`, `floors.floor_plan`, `floors.elevation`, `floors.model_3d_url`
+- [x] Docs: Cập nhật `docs/erd.dbml` và `docs/erd.md` theo BA mới
+- [x] BE: Thêm API `/apartments/:id/details`, CRUD spaces, layouts, items
+- [x] FE: Thay `ApartmentDetailPage` placeholder bằng UI chi tiết căn hộ LoD4
+- [x] BE: Xóa migration Drizzle cũ và tạo lại 1 migration sạch từ schema hiện tại
+- [x] Docs FE: Viết lại tài liệu `docs/frontend/` cho khớp FE và BE hiện tại
+- [x] Docs User Guide: Viết lại `docs/user-guide/` theo quyền và màn hình thực tế
+- [x] Docs: Tạo `docs/usecase-status.md` liệt kê trạng thái từng use case
+- [x] Tests: Thêm unit test cho BE và FE, chạy pass thực tế
+- [x] Docs: Viết `docs/pm-summary.md` cho PM non-tech theo dõi backlog và ưu tiên
+- [x] FE+BE: Cải thiện time series data trên dashboard
+- [x] FE+BE: Chuyển sang access token + refresh token
+- [x] FE: Thêm snapshot occupancy trực tiếp trên dashboard
+- [x] FE: Thêm UI access grant cho manager trong trang chi tiết căn hộ
+- [x] FE: Thêm error boundary, trang 404 và state lỗi thân thiện cho các màn hình chính
+- [x] FE: Tối ưu responsive cho dashboard, map, building 3D và các trang bảng lớn
+- [x] Tests: Mở rộng route test backend và component/page test frontend
+- [x] FE: Fix lỗi trang trắng khi app mount do Toaster/Auth bootstrap
+- [x] FE: Fix không chọn được tầng ổn định ở trang chi tiết tòa nhà
+- [x] FE+BE: Fix item nội thất bị dồn góc trái trên do geometry trả về sai format
+- [x] FE: Vẽ boundary LoD4 trên workspace và tự gắn item vào không gian khi kéo thả
+- [x] FE: Chặn button submit/reload ngoài ý muốn và chuyển retry/navigation về SPA flow
+- [x] FE: Bỏ reload toàn bảng sau CRUD ở các màn quản trị chính, chuyển sang cập nhật state tại chỗ
+- [x] FE+BE: Thêm support model tầng với hotspot local, bấm door/elevator/stairs và nút 3D tổng quan tòa nhà
+- [x] FE+BE: Reset DB sạch, seed hotspot local mẫu cho building 5 và thêm UI sửa local x/y/z, meshRef ngay trên màn hình
+- [x] BE: Tăng giới hạn upload `.glb/.gltf` và trả lỗi upload file quá lớn theo dạng dễ hiểu
+- [x] FE+BE: Thêm upload model 3D riêng cho tầng để `floors.model3dUrl` có thể được gán ngay từ UI
+- [x] FE: Fix input upload model tầng để không bị disable sai sau khi đổi tầng hoặc chọn lại cùng file
+- [x] Docs: Thêm file hướng dẫn workflow model tầng, hotspot local và cách lấy local X/Y/Z từ Blender
+- [x] FE: Thêm nút tạo hotspot và cho chỉnh `node type` ngay trong dialog hotspot ở trang tòa nhà

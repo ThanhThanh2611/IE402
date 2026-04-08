@@ -1,103 +1,219 @@
-# Hướng dẫn sử dụng — Vai trò Manager
+# Hướng dẫn sử dụng - Vai trò Manager
 
 ## Tổng quan
 
-Manager có **toàn quyền** trên hệ thống: xem tất cả thông tin của User + thêm/sửa/xóa dữ liệu + quản lý người dùng.
+`Manager` có toàn bộ quyền của `User`, đồng thời có quyền thao tác các màn hình quản trị và nhìn thấy đầy đủ dữ liệu tenant, hợp đồng, thanh toán, người dùng.
 
-## Các chức năng
+## 1. Dashboard
 
-### 1. Dashboard (`/dashboard`)
-Giống User — xem thống kê tổng quan, biểu đồ tỷ lệ lấp đầy và doanh thu.
+### Màn hình
 
-### 2. Bản đồ GIS (`/map`) *(sắp ra mắt)*
-Giống User — xem bản đồ, lọc tòa nhà, xem chi tiết.
+- Route: `/dashboard`
 
-### 3. Quản lý căn hộ (`/apartments`)
-- **Xem danh sách**: Bảng hiển thị mã, vị trí (tòa nhà + tầng), diện tích, phòng ngủ, giá thuê, trạng thái
-- **Lọc**: Dropdown chọn tòa nhà → dropdown chọn tầng (tự động lọc theo tòa nhà đã chọn)
-- **Thêm căn hộ**: Nhấn nút "Thêm căn hộ" → điền form (tầng, mã, diện tích, phòng ngủ, phòng tắm, giá thuê, mô tả)
-- **Sửa căn hộ**: Nhấn icon bút chì → form pre-fill → sửa → Lưu
-- **Xóa căn hộ**: Nhấn icon thùng rác → xác nhận → xóa mềm (soft delete)
-- **Đổi trạng thái**: Click vào badge trạng thái trong bảng → chọn: Còn trống / Đã thuê / Bảo trì
+### Nội dung chính
 
-> **Lưu ý**: Trạng thái căn hộ tự động thay đổi khi tạo/xóa hợp đồng (xem mục Hợp đồng).
+- Tổng số tòa nhà
+- Tổng số căn hộ
+- Số căn đã cho thuê
+- Số hợp đồng đang hiệu lực
+- Tỷ lệ lấp đầy theo từng tòa nhà
+- Doanh thu theo tháng
+- Lịch sử occupancy theo thời gian
+- Snapshot occupancy theo mốc thời gian trực tiếp trên dashboard
 
-### 4. Quản lý hợp đồng (`/contracts`)
-- **Xem danh sách**: Bảng hiển thị căn hộ, người thuê, ngày bắt đầu/kết thúc, tiền thuê, trạng thái
-- **Thêm hợp đồng**: Nhấn "Thêm hợp đồng" → chọn căn hộ (chỉ hiện căn "Còn trống"), người thuê, ngày, tiền thuê, tiền cọc
-  - **Tự động**: Khi chọn căn hộ, tiền thuê/tháng tự điền theo giá thuê của căn hộ
-  - **Tự động**: Khi tạo thành công → căn hộ chuyển trạng thái thành "Đã thuê"
-- **Sửa hợp đồng**: Icon bút chì → sửa → Lưu
-- **Xóa hợp đồng**: Icon thùng rác → xác nhận → xóa mềm
-  - **Tự động**: Khi xóa → căn hộ chuyển về "Còn trống"
-- **Trạng thái**: Đang hoạt động (xanh) / Hết hạn (xám) / Đã hủy (đỏ)
+## 2. Bản đồ và chi tiết tòa nhà
 
-### 5. Quản lý người thuê (`/tenants`)
-- **Xem danh sách**: Họ tên, SĐT, email, CCCD, địa chỉ
-- **Thêm**: Nhấn "Thêm người thuê" → điền form (họ tên, SĐT, CCCD, email, địa chỉ)
-  - **Validation**: SĐT phải đúng format 10 số bắt đầu bằng 0, CCCD phải 12 chữ số
-- **Sửa/Xóa**: Tương tự
+### Màn hình
 
-> **Liên quan**: Người thuê được gắn vào hợp đồng. Cần tạo người thuê trước khi tạo hợp đồng cho họ.
+- `/map`
+- `/buildings/:id`
+- `/buildings/:id/apartments/:apartmentId`
 
-### 6. Quản lý thanh toán (`/payments`)
-- **Xem danh sách**: Hợp đồng (mã căn hộ - tên người thuê), ngày, số tiền, trạng thái, ghi chú
-- **Thêm thanh toán**: Chọn hợp đồng (chỉ hiện hợp đồng đang hoạt động) → số tiền tự điền theo tiền thuê hợp đồng → chọn ngày, trạng thái, ghi chú
-- **Trạng thái**: Chờ thanh toán (vàng) / Đã thanh toán (xanh) / Quá hạn (đỏ)
-- **Sửa/Xóa**: Tương tự
+### Khả năng của Manager
 
-> **Liên quan**: Thanh toán thuộc về hợp đồng. Doanh thu trên Dashboard được tính từ các thanh toán có status "Đã thanh toán".
+- Xem bản đồ GIS và vùng footprint của tòa nhà nếu có
+- Xem mô hình 3D tòa nhà
+- Upload hoặc thay file model 3D của tòa nhà tại trang chi tiết tòa nhà
+- Đi vào trang chi tiết căn hộ để xem dữ liệu nghiệp vụ đầy đủ
 
-### 7. Quản lý người dùng (`/users`)
-- **Xem danh sách**: Username, họ tên, email, vai trò (User/Manager), trạng thái (Hoạt động/Vô hiệu)
-- **Thêm người dùng**: Username (tối thiểu 3 ký tự), mật khẩu (tối thiểu 6 ký tự), họ tên, email, vai trò
-- **Sửa**: Chỉ sửa thông tin cơ bản (không sửa mật khẩu)
-- **Xóa**: Soft delete
-- **Kích hoạt / Vô hiệu hóa**: Nhấn icon người → toggle trạng thái
-  - Tài khoản bị vô hiệu hóa **không thể đăng nhập**
+## 3. Quản lý căn hộ
 
-## Sidebar menu (Manager)
+### Màn hình
 
-Manager thấy đầy đủ menu:
+- Route: `/apartments`
 
-**Tổng quan:**
-- Bản đồ
-- Dashboard
+### Chức năng
 
-**Quản lý:**
-- Căn hộ
-- Hợp đồng
-- Người thuê
-- Thanh toán
-- Người dùng
+- Xem danh sách căn hộ theo tòa nhà và tầng
+- Thêm căn hộ mới
+- Chỉnh sửa thông tin căn hộ
+- Xóa mềm căn hộ
+- Cập nhật trạng thái căn hộ
 
-## Quy trình nghiệp vụ chính
+### Thông tin thao tác
+
+Khi tạo hoặc sửa căn hộ, manager nhập các trường:
+- tầng
+- mã căn hộ
+- diện tích
+- số phòng ngủ
+- số phòng tắm
+- giá thuê
+- mô tả
+
+### Trạng thái căn hộ
+
+- `Còn trống`
+- `Đã thuê`
+- `Đang bảo trì`
+
+Lưu ý: trạng thái căn hộ còn có thể được backend tự động cập nhật khi tạo hoặc xóa hợp đồng.
+
+## 4. Chi tiết căn hộ và LoD4
+
+### Màn hình
+
+- Route: `/buildings/:id/apartments/:apartmentId`
+
+### Chức năng dành cho Manager
+
+- Xem toàn bộ thông tin tenant và hợp đồng hiện tại
+- Quản lý access grant theo từng căn hộ
+- Xem danh sách không gian LoD4 của căn hộ
+- Tạo, sửa, xóa không gian
+- Quản lý layout nội thất
+- Thêm, sửa, xóa item nội thất trong layout
+- Quản lý thư viện furniture catalog
+
+### Ghi chú
+
+Backend đã hỗ trợ phân quyền theo từng căn hộ qua access grant. Tuy nhiên với manager, dữ liệu tenant và hợp đồng luôn hiển thị đầy đủ.
+Manager cũng có thể cấp, sửa và thu hồi access grant ngay trong trang chi tiết căn hộ.
+
+## 5. Quản lý hợp đồng
+
+### Màn hình
+
+- Route: `/contracts`
+
+### Chức năng
+
+- Xem danh sách hợp đồng
+- Thêm hợp đồng mới
+- Chỉnh sửa hợp đồng
+- Xóa mềm hợp đồng
+- Xem chi tiết hợp đồng
+
+### Nghiệp vụ quan trọng
+
+- Khi tạo hợp đồng, backend tự động chuyển trạng thái căn hộ sang `Đã thuê`
+- Khi xóa hợp đồng, backend tự động chuyển trạng thái căn hộ về `Còn trống`
+- Giá thuê có thể được auto-fill từ căn hộ đã chọn
+
+## 6. Quản lý người thuê
+
+### Màn hình
+
+- Route: `/tenants`
+
+### Chức năng
+
+- Xem danh sách người thuê
+- Thêm mới
+- Chỉnh sửa
+- Xóa mềm
+
+### Dữ liệu chính
+
+- Họ tên
+- Số điện thoại
+- CCCD
+- Email
+- Địa chỉ
+
+### Kiểm tra dữ liệu
+
+- Số điện thoại theo định dạng Việt Nam
+- CCCD đủ 12 chữ số
+
+## 7. Quản lý thanh toán
+
+### Màn hình
+
+- Route: `/payments`
+
+### Chức năng
+
+- Xem danh sách thanh toán
+- Thêm thanh toán cho hợp đồng
+- Chỉnh sửa thanh toán
+- Xóa mềm thanh toán
+
+### Trạng thái thanh toán
+
+- `Chờ thanh toán`
+- `Đã thanh toán`
+- `Quá hạn`
+
+Doanh thu ở dashboard được tính từ dữ liệu thanh toán backend tổng hợp.
+
+## 8. Quản lý người dùng
+
+### Màn hình
+
+- Route: `/users`
+
+### Chức năng
+
+- Xem danh sách user hệ thống
+- Tạo user mới
+- Sửa thông tin user
+- Xóa mềm user
+- Kích hoạt user
+- Vô hiệu hóa user
+
+### Lưu ý
+
+- Tài khoản bị vô hiệu hóa sẽ không đăng nhập được
+- Trang này quản lý `users`, không phải danh sách `tenants`
+
+## 9. Menu bên trái
+
+Manager nhìn thấy đầy đủ 2 nhóm menu:
+
+### Tổng quan
+
+- `Bản đồ`
+- `Dashboard`
+
+### Quản lý
+
+- `Căn hộ`
+- `Hợp đồng`
+- `Người thuê`
+- `Thanh toán`
+- `Người dùng`
+
+## 10. Luồng nghiệp vụ điển hình
 
 ### Cho thuê căn hộ mới
-```
-1. Tạo người thuê (nếu chưa có) → /tenants
-2. Tạo hợp đồng: chọn căn hộ + người thuê → /contracts
-   → Căn hộ tự động chuyển "Đã thuê"
-3. Tạo thanh toán hàng tháng → /payments
+
+```text
+1. Tạo người thuê tại /tenants nếu người thuê chưa tồn tại
+2. Tạo hợp đồng tại /contracts
+3. Backend tự chuyển căn hộ sang trạng thái Da thue
+4. Tạo các bản ghi thanh toán tại /payments
 ```
 
 ### Kết thúc hợp đồng
-```
-1. Xóa hợp đồng → /contracts
-   → Căn hộ tự động chuyển "Còn trống"
+
+```text
+1. Xóa mềm hợp đồng tại /contracts
+2. Backend tự chuyển căn hộ về trạng thái Con trong
 ```
 
-### Bảo trì căn hộ
-```
-1. Đổi trạng thái căn hộ → "Bảo trì" → /apartments
-   (Căn hộ đang bảo trì không thể tạo hợp đồng mới)
-```
+### Kiểm tra thực địa từ bản đồ
 
-## Mối liên hệ giữa các chức năng
-
-```
-Tòa nhà → có nhiều Tầng → có nhiều Căn hộ
-Căn hộ + Người thuê → Hợp đồng thuê
-Hợp đồng thuê → có nhiều Thanh toán
-Thanh toán (đã thanh toán) → Doanh thu trên Dashboard
+```text
+/map -> Chọn tòa nhà -> /buildings/:id -> Chọn căn hộ -> /buildings/:id/apartments/:apartmentId
 ```

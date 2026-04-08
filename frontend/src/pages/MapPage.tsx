@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { latLngBounds, type LatLngBounds, type LatLngExpression } from "leaflet";
+import { latLngBounds, type LatLngBounds } from "leaflet";
 import {
   CircleMarker,
   MapContainer,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import type {
   Building,
   BuildingGeoJsonFeature,
@@ -49,7 +50,7 @@ type MapFilters = {
   maxPrice: string;
 };
 
-const DEFAULT_CENTER: LatLngExpression = [10.7769, 106.7009];
+const DEFAULT_CENTER: [number, number] = [10.7769, 106.7009];
 const DEFAULT_RADIUS_METERS = "3000";
 
 function getCurrentMonth(): string {
@@ -136,6 +137,33 @@ function markerRadius(occupancyRate: number, isNearby: boolean): number {
   return isNearby ? baseRadius + 2 : baseRadius;
 }
 
+function getFeatureCenter(feature: BuildingGeoJsonFeature): [number, number] {
+  if (feature.geometry.type === "Point") {
+    const [lng, lat] = feature.geometry.coordinates;
+    return [lat, lng];
+  }
+
+  if (feature.properties.center) {
+    return [feature.properties.center.lat, feature.properties.center.lng];
+  }
+
+  const coordinates = feature.geometry.coordinates[0] ?? [];
+  if (coordinates.length === 0) {
+    return [DEFAULT_CENTER[0], DEFAULT_CENTER[1]];
+  }
+
+  const sums = coordinates.reduce(
+    (acc, [lng, lat]) => {
+      acc.lng += lng;
+      acc.lat += lat;
+      return acc;
+    },
+    { lng: 0, lat: 0 },
+  );
+
+  return [sums.lat / coordinates.length, sums.lng / coordinates.length];
+}
+
 function formatDistance(meters: number): string {
   if (meters >= 1000) {
     return `${(meters / 1000).toFixed(2)} km`;
@@ -168,6 +196,8 @@ export default function MapPage() {
   const [occupancyMap, setOccupancyMap] = useState<Record<number, BuildingOccupancyDetail>>({});
   const [loadingMap, setLoadingMap] = useState(true);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
 
   const [timelineMonths, setTimelineMonths] = useState<string[]>([]);
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState("");
@@ -223,10 +253,7 @@ export default function MapPage() {
   const mapBounds = useMemo(() => {
     if (mapFeatures.length === 0) return null;
 
-    const points = mapFeatures.map((feature) => {
-      const [lng, lat] = feature.geometry.coordinates;
-      return [lat, lng] as [number, number];
-    });
+    const points = mapFeatures.map((feature) => getFeatureCenter(feature));
 
     return latLngBounds(points);
   }, [mapFeatures]);
@@ -269,6 +296,7 @@ export default function MapPage() {
         if (cancelled) return;
         const message = err instanceof ApiError ? err.message : "Không thể tải dữ liệu tòa nhà";
         toast.error(message);
+        setPageError(message);
       }
     };
 
@@ -284,6 +312,7 @@ export default function MapPage() {
 
     const loadTimelineMonths = async () => {
       setLoadingTimeline(true);
+      setTimelineError(null);
       try {
         const history = await api.get<OccupancyHistoryPoint[]>("/dashboard/occupancy-history");
         if (cancelled) return;
@@ -304,6 +333,7 @@ export default function MapPage() {
 
         const message = err instanceof ApiError ? err.message : "Không thể tải dữ liệu timeline";
         toast.error(message);
+        setTimelineError(message);
 
         setTimelineMonths([currentMonth]);
         setSelectedTimelineMonth(currentMonth);
@@ -326,6 +356,7 @@ export default function MapPage() {
 
     const loadMapData = async () => {
       setLoadingMap(true);
+      setPageError(null);
 
       try {
         const geoQuery = buildQueryString(appliedFilters, false);
@@ -362,6 +393,7 @@ export default function MapPage() {
 
         const message = err instanceof ApiError ? err.message : "Không thể tải dữ liệu bản đồ";
         toast.error(message);
+        setPageError(message);
       } finally {
         if (!cancelled) {
           setLoadingMap(false);
@@ -416,6 +448,7 @@ export default function MapPage() {
 
         const message = err instanceof ApiError ? err.message : "Không thể tải snapshot bản đồ";
         toast.error(message);
+        setTimelineError(message);
       } finally {
         if (!cancelled) {
           setLoadingSnapshot(false);
@@ -526,7 +559,24 @@ export default function MapPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Bản đồ đang tải lỗi"
+          description={pageError}
+          onRetry={() => setAppliedFilters((current) => ({ ...current }))}
+        />
+      )}
+
+      {timelineError && (
+        <PageErrorState
+          compact
+          title="Timeline occupancy chưa sẵn sàng"
+          description={timelineError}
+        />
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -649,11 +699,11 @@ export default function MapPage() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button className="flex-1" onClick={applyFilters} disabled={loadingMap}>
                 Áp dụng
               </Button>
-              <Button variant="outline" onClick={resetFilters} disabled={loadingMap}>
+              <Button variant="outline" onClick={resetFilters} disabled={loadingMap} className="sm:w-auto">
                 <RotateCcw className="h-4 w-4" />
               </Button>
             </div>
@@ -784,7 +834,7 @@ export default function MapPage() {
                   <MapAutoFit bounds={mapBounds} />
 
                   {mapFeatures.map((feature) => {
-                    const [lng, lat] = feature.geometry.coordinates;
+                    const [lat, lng] = getFeatureCenter(feature);
                     const buildingId = feature.properties.id;
                     const occupancy = occupancyMap[buildingId];
                     const occupancyRate = toOccupancyRate(occupancy?.occupancyRate);

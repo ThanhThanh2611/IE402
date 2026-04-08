@@ -4,93 +4,139 @@ Use Cases: UC22-25
 
 ## Trang Dashboard (`/dashboard`)
 
-### UC22 — Dashboard tổng quan
+Trang dashboard hiện đã được triển khai thực tế và là route mặc định sau khi đăng nhập.
 
-**API**: `GET /api/dashboard/overview`
+## 1. Dashboard tổng quan
 
-Hiển thị các thẻ thống kê tổng quan (stat cards) ở đầu trang.
+### API chính
 
-#### Stat cards
+- `GET /api/dashboard/overview`
+- `GET /api/dashboard/occupancy`
+- `GET /api/dashboard/revenue?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/dashboard/revenue-by-month?year=YYYY`
+- `GET /api/dashboard/occupancy-history?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
-| Thẻ | Dữ liệu | Icon gợi ý |
-|---|---|---|
-| Tổng tòa nhà | `totalBuildings` | Building2 |
-| Tổng căn hộ | `totalApartments` | Home |
-| Đã cho thuê | `rentedApartments` | Key |
-| Tổng hợp đồng | `totalContracts` | FileText |
-| Tổng người thuê | `totalTenants` | Users |
+### Stat cards đang hiển thị
 
-- Dùng component `Card` với layout grid 2-5 cột
-- Hiển thị số lớn + label mô tả
+| Thẻ | Field |
+|---|---|
+| Tổng tòa nhà | `totalBuildings` |
+| Tổng căn hộ | `totalApartments` |
+| Đã cho thuê | `rentedApartments` |
+| Hợp đồng đang hiệu lực | `activeContracts` |
 
----
+Lưu ý: FE hiện bám theo shape response thực tế của backend, không còn dùng bộ chỉ số cũ như `totalContracts` hay `totalTenants` ở giao diện chính.
 
-### UC23 — Thống kê tỷ lệ lấp đầy
+## 2. Tỷ lệ lấp đầy
 
-**API**: `GET /api/dashboard/occupancy`
+### API
 
-#### Biểu đồ gợi ý
-- **Bar chart ngang**: mỗi bar là 1 tòa nhà, chiều dài = tỷ lệ %
-- Hoặc **Donut chart** cho từng tòa nhà
-- Dùng thư viện: Recharts (tương thích tốt với shadcn)
+- `GET /api/dashboard/occupancy`
 
-#### Dữ liệu hiển thị per tòa nhà
-- Tên tòa nhà
-- Tổng căn hộ
-- Đã thuê
-- Tỷ lệ lấp đầy (%)
+### Cách hiển thị hiện tại
 
----
+- FE render danh sách theo từng tòa nhà
+- Mỗi item hiển thị tên tòa nhà, tổng căn hộ, số căn đã thuê và phần trăm lấp đầy
+- Cách trình bày hiện tại thiên về card/list hơn là dashboard chart phức tạp
 
-### UC24 — Thống kê doanh thu
+## 3. Doanh thu theo tháng và theo khoảng thời gian
 
-#### Doanh thu tổng
-- **API**: `GET /api/dashboard/revenue?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- Cho phép chọn khoảng thời gian (DateRangePicker)
-- Hiển thị tổng doanh thu format VND
+### Bộ lọc thời gian
 
-#### Doanh thu theo tháng
-- **API**: `GET /api/dashboard/revenue-by-month?year=YYYY`
-- **Biểu đồ**: Line chart hoặc Bar chart
-- Trục X: tháng (1-12)
-- Trục Y: doanh thu (VND)
-- Dropdown chọn năm
+FE hiện có bộ lọc:
+- `fromDate`
+- `toDate`
+- `selectedYear`
+- `snapshotDate`
 
----
+Khoảng ngày được dùng cho:
+- tổng doanh thu trong kỳ
+- số giao dịch đã thu trong kỳ
+- lịch sử tỷ lệ lấp đầy theo thời gian
 
-### UC25 — Dữ liệu theo thời gian
+Năm được dùng riêng cho biểu đồ doanh thu theo tháng.
 
-#### Lịch sử tỷ lệ lấp đầy
-- **API**: `GET /api/dashboard/occupancy-history?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- **Biểu đồ**: Area chart hoặc Line chart
-- Trục X: thời gian
-- Trục Y: tỷ lệ lấp đầy (%)
-- Cho phép chọn khoảng thời gian
+Mốc `snapshotDate` được dùng riêng cho khối snapshot occupancy ngay trên dashboard.
 
-#### Bản đồ snapshot
-- **API**: `GET /api/dashboard/map-snapshot?date=YYYY-MM-DD`
-- Hiển thị trạng thái lấp đầy tất cả tòa nhà tại 1 ngày cụ thể
-- Response: GeoJSON FeatureCollection kèm occupancy data
-- Có thể dùng DatePicker để chọn ngày, render lên bản đồ mini
+### Doanh thu tổng trong kỳ
 
----
+### API
 
-### Layout gợi ý
+- `GET /api/dashboard/revenue?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
+### Hiển thị
+
+- card tổng doanh thu trong kỳ
+- card số giao dịch đã thu trong kỳ
+
+## 4. Doanh thu theo tháng
+
+### API
+
+- `GET /api/dashboard/revenue-by-month?year=YYYY`
+
+### Shape dữ liệu hiện tại
+
+Mỗi phần tử có dạng:
+
+```ts
+{
+  month: "2026-04",
+  revenue: "125000000",
+  count: 8
+}
 ```
-┌─────────────────────────────────────────────────┐
-│  Dashboard                                      │
-├────────┬────────┬────────┬────────┬─────────────┤
-│Tòa nhà│Căn hộ  │Đã thuê │Hợp đồng│Người thuê   │
-│  12    │  240   │  185   │  185   │  170        │
-├────────┴────────┴────────┴────────┴─────────────┤
-│                                                 │
-│  Tỷ lệ lấp đầy theo tòa nhà     [Bar chart]   │
-│                                                 │
-├─────────────────────┬───────────────────────────┤
-│                     │                           │
-│  Doanh thu theo     │  Lịch sử tỷ lệ lấp đầy  │
-│  tháng [Line chart] │  [Area chart]             │
-│                     │                           │
-└─────────────────────┴───────────────────────────┘
+
+FE parse `month` theo format `YYYY-MM` và chuyển `revenue` từ string sang number trước khi đưa vào biểu đồ.
+
+### Hiển thị
+
+- Biểu đồ dùng Recharts
+- Trục thời gian dựa trên chuỗi tháng-năm
+- Giá trị doanh thu được format sang VND ở layer UI
+
+## 5. Lịch sử tỷ lệ lấp đầy theo thời gian
+
+### API
+
+- `GET /api/dashboard/occupancy-history?from=YYYY-MM-DD&to=YYYY-MM-DD`
+
+### Shape dữ liệu hiện tại
+
+Mỗi phần tử có dạng:
+
+```ts
+{
+  month: "2026-04",
+  newContracts: 3,
+  activeContracts: 41,
+  occupancyRate: 0.523
+}
 ```
+
+### Hiển thị
+
+- FE render biểu đồ time series ngay trên dashboard
+- một lớp dữ liệu thể hiện `occupancyRate`
+- một lớp dữ liệu thể hiện `activeContracts`
+- trục X là các mốc tháng trong khoảng ngày đã chọn
+- FE bổ sung thêm các summary nhỏ ngay trong card:
+  - lấp đầy đầu kỳ
+  - lấp đầy cuối kỳ
+  - số mốc dữ liệu đang được render
+
+## 6. Dữ liệu snapshot
+
+`Map snapshot` hiện đã được hiển thị trực tiếp trong dashboard thay vì chỉ dùng mạnh ở `/map`.
+
+API liên quan:
+- `GET /api/dashboard/map-snapshot?date=YYYY-MM-DD`
+
+### Hiển thị hiện tại
+
+- FE có input chọn ngày snapshot trực tiếp trong card bộ lọc thời gian
+- dashboard hiển thị:
+  - tỷ lệ lấp đầy toàn hệ thống tại mốc ngày đã chọn
+  - tổng căn đang thuê / tổng căn
+  - danh sách từng tòa nhà với progress bar lấp đầy
+- Danh sách snapshot được sắp xếp theo tỷ lệ lấp đầy giảm dần để hỗ trợ demo nghiệp vụ rõ hơn

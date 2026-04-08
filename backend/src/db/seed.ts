@@ -6,12 +6,17 @@ import {
   navigationNodes,
   navigationEdges,
   apartments,
+  apartmentSpaces,
+  authSessions,
+  furnitureCatalog,
+  furnitureLayouts,
+  furnitureItems,
   tenants,
   rentalContracts,
   payments,
   apartmentStatusHistory,
 } from "./schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, type SQL } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 async function seed() {
@@ -20,9 +25,14 @@ async function seed() {
   // Clear existing data (reverse order of dependencies)
   console.log("Clearing old data...");
   await db.delete(payments);
+  await db.delete(authSessions);
+  await db.delete(furnitureItems);
+  await db.delete(furnitureLayouts);
   await db.delete(rentalContracts);
   await db.delete(apartmentStatusHistory);
+  await db.delete(apartmentSpaces);
   await db.delete(apartments);
+  await db.delete(furnitureCatalog);
   await db.delete(navigationEdges);
   await db.delete(navigationNodes);
   await db.delete(floors);
@@ -39,9 +49,14 @@ async function seed() {
   await db.execute(sql`ALTER SEQUENCE tenants_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE rental_contracts_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE payments_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE auth_sessions_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE apartment_status_history_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE navigation_nodes_id_seq RESTART WITH 1`);
   await db.execute(sql`ALTER SEQUENCE navigation_edges_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE apartment_spaces_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE furniture_catalog_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE furniture_layouts_id_seq RESTART WITH 1`);
+  await db.execute(sql`ALTER SEQUENCE furniture_items_id_seq RESTART WITH 1`);
   console.log("Sequences reset.");
 
   // 1. Users (hash passwords)
@@ -155,13 +170,15 @@ async function seed() {
   // 4b. Navigation Nodes — tạo mạng lưới topology cho mỗi tòa nhà
   // Mỗi tầng có: 1 sảnh (junction), 1 thang máy, 1 cầu thang, và 1 cửa (door) cho mỗi căn hộ
   const FLOOR_HEIGHT = 3.5; // mét giữa các tầng
-  const buildingBaseCoords: Record<number, { lng: number; lat: number }> = {
-    1: { lng: 106.7004, lat: 10.7379 }, // Sunrise Tower
-    2: { lng: 106.6942, lat: 10.7626 }, // Golden Palace
-    3: { lng: 106.7219, lat: 10.7868 }, // Thủ Thiêm Residence
-    4: { lng: 106.7196, lat: 10.7291 }, // Phú Mỹ Hưng Tower
-    5: { lng: 106.7132, lat: 10.8014 }, // Bình Thạnh Center
-  };
+  const buildingBaseCoords: Record<number, { lng: number; lat: number }> = {};
+  insertedBuildings.forEach((building, index) => {
+    const definition = buildingDefs[index];
+    if (!definition) return;
+    buildingBaseCoords[building.id] = {
+      lng: definition.lng,
+      lat: definition.lat,
+    };
+  });
 
   // Tạo nodes cho mỗi tầng đã seed
   const nodeInserts: {
@@ -171,6 +188,11 @@ async function seed() {
     lng: number;
     lat: number;
     z: number;
+    localX: string | null;
+    localY: string | null;
+    localZ: string | null;
+    meshRef: string | null;
+    metadata: Record<string, unknown> | null;
   }[] = [];
 
   // Map để theo dõi node theo tầng: floorId -> { junction, elevator, stairs, doors[] }
@@ -179,6 +201,9 @@ async function seed() {
   for (const floor of insertedFloors) {
     const buildingId = floor.buildingId;
     const base = buildingBaseCoords[buildingId];
+    if (!base) {
+      throw new Error(`Không tìm thấy tọa độ gốc cho buildingId=${buildingId} khi seed navigation`);
+    }
     const z = floor.floorNumber * FLOOR_HEIGHT;
     const offset = 0.0001; // ~11m offset giữa các node
 
@@ -190,6 +215,11 @@ async function seed() {
       lng: base.lng,
       lat: base.lat,
       z,
+      localX: "0",
+      localY: "0.6",
+      localZ: "-1.5",
+      meshRef: `HOTSPOT_JUNCTION_F${floor.floorNumber}`,
+      metadata: { seed: true, kind: "junction" },
     });
 
     const elevatorIdx = nodeInserts.length;
@@ -200,6 +230,11 @@ async function seed() {
       lng: base.lng + offset,
       lat: base.lat,
       z,
+      localX: "-4.5",
+      localY: "0.6",
+      localZ: "-7.5",
+      meshRef: `HOTSPOT_ELEVATOR_F${floor.floorNumber}`,
+      metadata: { seed: true, kind: "elevator" },
     });
 
     const stairsIdx = nodeInserts.length;
@@ -210,12 +245,18 @@ async function seed() {
       lng: base.lng - offset,
       lat: base.lat,
       z,
+      localX: "4.5",
+      localY: "0.6",
+      localZ: "-7.5",
+      meshRef: `HOTSPOT_STAIRS_F${floor.floorNumber}`,
+      metadata: { seed: true, kind: "stairs" },
     });
 
     // Tạo door nodes cho các căn hộ thuộc tầng này
     const floorApartments = insertedApartments.filter((a) => a.floorId === floor.id);
     const doorIdxes: number[] = [];
     floorApartments.forEach((apt, i) => {
+      const localDoorSlots = ["-9.0", "0", "9.0", "18.0"];
       const doorIdx = nodeInserts.length;
       doorIdxes.push(doorIdx);
       nodeInserts.push({
@@ -225,6 +266,11 @@ async function seed() {
         lng: base.lng + offset * (i + 2),
         lat: base.lat + offset,
         z,
+        localX: localDoorSlots[i] ?? String(i * 9),
+        localY: "0.6",
+        localZ: "7.5",
+        meshRef: `HOTSPOT_APT_${apt.code.replace(/[^A-Za-z0-9]/g, "_")}`,
+        metadata: { seed: true, apartmentCode: apt.code, apartmentOrder: i + 1 },
       });
     });
 
@@ -232,7 +278,15 @@ async function seed() {
   }
 
   // Insert tất cả nodes
-  const insertedNodes = [];
+  const insertedNodes: Array<{
+    id: number;
+    floorId: number;
+    nodeType: "junction" | "elevator" | "stairs" | "door";
+    label: string | null;
+    location: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+  }> = [];
   for (const node of nodeInserts) {
     const result = await db
       .insert(navigationNodes)
@@ -241,6 +295,11 @@ async function seed() {
         nodeType: node.nodeType,
         label: node.label,
         location: sql`ST_SetSRID(ST_MakePoint(${node.lng}, ${node.lat}, ${node.z}), 4326)`,
+        localX: node.localX,
+        localY: node.localY,
+        localZ: node.localZ,
+        meshRef: node.meshRef,
+        metadata: node.metadata,
       })
       .returning();
     insertedNodes.push(result[0]);
@@ -326,6 +385,109 @@ async function seed() {
     }
   }
   console.log("Linked apartments with entry nodes");
+
+  // 4e. Furniture catalog
+  const insertedFurnitureCatalog = await db
+    .insert(furnitureCatalog)
+    .values([
+      {
+        code: "SOFA-01",
+        name: "Sofa chữ I",
+        category: "sofa",
+        model3dUrl: "/uploads/furniture/sofa-01.glb",
+        defaultWidth: "2.20",
+        defaultDepth: "0.90",
+        defaultHeight: "0.85",
+        metadata: { color: "gray", material: "fabric" },
+      },
+      {
+        code: "TABLE-01",
+        name: "Bàn ăn 4 ghế",
+        category: "table",
+        model3dUrl: "/uploads/furniture/table-01.glb",
+        defaultWidth: "1.40",
+        defaultDepth: "0.80",
+        defaultHeight: "0.75",
+        metadata: { seats: 4 },
+      },
+      {
+        code: "BED-01",
+        name: "Giường đôi",
+        category: "bed",
+        model3dUrl: "/uploads/furniture/bed-01.glb",
+        defaultWidth: "1.80",
+        defaultDepth: "2.00",
+        defaultHeight: "0.65",
+        metadata: { size: "queen" },
+      },
+      {
+        code: "CABINET-01",
+        name: "Tủ quần áo",
+        category: "cabinet",
+        model3dUrl: "/uploads/furniture/cabinet-01.glb",
+        defaultWidth: "1.60",
+        defaultDepth: "0.60",
+        defaultHeight: "2.10",
+        metadata: { doorType: "sliding" },
+      },
+    ])
+    .returning();
+  console.log(`Inserted ${insertedFurnitureCatalog.length} furniture catalog items`);
+
+  // 4f. Apartment spaces + sample layouts/items cho một số căn hộ
+  const sampleApartments = insertedApartments.slice(0, 6);
+  const insertedSpaces: Array<{
+    id: number;
+    apartmentId: number;
+    parentSpaceId: number | null;
+    name: string;
+  }> = [];
+
+  for (const apartment of sampleApartments) {
+    const unit = await db
+      .insert(apartmentSpaces)
+      .values({
+        apartmentId: apartment.id,
+        name: `Không gian căn ${apartment.code}`,
+        spaceType: "unit",
+        lodLevel: "lod4",
+        metadata: { apartmentCode: apartment.code },
+      })
+      .returning();
+
+    const livingRoom = await db
+      .insert(apartmentSpaces)
+      .values({
+        apartmentId: apartment.id,
+        parentSpaceId: unit[0].id,
+        name: "Phòng khách",
+        spaceType: "room",
+        roomType: "living_room",
+        lodLevel: "lod4",
+        metadata: { width: 40, depth: 35 },
+      })
+      .returning();
+
+    const bedroom = await db
+      .insert(apartmentSpaces)
+      .values({
+        apartmentId: apartment.id,
+        parentSpaceId: unit[0].id,
+        name: "Phòng ngủ",
+        spaceType: "room",
+        roomType: "bedroom",
+        lodLevel: "lod4",
+        metadata: { width: 30, depth: 30 },
+      })
+      .returning();
+
+    insertedSpaces.push(
+      { id: unit[0].id, apartmentId: apartment.id, parentSpaceId: null, name: unit[0].name },
+      { id: livingRoom[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: livingRoom[0].name },
+      { id: bedroom[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: bedroom[0].name },
+    );
+  }
+  console.log(`Inserted ${insertedSpaces.length} apartment spaces`);
 
   // 5. Tenants
   const insertedTenants = await db
@@ -434,6 +596,122 @@ async function seed() {
   const insertedPayments = await db.insert(payments).values(paymentValues).returning();
   console.log(`Inserted ${insertedPayments.length} payments`);
 
+  const insertedLayouts = await db
+    .insert(furnitureLayouts)
+    .values(
+      sampleApartments.map((apartment, index) => ({
+        apartmentId: apartment.id,
+        name: `Layout mặc định ${apartment.code}`,
+        status: (index % 2 === 0 ? "published" : "draft") as
+          | "draft"
+          | "published"
+          | "archived",
+        version: 1,
+        createdById: 1,
+        updatedById: 1,
+      })),
+    )
+    .returning();
+  console.log(`Inserted ${insertedLayouts.length} furniture layouts`);
+
+  const furnitureItemValues: Array<{
+    layoutId: number;
+    spaceId: number | null;
+    catalogId: number;
+    label: string;
+    position: SQL;
+    rotationX: string;
+    rotationY: string;
+    rotationZ: string;
+    scaleX: string;
+    scaleY: string;
+    scaleZ: string;
+    isLocked: boolean;
+    metadata: Record<string, unknown>;
+  }> = [];
+
+  insertedLayouts.forEach((layout) => {
+    const apartmentSpaceRows = insertedSpaces.filter((space) => space.apartmentId === layout.apartmentId);
+    const livingRoom = apartmentSpaceRows.find((space) => space.name === "Phòng khách");
+    const bedroom = apartmentSpaceRows.find((space) => space.name === "Phòng ngủ");
+
+    if (livingRoom) {
+      furnitureItemValues.push(
+        {
+          layoutId: layout.id,
+          spaceId: livingRoom.id,
+          catalogId: insertedFurnitureCatalog[0].id,
+          label: "Sofa chính",
+          position: sql`ST_SetSRID(ST_MakePoint(20, 25, 0), 4326)`,
+          rotationX: "0",
+          rotationY: "0",
+          rotationZ: "0",
+          scaleX: "1",
+          scaleY: "1",
+          scaleZ: "1",
+          isLocked: false,
+          metadata: { seed: true },
+        },
+        {
+          layoutId: layout.id,
+          spaceId: livingRoom.id,
+          catalogId: insertedFurnitureCatalog[1].id,
+          label: "Bàn ăn",
+          position: sql`ST_SetSRID(ST_MakePoint(65, 25, 0), 4326)`,
+          rotationX: "0",
+          rotationY: "0",
+          rotationZ: "0",
+          scaleX: "1",
+          scaleY: "1",
+          scaleZ: "1",
+          isLocked: false,
+          metadata: { seed: true },
+        },
+      );
+    }
+
+    if (bedroom) {
+      furnitureItemValues.push(
+        {
+          layoutId: layout.id,
+          spaceId: bedroom.id,
+          catalogId: insertedFurnitureCatalog[2].id,
+          label: "Giường chính",
+          position: sql`ST_SetSRID(ST_MakePoint(30, 65, 0), 4326)`,
+          rotationX: "0",
+          rotationY: "0",
+          rotationZ: "90",
+          scaleX: "1",
+          scaleY: "1",
+          scaleZ: "1",
+          isLocked: false,
+          metadata: { seed: true },
+        },
+        {
+          layoutId: layout.id,
+          spaceId: bedroom.id,
+          catalogId: insertedFurnitureCatalog[3].id,
+          label: "Tủ quần áo",
+          position: sql`ST_SetSRID(ST_MakePoint(72, 70, 0), 4326)`,
+          rotationX: "0",
+          rotationY: "0",
+          rotationZ: "0",
+          scaleX: "1",
+          scaleY: "1",
+          scaleZ: "1",
+          isLocked: true,
+          metadata: { seed: true },
+        },
+      );
+    }
+  });
+
+  const insertedFurnitureItems = await db
+    .insert(furnitureItems)
+    .values(furnitureItemValues)
+    .returning();
+  console.log(`Inserted ${insertedFurnitureItems.length} furniture items`);
+
   console.log("\nSeed completed successfully!");
   console.log(`Summary:
   - Users: ${insertedUsers.length}
@@ -442,6 +720,10 @@ async function seed() {
   - Navigation Nodes: ${insertedNodes.length}
   - Navigation Edges: ${insertedEdges.length}
   - Apartments: ${insertedApartments.length}
+  - Apartment Spaces: ${insertedSpaces.length}
+  - Furniture Catalog: ${insertedFurnitureCatalog.length}
+  - Furniture Layouts: ${insertedLayouts.length}
+  - Furniture Items: ${insertedFurnitureItems.length}
   - Tenants: ${insertedTenants.length}
   - Contracts: ${insertedContracts.length}
   - Payments: ${insertedPayments.length}

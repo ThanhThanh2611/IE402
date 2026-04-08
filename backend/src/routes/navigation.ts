@@ -1,9 +1,28 @@
 import { Router } from "express";
 import { db } from "../db";
-import { navigationNodes, navigationEdges } from "../db/schema";
-import { eq, sql } from "drizzle-orm";
+import { apartments, floors, navigationEdges, navigationNodes } from "../db/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 const router = Router();
+
+const navigationNodeSelect = {
+  id: navigationNodes.id,
+  floorId: navigationNodes.floorId,
+  nodeType: navigationNodes.nodeType,
+  label: navigationNodes.label,
+  lng: sql<number>`ST_X(${navigationNodes.location})`,
+  lat: sql<number>`ST_Y(${navigationNodes.location})`,
+  z: sql<number>`ST_Z(${navigationNodes.location})`,
+  localX: sql<number | null>`CASE WHEN ${navigationNodes.localX} IS NULL THEN NULL ELSE (${navigationNodes.localX})::float8 END`,
+  localY: sql<number | null>`CASE WHEN ${navigationNodes.localY} IS NULL THEN NULL ELSE (${navigationNodes.localY})::float8 END`,
+  localZ: sql<number | null>`CASE WHEN ${navigationNodes.localZ} IS NULL THEN NULL ELSE (${navigationNodes.localZ})::float8 END`,
+  meshRef: navigationNodes.meshRef,
+  metadata: navigationNodes.metadata,
+  apartmentId: apartments.id,
+  apartmentCode: apartments.code,
+  createdAt: navigationNodes.createdAt,
+  updatedAt: navigationNodes.updatedAt,
+};
 
 // ==================== NODES ====================
 
@@ -16,18 +35,12 @@ router.get("/nodes", async (req, res) => {
     }
 
     const result = await db
-      .select({
-        id: navigationNodes.id,
-        floorId: navigationNodes.floorId,
-        nodeType: navigationNodes.nodeType,
-        label: navigationNodes.label,
-        lng: sql<number>`ST_X(${navigationNodes.location})`,
-        lat: sql<number>`ST_Y(${navigationNodes.location})`,
-        z: sql<number>`ST_Z(${navigationNodes.location})`,
-        createdAt: navigationNodes.createdAt,
-        updatedAt: navigationNodes.updatedAt,
-      })
+      .select(navigationNodeSelect)
       .from(navigationNodes)
+      .leftJoin(
+        apartments,
+        and(eq(apartments.entryNodeId, navigationNodes.id), isNull(apartments.deletedAt)),
+      )
       .where(eq(navigationNodes.floorId, Number(floorId)));
 
     res.json(result);
@@ -40,18 +53,12 @@ router.get("/nodes", async (req, res) => {
 router.get("/nodes/:id", async (req, res) => {
   try {
     const result = await db
-      .select({
-        id: navigationNodes.id,
-        floorId: navigationNodes.floorId,
-        nodeType: navigationNodes.nodeType,
-        label: navigationNodes.label,
-        lng: sql<number>`ST_X(${navigationNodes.location})`,
-        lat: sql<number>`ST_Y(${navigationNodes.location})`,
-        z: sql<number>`ST_Z(${navigationNodes.location})`,
-        createdAt: navigationNodes.createdAt,
-        updatedAt: navigationNodes.updatedAt,
-      })
+      .select(navigationNodeSelect)
       .from(navigationNodes)
+      .leftJoin(
+        apartments,
+        and(eq(apartments.entryNodeId, navigationNodes.id), isNull(apartments.deletedAt)),
+      )
       .where(eq(navigationNodes.id, Number(req.params.id)));
 
     if (result.length === 0) {
@@ -66,7 +73,7 @@ router.get("/nodes/:id", async (req, res) => {
 // POST /api/navigation/nodes - Tạo node mới
 router.post("/nodes", async (req, res) => {
   try {
-    const { floorId, nodeType, label, lng, lat, z } = req.body;
+    const { floorId, nodeType, label, lng, lat, z, localX, localY, localZ, meshRef, metadata } = req.body;
     const result = await db
       .insert(navigationNodes)
       .values({
@@ -74,6 +81,11 @@ router.post("/nodes", async (req, res) => {
         nodeType,
         label,
         location: sql`ST_SetSRID(ST_MakePoint(${Number(lng)}, ${Number(lat)}, ${Number(z || 0)}), 4326)`,
+        localX: localX ?? null,
+        localY: localY ?? null,
+        localZ: localZ ?? null,
+        meshRef: meshRef ?? null,
+        metadata: metadata ?? null,
       })
       .returning();
 
@@ -86,13 +98,18 @@ router.post("/nodes", async (req, res) => {
 // PUT /api/navigation/nodes/:id - Cập nhật node
 router.put("/nodes/:id", async (req, res) => {
   try {
-    const { floorId, nodeType, label, lng, lat, z } = req.body;
+    const { floorId, nodeType, label, lng, lat, z, localX, localY, localZ, meshRef, metadata } = req.body;
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
     if (floorId !== undefined) updateData.floorId = floorId;
     if (nodeType !== undefined) updateData.nodeType = nodeType;
     if (label !== undefined) updateData.label = label;
+    if (localX !== undefined) updateData.localX = localX;
+    if (localY !== undefined) updateData.localY = localY;
+    if (localZ !== undefined) updateData.localZ = localZ;
+    if (meshRef !== undefined) updateData.meshRef = meshRef;
+    if (metadata !== undefined) updateData.metadata = metadata;
     if (lng !== undefined && lat !== undefined) {
       updateData.location = sql`ST_SetSRID(ST_MakePoint(${Number(lng)}, ${Number(lat)}, ${Number(z || 0)}), 4326)`;
     }
@@ -145,7 +162,7 @@ router.get("/edges", async (req, res) => {
         JOIN navigation_nodes n2 ON e.end_node_id = n2.id
         WHERE n1.floor_id = ${Number(floorId)} OR n2.floor_id = ${Number(floorId)}
       `);
-      return res.json(result.rows);
+      return res.json(result);
     }
 
     const result = await db.select().from(navigationEdges);
@@ -229,25 +246,51 @@ router.get("/graph/:buildingId", async (req, res) => {
     const buildingId = Number(req.params.buildingId);
 
     const nodes = await db.execute(sql`
-      SELECT n.id, n.floor_id, n.node_type, n.label,
-             ST_X(n.location) as lng, ST_Y(n.location) as lat, ST_Z(n.location) as z,
-             n.created_at, n.updated_at
+      SELECT
+        n.id,
+        n.floor_id AS "floorId",
+        n.node_type AS "nodeType",
+        n.label,
+        ST_X(n.location) AS lng,
+        ST_Y(n.location) AS lat,
+        ST_Z(n.location) AS z,
+        CASE WHEN n.local_x IS NULL THEN NULL ELSE n.local_x::float8 END AS "localX",
+        CASE WHEN n.local_y IS NULL THEN NULL ELSE n.local_y::float8 END AS "localY",
+        CASE WHEN n.local_z IS NULL THEN NULL ELSE n.local_z::float8 END AS "localZ",
+        n.mesh_ref AS "meshRef",
+        n.metadata,
+        a.id AS "apartmentId",
+        a.code AS "apartmentCode",
+        n.created_at AS "createdAt",
+        n.updated_at AS "updatedAt"
       FROM navigation_nodes n
-      JOIN floors f ON n.floor_id = f.id
+      INNER JOIN floors f ON n.floor_id = f.id
+      LEFT JOIN apartments a ON a.entry_node_id = n.id AND a.deleted_at IS NULL
       WHERE f.building_id = ${buildingId}
+      ORDER BY f.floor_number ASC, n.id ASC
     `);
 
     const edges = await db.execute(sql`
-      SELECT e.*
+      SELECT DISTINCT
+        e.id,
+        e.start_node_id AS "startNodeId",
+        e.end_node_id AS "endNodeId",
+        e.edge_type AS "edgeType",
+        e.distance,
+        e.travel_time AS "travelTime",
+        e.is_accessible AS "isAccessible",
+        e.created_at AS "createdAt",
+        e.updated_at AS "updatedAt"
       FROM navigation_edges e
-      JOIN navigation_nodes n ON e.start_node_id = n.id
-      JOIN floors f ON n.floor_id = f.id
+      INNER JOIN navigation_nodes n ON e.start_node_id = n.id
+      INNER JOIN floors f ON n.floor_id = f.id
       WHERE f.building_id = ${buildingId}
+      ORDER BY e.id ASC
     `);
 
     res.json({
-      nodes: nodes.rows,
-      edges: edges.rows,
+      nodes,
+      edges,
     });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy graph tòa nhà" });

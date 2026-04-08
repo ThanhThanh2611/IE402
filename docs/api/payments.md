@@ -2,6 +2,9 @@
 
 Base URL: `/api/payments`
 
+> Tất cả route yêu cầu `Manager`.
+> Bảng thanh toán dùng **soft delete**.
+
 ---
 
 ## Danh sách thanh toán
@@ -78,7 +81,7 @@ POST /api/payments
 PUT /api/payments/:id
 ```
 
-**Body:** Các field cần cập nhật
+**Body:** Các field cần cập nhật. Backend hiện ghi đè trực tiếp từ body.
 
 **Response:** `200` - Object thanh toán đã cập nhật
 

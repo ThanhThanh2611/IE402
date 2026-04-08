@@ -1,9 +1,137 @@
 {
-  "id": "fa87e150-fce7-4d50-8655-e4d8f83824eb",
+  "id": "0aca8872-cb05-44a3-82be-8ffb441b5554",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.apartment_spaces": {
+      "name": "apartment_spaces",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "apartment_id": {
+          "name": "apartment_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_space_id": {
+          "name": "parent_space_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "space_type": {
+          "name": "space_type",
+          "type": "indoor_space_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'room'"
+        },
+        "room_type": {
+          "name": "room_type",
+          "type": "room_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lod_level": {
+          "name": "lod_level",
+          "type": "lod_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'lod4'"
+        },
+        "boundary": {
+          "name": "boundary",
+          "type": "geometry(PolygonZ, 4326)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_3d_url": {
+          "name": "model_3d_url",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "apartment_spaces_apartment_id_apartments_id_fk": {
+          "name": "apartment_spaces_apartment_id_apartments_id_fk",
+          "tableFrom": "apartment_spaces",
+          "tableTo": "apartments",
+          "columnsFrom": [
+            "apartment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "apartment_spaces_parent_space_id_apartment_spaces_id_fk": {
+          "name": "apartment_spaces_parent_space_id_apartment_spaces_id_fk",
+          "tableFrom": "apartment_spaces",
+          "tableTo": "apartment_spaces",
+          "columnsFrom": [
+            "parent_space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "apartment_spaces_apartment_id_name_unique": {
+          "name": "apartment_spaces_apartment_id_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "apartment_id",
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.apartment_status_history": {
       "name": "apartment_status_history",
       "schema": "",
@@ -98,6 +226,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "entry_node_id": {
+          "name": "entry_node_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "code": {
           "name": "code",
           "type": "varchar(50)",
@@ -135,6 +269,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'available'"
+        },
+        "indoor_model_url": {
+          "name": "indoor_model_url",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indoor_lod_level": {
+          "name": "indoor_lod_level",
+          "type": "lod_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'lod4'"
         },
         "description": {
           "name": "description",
@@ -183,6 +331,19 @@
           "tableTo": "floors",
           "columnsFrom": [
             "floor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "apartments_entry_node_id_navigation_nodes_id_fk": {
+          "name": "apartments_entry_node_id_navigation_nodes_id_fk",
+          "tableFrom": "apartments",
+          "tableTo": "navigation_nodes",
+          "columnsFrom": [
+            "entry_node_id"
           ],
           "columnsTo": [
             "id"
@@ -273,7 +434,7 @@
         },
         "location": {
           "name": "location",
-          "type": "geometry(Point, 4326)",
+          "type": "geometry(PointZ, 4326)",
           "primaryKey": false,
           "notNull": true
         },
@@ -282,6 +443,14 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "lod_level": {
+          "name": "lod_level",
+          "type": "lod_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'lod3'"
         },
         "description": {
           "name": "description",
@@ -394,6 +563,545 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.furniture_catalog": {
+      "name": "furniture_catalog",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "furniture_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'other'"
+        },
+        "model_3d_url": {
+          "name": "model_3d_url",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "default_width": {
+          "name": "default_width",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_depth": {
+          "name": "default_depth",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_height": {
+          "name": "default_height",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "furniture_catalog_code_unique": {
+          "name": "furniture_catalog_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.furniture_items": {
+      "name": "furniture_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "layout_id": {
+          "name": "layout_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "space_id": {
+          "name": "space_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "catalog_id": {
+          "name": "catalog_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "name": "position",
+          "type": "geometry(PointZ, 4326)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rotation_x": {
+          "name": "rotation_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "rotation_y": {
+          "name": "rotation_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "rotation_z": {
+          "name": "rotation_z",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "scale_x": {
+          "name": "scale_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1'"
+        },
+        "scale_y": {
+          "name": "scale_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1'"
+        },
+        "scale_z": {
+          "name": "scale_z",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1'"
+        },
+        "is_locked": {
+          "name": "is_locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "furniture_items_layout_id_furniture_layouts_id_fk": {
+          "name": "furniture_items_layout_id_furniture_layouts_id_fk",
+          "tableFrom": "furniture_items",
+          "tableTo": "furniture_layouts",
+          "columnsFrom": [
+            "layout_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "furniture_items_space_id_apartment_spaces_id_fk": {
+          "name": "furniture_items_space_id_apartment_spaces_id_fk",
+          "tableFrom": "furniture_items",
+          "tableTo": "apartment_spaces",
+          "columnsFrom": [
+            "space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "furniture_items_catalog_id_furniture_catalog_id_fk": {
+          "name": "furniture_items_catalog_id_furniture_catalog_id_fk",
+          "tableFrom": "furniture_items",
+          "tableTo": "furniture_catalog",
+          "columnsFrom": [
+            "catalog_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.furniture_layouts": {
+      "name": "furniture_layouts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "apartment_id": {
+          "name": "apartment_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "furniture_layout_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_id": {
+          "name": "updated_by_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "furniture_layouts_apartment_id_apartments_id_fk": {
+          "name": "furniture_layouts_apartment_id_apartments_id_fk",
+          "tableFrom": "furniture_layouts",
+          "tableTo": "apartments",
+          "columnsFrom": [
+            "apartment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "furniture_layouts_created_by_id_users_id_fk": {
+          "name": "furniture_layouts_created_by_id_users_id_fk",
+          "tableFrom": "furniture_layouts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "furniture_layouts_updated_by_id_users_id_fk": {
+          "name": "furniture_layouts_updated_by_id_users_id_fk",
+          "tableFrom": "furniture_layouts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.navigation_edges": {
+      "name": "navigation_edges",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "start_node_id": {
+          "name": "start_node_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_node_id": {
+          "name": "end_node_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edge_type": {
+          "name": "edge_type",
+          "type": "edge_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'hallway'"
+        },
+        "distance": {
+          "name": "distance",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "travel_time": {
+          "name": "travel_time",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_accessible": {
+          "name": "is_accessible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "navigation_edges_start_node_id_navigation_nodes_id_fk": {
+          "name": "navigation_edges_start_node_id_navigation_nodes_id_fk",
+          "tableFrom": "navigation_edges",
+          "tableTo": "navigation_nodes",
+          "columnsFrom": [
+            "start_node_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "navigation_edges_end_node_id_navigation_nodes_id_fk": {
+          "name": "navigation_edges_end_node_id_navigation_nodes_id_fk",
+          "tableFrom": "navigation_edges",
+          "tableTo": "navigation_nodes",
+          "columnsFrom": [
+            "end_node_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.navigation_nodes": {
+      "name": "navigation_nodes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "floor_id": {
+          "name": "floor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "node_type": {
+          "name": "node_type",
+          "type": "node_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location": {
+          "name": "location",
+          "type": "geometry(PointZ, 4326)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "navigation_nodes_floor_id_floors_id_fk": {
+          "name": "navigation_nodes_floor_id_floors_id_fk",
+          "tableFrom": "navigation_nodes",
+          "tableTo": "floors",
+          "columnsFrom": [
+            "floor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -640,6 +1348,12 @@
           "primaryKey": true,
           "notNull": true
         },
+        "linked_user_id": {
+          "name": "linked_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "full_name": {
           "name": "full_name",
           "type": "varchar(255)",
@@ -692,7 +1406,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "tenants_linked_user_id_users_id_fk": {
+          "name": "tenants_linked_user_id_users_id_fk",
+          "tableFrom": "tenants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "linked_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "tenants_id_card_unique": {
@@ -700,6 +1428,13 @@
           "nullsNotDistinct": false,
           "columns": [
             "id_card"
+          ]
+        },
+        "tenants_linked_user_id_unique": {
+          "name": "tenants_linked_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "linked_user_id"
           ]
         }
       },
@@ -820,6 +1555,66 @@
         "cancelled"
       ]
     },
+    "public.edge_type": {
+      "name": "edge_type",
+      "schema": "public",
+      "values": [
+        "hallway",
+        "stairs",
+        "elevator"
+      ]
+    },
+    "public.furniture_category": {
+      "name": "furniture_category",
+      "schema": "public",
+      "values": [
+        "sofa",
+        "table",
+        "chair",
+        "bed",
+        "cabinet",
+        "appliance",
+        "decor",
+        "other"
+      ]
+    },
+    "public.furniture_layout_status": {
+      "name": "furniture_layout_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.indoor_space_type": {
+      "name": "indoor_space_type",
+      "schema": "public",
+      "values": [
+        "unit",
+        "room",
+        "zone"
+      ]
+    },
+    "public.lod_level": {
+      "name": "lod_level",
+      "schema": "public",
+      "values": [
+        "lod2",
+        "lod3",
+        "lod4"
+      ]
+    },
+    "public.node_type": {
+      "name": "node_type",
+      "schema": "public",
+      "values": [
+        "door",
+        "elevator",
+        "stairs",
+        "junction"
+      ]
+    },
     "public.payment_status": {
       "name": "payment_status",
       "schema": "public",
@@ -827,6 +1622,20 @@
         "pending",
         "paid",
         "overdue"
+      ]
+    },
+    "public.room_type": {
+      "name": "room_type",
+      "schema": "public",
+      "values": [
+        "living_room",
+        "bedroom",
+        "kitchen",
+        "bathroom",
+        "balcony",
+        "corridor",
+        "storage",
+        "other"
       ]
     },
     "public.user_role": {

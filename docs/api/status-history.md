@@ -4,6 +4,8 @@ Base URL: `/api/status-history`
 
 Lưu lịch sử thay đổi trạng thái căn hộ, phục vụ thống kê tỷ lệ lấp đầy theo thời gian.
 
+> Tất cả route yêu cầu `Manager`.
+
 ---
 
 ## Lấy lịch sử trạng thái
@@ -25,6 +27,8 @@ GET /api/status-history?apartmentId=1
 ```
 
 **Response:** `200`
+
+> API trả lịch sử theo `changedAt` tăng dần.
 
 ```json
 [

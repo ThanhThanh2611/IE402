@@ -1,104 +1,165 @@
 # Quản lý căn hộ
 
-Use Cases: UC10-17
+Use Cases: UC10-17, UC31-33
 
-## 1. Xem chi tiết căn hộ (`/buildings/:id/apartments/:apartmentId`)
+## 1. Chi tiết căn hộ (`/buildings/:id/apartments/:apartmentId`)
 
-### UC10-13 — Thông tin chi tiết căn hộ
+### API chính
 
-**API**: `GET /api/apartments/:apartmentId`
+- `GET /api/apartments/:apartmentId/details`
+- `GET /api/furniture-catalog`
+- Với `Manager`: các API CRUD cho `spaces`, `layouts`, `layout-items`, `furniture-catalog`
 
-Trang hiển thị đầy đủ thông tin một căn hộ.
+Trang này là màn hình chi tiết nghiệp vụ của căn hộ. FE lấy một payload tổng hợp từ backend, gồm thông tin căn hộ, hợp đồng hiện tại, tenant hiện tại, danh sách không gian LoD4, layout nội thất, item nội thất và thư viện furniture catalog.
 
-### Các section trên trang
+### Quyền truy cập dữ liệu
+
+Response detail hiện có các cờ:
+- `canViewTenant`
+- `canViewContract`
+
+FE render theo đúng các cờ backend trả về, thay vì tự suy luận chỉ từ `role`. Cách này khớp với cơ chế `apartment_access_grants` ở backend.
+
+### Các khối thông tin trên trang
 
 #### Thông tin cơ bản
 
-| Trường | Mô tả | Hiển thị |
+| Trường | Field | Hiển thị |
 |---|---|---|
 | Mã căn hộ | `code` | Text |
-| Diện tích | `area` | `XX m²` |
+| Diện tích | `area` | `XX m2` |
 | Số phòng ngủ | `numBedrooms` | Number |
 | Số phòng tắm | `numBathrooms` | Number |
-| Giá thuê | `rentalPrice` | Format VND: `XX.XXX.XXX đ/tháng` |
-| Trạng thái | `status` | Badge (xem bảng màu bên dưới) |
-| Mô tả | `description` | Text paragraph |
+| Giá thuê | `rentalPrice` | Format VND |
+| Trạng thái | `status` | Badge |
+| Indoor LoD | `indoorLodLevel` | Badge/Text |
+| Mô tả | `description` | Paragraph |
 
-#### Trạng thái căn hộ (UC11)
+#### Trạng thái căn hộ
 
-| Giá trị | Label tiếng Việt | Badge |
-|---|---|---|
-| `available` | Còn trống | Xanh lá |
-| `rented` | Đã thuê | Đỏ |
-| `maintenance` | Đang bảo trì | Xám |
+| Giá trị | Label tiếng Việt |
+|---|---|
+| `available` | Còn trống |
+| `rented` | Đã thuê |
+| `maintenance` | Đang bảo trì |
 
-#### Giá thuê (UC12)
+#### Khối tenant và hợp đồng
 
-- Hiển thị `rentalPrice` format tiền VND (dùng `Intl.NumberFormat('vi-VN')`)
-- Đơn vị: **đ/tháng**
+- Nếu `canViewTenant = true`, FE hiển thị card người thuê hiện tại.
+- Nếu `canViewContract = true`, FE hiển thị card hợp đồng hiện tại.
+- Nếu backend không cấp quyền, UI hiển thị trạng thái hạn chế truy cập thay vì gọi các endpoint riêng như luồng cũ.
 
-#### Thông tin người thuê (UC13)
+### LoD4 và nội thất
 
-- Chỉ hiển thị khi `status = rented`
-- Lấy từ hợp đồng đang active của căn hộ: `GET /api/contracts` (filter theo apartmentId)
-- Từ contract lấy `tenantId` → `GET /api/tenants/:tenantId`
-- Hiển thị: họ tên, SĐT, email, CCCD
+#### Không gian căn hộ
 
----
+- FE hiển thị danh sách `spaces`
+- Các loại chính: `unit`, `room`, `zone`
+- `roomType` có thể là `living_room`, `bedroom`, `kitchen`, `bathroom`, ...
+- `Manager` có thể thêm, sửa, xóa không gian
 
-## 2. Quản lý căn hộ (`/apartments`) — Chỉ Manager
+#### Layout nội thất
+
+- Mỗi căn hộ có nhiều `layouts`
+- Mỗi layout có `status`, `version`, `name`
+- FE cho phép chọn layout hiện hành để thao tác
+- `Manager` có thể tạo, sửa, xóa layout
+
+#### Workspace bố trí nội thất
+
+- FE hiển thị workspace 2D để mô phỏng kéo thả
+- Nếu `spaces` có `boundary` hợp lệ, FE render trực tiếp ranh giới không gian LoD4 lên workspace dưới dạng lớp sơ đồ phòng/vùng
+- Mỗi polygon hiển thị nhãn không gian để manager biết đồ đang được đặt trong phòng nào
+- Item mới được tạo từ `furnitureCatalog`
+- Item có thể cập nhật `position`, `rotation`, `scale`, `metadata`
+- Dữ liệu vị trí được đồng bộ về backend theo geometry `POINT Z`
+- Khi thả item vào bên trong boundary của một `space`, FE tự gắn `spaceId` phù hợp trước khi gọi backend
+
+#### Thư viện nội thất
+
+- FE hiển thị `furnitureCatalog`
+- `Manager` có thể thêm, sửa, xóa mềm, kích hoạt/vô hiệu hóa mẫu nội thất
+- API nhóm này dùng `/api/furniture-catalog`
+
+### Lưu ý hiện trạng triển khai
+
+- Route này đã được triển khai thực tế, không còn là placeholder.
+- Phần thao tác nội thất hiện đi theo hướng workspace 2D kết hợp dữ liệu 3D ở backend, chưa phải editor 3D hoàn chỉnh.
+
+## 2. Quản lý căn hộ (`/apartments`) - Chỉ Manager
 
 ### Danh sách căn hộ
 
-- **API**: `GET /api/apartments?floorId=X`
-- Hiển thị dạng bảng (`Table` component)
-- Cho phép chọn tòa nhà → chọn tầng → xem danh sách căn hộ
-- Có thể dùng 2 dropdown filter: Tòa nhà, Tầng
+- **API**: `GET /api/apartments?floorId=:floorId`
+- Hiển thị dạng bảng
+- FE có luồng chọn tòa nhà -> chọn tầng -> tải danh sách căn hộ theo tầng
 
 #### Cột bảng
 
-| Cột | Field | Ghi chú |
-|---|---|---|
-| Mã | `code` | |
-| Diện tích | `area` | `XX m²` |
-| Phòng ngủ | `numBedrooms` | |
-| Giá thuê | `rentalPrice` | Format VND |
-| Trạng thái | `status` | Badge màu |
-| Hành động | — | Nút Sửa, Xóa |
+| Cột | Field |
+|---|---|
+| Mã căn hộ | `code` |
+| Diện tích | `area` |
+| Số phòng ngủ | `numBedrooms` |
+| Giá thuê | `rentalPrice` |
+| Trạng thái | `status` |
+| Hành động | xem, sửa, xóa, đổi trạng thái |
 
-### UC14 — Thêm căn hộ
+### UC14 - Thêm căn hộ
 
-- Nút "Thêm căn hộ" → mở Dialog
 - **API**: `POST /api/apartments`
 
-#### Form fields
+#### Trường form
 
-| Trường | Kiểu | Bắt buộc | Ghi chú |
-|---|---|---|---|
-| Tầng | Select (`floorId`) | Có | Chọn tòa nhà trước → load tầng |
-| Mã căn hộ | Input text (`code`) | Có | Unique |
-| Diện tích (m²) | Input number (`area`) | Có | |
-| Số phòng ngủ | Input number (`numBedrooms`) | Không | |
-| Số phòng tắm | Input number (`numBathrooms`) | Không | |
-| Giá thuê (VND/tháng) | Input number (`rentalPrice`) | Có | |
-| Mô tả | Textarea (`description`) | Không | |
+| Trường | Field | Bắt buộc |
+|---|---|---|
+| Tầng | `floorId` | Có |
+| Mã căn hộ | `code` | Có |
+| Diện tích | `area` | Có |
+| Số phòng ngủ | `numBedrooms` | Không |
+| Số phòng tắm | `numBathrooms` | Không |
+| Giá thuê | `rentalPrice` | Có |
+| Mô tả | `description` | Không |
 
-### UC15 — Sửa căn hộ
+### UC15 - Sửa căn hộ
 
-- Click nút "Sửa" trên hàng → mở Dialog với dữ liệu đã fill sẵn
 - **API**: `PUT /api/apartments/:id`
-- Form fields giống thêm căn hộ
+- Dùng lại cùng form với create
 
-### UC16 — Xóa căn hộ
+### UC16 - Xóa căn hộ
 
-- Click nút "Xóa" → hiện AlertDialog xác nhận
-- Nội dung: "Bạn có chắc muốn xóa căn hộ [code]?"
-- **API**: `DELETE /api/apartments/:id` (soft delete)
-- Sau khi xóa → refresh danh sách
+- **API**: `DELETE /api/apartments/:id`
+- Backend dùng soft delete
 
-### UC17 — Cập nhật trạng thái
+### UC17 - Cập nhật trạng thái
 
-- Click badge trạng thái hoặc nút riêng → hiện Popover/Select chọn trạng thái mới
 - **API**: `PATCH /api/apartments/:id/status`
 - Body: `{ "status": "available" | "rented" | "maintenance" }`
-- Hiện toast thông báo thành công
+
+## 3. Access grant theo căn hộ
+
+Backend có nhóm API `access-grants` cho manager để cấp quyền xem tenant/hợp đồng theo từng căn hộ. FE hiện đã có màn hình quản trị grant ngay trong route chi tiết căn hộ.
+
+### API dùng cho khối này
+
+- `GET /api/apartments/:id/access-grants`
+- `POST /api/apartments/:id/access-grants`
+- `PUT /api/apartments/:id/access-grants/:grantId`
+- `DELETE /api/apartments/:id/access-grants/:grantId`
+- `GET /api/users`
+
+### Khả năng hiện tại của FE
+
+- Hiển thị danh sách grant theo căn hộ
+- Hiển thị user được cấp quyền, email, hạn grant, ghi chú
+- Cấp quyền mới cho user đang hoạt động
+- Sửa grant đã có
+- Thu hồi grant
+- Bật/tắt riêng:
+  - `canViewTenant`
+  - `canViewContract`
+
+### Lưu ý triển khai
+
+- FE vẫn bám theo quyền backend trả về ở payload chi tiết căn hộ thông qua `canViewTenant` và `canViewContract`
+- UI manager chỉ là lớp quản trị grant; quyết định cuối cùng về dữ liệu được xem vẫn do backend kiểm soát

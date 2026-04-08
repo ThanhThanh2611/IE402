@@ -23,12 +23,16 @@ POST /api/auth/login
 
 ```json
 {
-  "id": 1,
-  "username": "admin",
-  "fullName": "Nguyen Van A",
-  "email": "admin@example.com",
-  "role": "manager",
-  "isActive": true
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "fullName": "Nguyen Van A",
+    "email": "admin@example.com",
+    "role": "manager",
+    "isActive": true
+  },
+  "accessToken": "access-token",
+  "refreshToken": "refresh-token"
 }
 ```
 
@@ -39,23 +43,64 @@ POST /api/auth/login
 
 ---
 
-## Danh sách users
+## Refresh Token
 
 ```
-GET /api/auth/users
+POST /api/auth/refresh
 ```
+
+**Body:**
+
+| Field | Type | Bắt buộc | Mô tả |
+|-------|------|----------|-------|
+| refreshToken | string | Yes | Refresh token hiện tại |
 
 **Response:** `200`
 
 ```json
-[
-  {
+{
+  "user": {
     "id": 1,
     "username": "admin",
     "fullName": "Nguyen Van A",
     "email": "admin@example.com",
     "role": "manager",
-    "createdAt": "2025-01-01T00:00:00.000Z"
-  }
-]
+    "isActive": true
+  },
+  "accessToken": "new-access-token",
+  "refreshToken": "new-refresh-token"
+}
 ```
+
+**Lỗi:**
+
+- `401` - Refresh token không hợp lệ hoặc đã hết hạn
+- `403` - Tài khoản đã bị vô hiệu hóa
+
+---
+
+## Đăng xuất
+
+```
+POST /api/auth/logout
+```
+
+**Body:**
+
+| Field | Type | Bắt buộc | Mô tả |
+|-------|------|----------|-------|
+| refreshToken | string | No | Refresh token hiện tại để revoke session |
+
+**Response:** `200`
+
+```json
+{
+  "message": "Đăng xuất thành công"
+}
+```
+
+## Ghi chú triển khai
+
+- Backend hiện dùng mô hình `access token + refresh token`
+- Refresh token được rotate khi gọi `POST /api/auth/refresh`
+- Logout thực hiện revoke session phía backend thay vì chỉ xóa token ở frontend

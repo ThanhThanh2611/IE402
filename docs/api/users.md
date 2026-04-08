@@ -4,6 +4,8 @@ Base URL: `/api/users`
 
 ---
 
+> Tất cả route trong tài liệu này yêu cầu `Manager`.
+
 ## Danh sách người dùng (UC26)
 
 ```
@@ -121,3 +123,7 @@ PATCH /api/users/:id/deactivate
 **Response:** `200` - Object người dùng với `isActive: false`
 
 **Lỗi:** `404` - Không tìm thấy
+
+> Ghi chú:
+> - Xóa người dùng là **soft delete** (`deleted_at`)
+> - API không trả về trường `password`

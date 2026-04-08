@@ -11,6 +11,40 @@ import { eq, sql, and, gte, lte, count } from "drizzle-orm";
 
 const router = Router();
 
+function toMonthKey(value: string | Date): string {
+  const date = new Date(value);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function startOfMonth(value: string | Date): Date {
+  const date = new Date(value);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function endOfMonth(value: string | Date): Date {
+  const date = new Date(value);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+}
+
+function toDateOnlyString(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function buildMonthRange(from: Date, to: Date): string[] {
+  const result: string[] = [];
+  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+
+  while (cursor <= end) {
+    result.push(toMonthKey(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return result;
+}
+
 // GET /api/dashboard/overview - Tổng quan (UC22)
 router.get("/overview", async (_req, res) => {
   try {
@@ -128,26 +162,66 @@ router.get("/revenue-by-month", async (req, res) => {
 router.get("/occupancy-history", async (req, res) => {
   try {
     const { from, to } = req.query;
+    const [apartmentCount] = await db
+      .select({ count: count() })
+      .from(apartments);
+    const totalApartments = Number(apartmentCount.count);
 
-    const conditions = [];
-    if (from)
-      conditions.push(
-        gte(sql`${rentalContracts.startDate}::date`, String(from))
-      );
-    if (to)
-      conditions.push(lte(sql`${rentalContracts.startDate}::date`, String(to)));
-
-    const result = await db
+    const contracts = await db
       .select({
-        month: sql<string>`to_char(${rentalContracts.startDate}::date, 'YYYY-MM')`,
-        newContracts: count(),
+        startDate: rentalContracts.startDate,
+        endDate: rentalContracts.endDate,
+        status: rentalContracts.status,
       })
       .from(rentalContracts)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .groupBy(sql`to_char(${rentalContracts.startDate}::date, 'YYYY-MM')`)
-      .orderBy(sql`to_char(${rentalContracts.startDate}::date, 'YYYY-MM')`);
+      .where(eq(rentalContracts.status, "active"));
 
-    res.json(result);
+    if (contracts.length === 0) {
+      return res.json([]);
+    }
+
+    const requestedFrom = from ? startOfMonth(String(from)) : null;
+    const requestedTo = to ? endOfMonth(String(to)) : null;
+
+    const sortedStartDates = contracts
+      .map((contract) => new Date(contract.startDate))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    const defaultFrom = startOfMonth(sortedStartDates[0]);
+    const defaultTo = endOfMonth(new Date());
+
+    const rangeFrom = requestedFrom ?? defaultFrom;
+    const rangeTo = requestedTo ?? defaultTo;
+
+    if (rangeFrom > rangeTo) {
+      return res.status(400).json({ error: "Khoảng thời gian không hợp lệ" });
+    }
+
+    const monthKeys = buildMonthRange(rangeFrom, rangeTo);
+    const monthData = monthKeys.map((month) => {
+      const newContracts = contracts.filter(
+        (contract) => toMonthKey(contract.startDate) === month
+      ).length;
+
+      const snapshotDate = toDateOnlyString(endOfMonth(`${month}-01`));
+      const activeContracts = contracts.filter((contract) => {
+        const startDate = String(contract.startDate);
+        const endDate = String(contract.endDate);
+        return startDate <= snapshotDate && endDate >= snapshotDate;
+      }).length;
+
+      return {
+        month,
+        newContracts,
+        activeContracts,
+        occupancyRate:
+          totalApartments > 0
+            ? Number((activeContracts / totalApartments).toFixed(3))
+            : 0,
+      };
+    });
+
+    res.json(monthData);
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy lịch sử lấp đầy" });
   }

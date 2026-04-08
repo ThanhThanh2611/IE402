@@ -1,87 +1,72 @@
 # Quản lý người dùng
 
-Use Cases: UC26-31 — Chỉ Manager
+Use Cases: UC26-31 - Chỉ Manager
 
 ## Trang quản lý người dùng (`/users`)
 
-### UC26 — Danh sách người dùng
+Route này chỉ dành cho manager và được bảo vệ ở FE bằng `ManagerRoute`.
+
+## 1. Danh sách người dùng
 
 - **API**: `GET /api/users`
 - Hiển thị dạng bảng
 
-#### Cột bảng
+### Cột chính
 
-| Cột | Field | Ghi chú |
-|---|---|---|
-| Tên đăng nhập | `username` | |
-| Họ tên | `fullName` | |
-| Email | `email` | |
-| Vai trò | `role` | Badge |
-| Trạng thái | `isActive` | Badge |
-| Hành động | — | Sửa, Xóa, Kích hoạt/Vô hiệu hóa |
+| Cột | Field |
+|---|---|
+| Tên đăng nhập | `username` |
+| Họ tên | `fullName` |
+| Email | `email` |
+| Vai trò | `role` |
+| Trạng thái | `isActive` |
+| Hành động | sửa, xóa, kích hoạt, vô hiệu hóa |
 
-#### Badge vai trò
+### Mapping hiển thị
 
-| Giá trị | Label tiếng Việt |
+| Giá trị | Label |
 |---|---|
 | `user` | Người dùng |
 | `manager` | Quản lý |
 
-#### Badge trạng thái
+| Giá trị | Label trạng thái |
+|---|---|
+| `true` | Đang hoạt động |
+| `false` | Đã vô hiệu hóa |
 
-| Giá trị | Label tiếng Việt | Badge |
-|---|---|---|
-| `true` | Đang hoạt động | Xanh lá |
-| `false` | Đã vô hiệu hóa | Xám |
+## 2. Thêm người dùng
 
----
-
-### UC27 — Thêm người dùng
-
-- Nút "Thêm người dùng" → mở Dialog
 - **API**: `POST /api/users`
+- FE mở dialog để nhập:
 
-#### Form fields
+| Trường | Field | Bắt buộc |
+|---|---|---|
+| Tên đăng nhập | `username` | Có |
+| Mật khẩu | `password` | Có |
+| Họ tên | `fullName` | Có |
+| Email | `email` | Không |
+| Vai trò | `role` | Có |
 
-| Trường | Kiểu | Bắt buộc | Ghi chú |
-|---|---|---|---|
-| Tên đăng nhập | Input text (`username`) | Có | Unique |
-| Mật khẩu | Input password (`password`) | Có | |
-| Họ tên | Input text (`fullName`) | Có | |
-| Email | Input email (`email`) | Không | Unique nếu có |
-| Vai trò | Select (`role`) | Có | `user` hoặc `manager` |
+## 3. Sửa người dùng
 
----
-
-### UC28 — Sửa thông tin người dùng
-
-- Click "Sửa" → Dialog với dữ liệu fill sẵn
 - **API**: `PUT /api/users/:id`
-- Form fields giống thêm (trừ mật khẩu — chỉ nhập khi muốn đổi)
+- FE mở dialog với dữ liệu đã có sẵn
+- Luồng sửa hiện tập trung vào thông tin tài khoản, không phải màn đổi mật khẩu riêng
 
----
+## 4. Xóa mềm
 
-### UC29 — Xóa người dùng
+- **API**: `DELETE /api/users/:id`
+- Backend dùng soft delete
 
-- Click "Xóa" → AlertDialog xác nhận
-- Nội dung: "Bạn có chắc muốn xóa người dùng [username]?"
-- **API**: `DELETE /api/users/:id` (soft delete)
+## 5. Kích hoạt và vô hiệu hóa
 
----
+- `PATCH /api/users/:id/activate`
+- `PATCH /api/users/:id/deactivate`
 
-### UC30 — Kích hoạt tài khoản
+FE hiển thị nút hành động theo trạng thái hiện tại của user:
+- nếu đang active thì hiện `Vô hiệu hóa`
+- nếu đang inactive thì hiện `Kích hoạt`
 
-- Chỉ hiện khi `isActive = false`
-- Click nút "Kích hoạt" → gọi API
-- **API**: `PATCH /api/users/:id/activate`
-- Toast: "Đã kích hoạt tài khoản [username]"
+## 6. Liên hệ với tenant
 
----
-
-### UC31 — Vô hiệu hóa tài khoản
-
-- Chỉ hiện khi `isActive = true`
-- Click nút "Vô hiệu hóa" → AlertDialog xác nhận
-- Nội dung: "Người dùng [username] sẽ không thể đăng nhập. Tiếp tục?"
-- **API**: `PATCH /api/users/:id/deactivate`
-- Toast: "Đã vô hiệu hóa tài khoản [username]"
+Schema backend hiện tách `users` và `tenants`. Trang `/users` chỉ quản lý tài khoản hệ thống, không phải danh sách khách thuê. Những liên kết như `tenants.linked_user_id` được xử lý ở backend và các màn hình tenant/apartment, không thao tác trực tiếp trong trang user management.

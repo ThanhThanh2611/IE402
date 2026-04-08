@@ -43,8 +43,8 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
@@ -117,7 +117,7 @@ export function AppLayout() {
           <SidebarFooter className="p-4">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout}>
+                <SidebarMenuButton onClick={() => void handleLogout()}>
                   <LogOut className="h-4 w-4" />
                   <span>Đăng xuất</span>
                 </SidebarMenuButton>
@@ -127,7 +127,7 @@ export function AppLayout() {
         </Sidebar>
 
         <main className="flex-1 overflow-auto gradient-mesh">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <Outlet />
           </div>
         </main>

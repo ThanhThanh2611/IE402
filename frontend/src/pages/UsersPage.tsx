@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api, ApiError } from "@/lib/api";
 import { userSchema, userUpdateSchema, validateForm, type UserInput, type UserUpdateInput } from "@/lib/validators";
+import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import type { User } from "@/types";
 import { toast } from "sonner";
 import {
@@ -40,12 +41,12 @@ import {
 } from "@/components/ui";
 import { Plus, Pencil, Trash2, UserCheck, UserX } from "lucide-react";
 
-const emptyForm = {
+const emptyForm: UserInput = {
   username: "",
   password: "",
   fullName: "",
   email: "",
-  role: "user" as const,
+  role: "user",
 };
 
 export default function UsersPage() {
@@ -57,13 +58,17 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      setPageError(null);
       setUsers(await api.get<User[]>("/users"));
-    } catch {
-      toast.error("Lỗi tải dữ liệu");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Không thể tải danh sách người dùng";
+      toast.error(message);
+      setPageError(message);
     } finally {
       setLoading(false);
     }
@@ -104,14 +109,15 @@ export default function UsersPage() {
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/users/${editId}`, validation.data);
+        const updatedUser = await api.put<User>(`/users/${editId}`, validation.data);
+        setUsers((current) => current.map((user) => (user.id === editId ? updatedUser : user)));
         toast.success("Cập nhật thành công");
       } else {
-        await api.post("/users", validation.data);
+        const createdUser = await api.post<User>("/users", validation.data);
+        setUsers((current) => [...current, createdUser]);
         toast.success("Thêm thành công");
       }
       setDialogOpen(false);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     } finally {
@@ -123,9 +129,9 @@ export default function UsersPage() {
     if (!deleteId) return;
     try {
       await api.delete(`/users/${deleteId}`);
+      setUsers((current) => current.filter((user) => user.id !== deleteId));
       toast.success("Xóa thành công");
       setDeleteId(null);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
@@ -136,9 +142,9 @@ export default function UsersPage() {
       const endpoint = user.isActive
         ? `/users/${user.id}/deactivate`
         : `/users/${user.id}/activate`;
-      await api.patch(endpoint);
+      const updatedUser = await api.patch<User>(endpoint);
+      setUsers((current) => current.map((entry) => (entry.id === user.id ? updatedUser : entry)));
       toast.success(user.isActive ? "Đã vô hiệu hóa" : "Đã kích hoạt");
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
@@ -146,7 +152,16 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Màn hình người dùng đang tải lỗi"
+          description={pageError}
+          onRetry={() => void fetchData()}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Quản lý người dùng</h1>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -162,8 +177,14 @@ export default function UsersPage() {
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
           ) : (
+            users.length === 0 ? (
+              <EmptyState
+                title="Chưa có người dùng"
+                description="Manager có thể tạo tài khoản mới tại đây để cấp quyền truy cập hệ thống."
+              />
+            ) : (
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[860px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Username</TableHead>
@@ -210,16 +231,10 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {users.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      Chưa có người dùng
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
             </div>
+            )
           )}
         </CardContent>
       </Card>

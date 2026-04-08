@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { buildings, floors, apartments } from "../db/schema";
 import { eq, and, sql, count, SQL } from "drizzle-orm";
@@ -7,6 +7,42 @@ import path from "path";
 import fs from "fs";
 
 const router = Router();
+const MAX_MODEL_UPLOAD_MB = 150;
+
+function parseGeoJson<T>(value: unknown): T | null {
+  if (typeof value !== "string" || !value) return null;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+const buildingSelectFields = {
+  id: buildings.id,
+  name: buildings.name,
+  address: buildings.address,
+  ward: buildings.ward,
+  district: buildings.district,
+  city: buildings.city,
+  location: buildings.location,
+  footprint: buildings.footprint,
+  totalFloors: buildings.totalFloors,
+  lodLevel: buildings.lodLevel,
+  description: buildings.description,
+  imageUrl: buildings.imageUrl,
+  model3dUrl: buildings.model3dUrl,
+  createdAt: buildings.createdAt,
+  updatedAt: buildings.updatedAt,
+  lng: sql<number>`ST_X(${buildings.location})`,
+  lat: sql<number>`ST_Y(${buildings.location})`,
+  z: sql<number>`ST_Z(${buildings.location})`,
+  footprintGeoJson:
+    sql<string | null>`CASE WHEN ${buildings.footprint} IS NOT NULL THEN ST_AsGeoJSON(${buildings.footprint}) ELSE NULL END`.as(
+      "footprintGeoJson"
+    ),
+};
 
 // CẤU HÌNH MULTER: Nơi lưu và tên file 3D Model
 const storage = multer.diskStorage({
@@ -39,8 +75,31 @@ const fileFilter = (req: any, file: any, cb: any) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 }, // Giới hạn file 50MB
+  limits: { fileSize: MAX_MODEL_UPLOAD_MB * 1024 * 1024 }, // Giới hạn file 150MB
 });
+
+function uploadBuildingModel(req: Request, res: Response, next: NextFunction) {
+  upload.single("file")(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({
+        error: `File mô hình quá lớn. Giới hạn hiện tại là ${MAX_MODEL_UPLOAD_MB}MB.`,
+      });
+      return;
+    }
+
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    res.status(500).json({ error: "Không thể xử lý file upload." });
+  });
+}
 
 // GET /api/buildings - Lấy danh sách tòa nhà (UC03 - Filter)
 router.get("/", async (req: Request, res: Response) => {
@@ -61,11 +120,11 @@ router.get("/", async (req: Request, res: Response) => {
     let result;
     if (conditions.length > 0) {
       result = await db
-        .select()
+        .select(buildingSelectFields)
         .from(buildings)
         .where(and(...conditions));
     } else {
-      result = await db.select().from(buildings);
+      result = await db.select(buildingSelectFields).from(buildings);
     }
 
     if (minPrice || maxPrice) {
@@ -91,7 +150,12 @@ router.get("/", async (req: Request, res: Response) => {
       result = result.filter((b) => validIds.includes(b.id));
     }
 
-    res.json(result);
+    res.json(
+      result.map((building) => ({
+        ...building,
+        footprintGeoJson: parseGeoJson(building.footprintGeoJson),
+      }))
+    );
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy danh sách tòa nhà" });
   }
@@ -123,8 +187,14 @@ router.get("/geojson", async (req: Request, res: Response) => {
               totalFloors: buildings.totalFloors,
               imageUrl: buildings.imageUrl,
               model3dUrl: buildings.model3dUrl,
+              lodLevel: buildings.lodLevel,
               lng: sql<number>`ST_X(${buildings.location})`,
               lat: sql<number>`ST_Y(${buildings.location})`,
+              z: sql<number>`ST_Z(${buildings.location})`,
+              footprintGeoJson:
+                sql<string | null>`CASE WHEN ${buildings.footprint} IS NOT NULL THEN ST_AsGeoJSON(${buildings.footprint}) ELSE NULL END`.as(
+                  "footprintGeoJson"
+                ),
             })
             .from(buildings)
             .where(and(...conditions))
@@ -139,8 +209,14 @@ router.get("/geojson", async (req: Request, res: Response) => {
               totalFloors: buildings.totalFloors,
               imageUrl: buildings.imageUrl,
               model3dUrl: buildings.model3dUrl,
+              lodLevel: buildings.lodLevel,
               lng: sql<number>`ST_X(${buildings.location})`,
               lat: sql<number>`ST_Y(${buildings.location})`,
+              z: sql<number>`ST_Z(${buildings.location})`,
+              footprintGeoJson:
+                sql<string | null>`CASE WHEN ${buildings.footprint} IS NOT NULL THEN ST_AsGeoJSON(${buildings.footprint}) ELSE NULL END`.as(
+                  "footprintGeoJson"
+                ),
             })
             .from(buildings);
 
@@ -148,10 +224,11 @@ router.get("/geojson", async (req: Request, res: Response) => {
       type: "FeatureCollection" as const,
       features: result.map((b) => ({
         type: "Feature" as const,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [b.lng, b.lat],
-        },
+        geometry:
+          parseGeoJson(b.footprintGeoJson) ?? {
+            type: "Point" as const,
+            coordinates: [b.lng, b.lat, b.z ?? 0],
+          },
         properties: {
           id: b.id,
           name: b.name,
@@ -162,6 +239,13 @@ router.get("/geojson", async (req: Request, res: Response) => {
           totalFloors: b.totalFloors,
           imageUrl: b.imageUrl,
           model3dUrl: b.model3dUrl,
+          lodLevel: b.lodLevel,
+          hasDetailedGeometry: !!b.footprintGeoJson,
+          center: {
+            lng: b.lng,
+            lat: b.lat,
+            z: b.z ?? 0,
+          },
         },
       })),
     };
@@ -209,13 +293,16 @@ router.get("/nearby", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const result = await db
-      .select()
+      .select(buildingSelectFields)
       .from(buildings)
       .where(eq(buildings.id, Number(req.params.id)));
     if (result.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy tòa nhà" });
     }
-    res.json(result[0]);
+    res.json({
+      ...result[0],
+      footprintGeoJson: parseGeoJson(result[0].footprintGeoJson),
+    });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy thông tin tòa nhà" });
   }
@@ -250,12 +337,15 @@ router.get("/:id/occupancy", async (req: Request, res: Response) => {
 // POST /api/buildings - Thêm tòa nhà
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { longitude, latitude, ...rest } = req.body;
+    const { longitude, latitude, footprintWkt, ...rest } = req.body;
     const result = await db
       .insert(buildings)
       .values({
         ...rest,
         location: sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}, 0), 4326)`,
+        footprint: footprintWkt
+          ? sql`ST_GeomFromText(${String(footprintWkt)}, 4326)`
+          : null,
       })
       .returning();
     res.status(201).json(result[0]);
@@ -267,13 +357,19 @@ router.post("/", async (req: Request, res: Response) => {
 // PUT /api/buildings/:id - Cập nhật tòa nhà
 router.put("/:id", async (req: Request, res: Response) => {
   try {
-    const { longitude, latitude, ...rest } = req.body;
+    const { longitude, latitude, footprintWkt, ...rest } = req.body;
     const updateData: Record<string, unknown> = {
       ...rest,
       updatedAt: new Date(),
     };
-    if (longitude && latitude) {
+    if (longitude !== undefined && latitude !== undefined) {
       updateData.location = sql`ST_SetSRID(ST_MakePoint(${Number(longitude)}, ${Number(latitude)}, 0), 4326)`;
+    }
+    if (footprintWkt !== undefined) {
+      updateData.footprint =
+        footprintWkt === null || footprintWkt === ""
+          ? null
+          : sql`ST_GeomFromText(${String(footprintWkt)}, 4326)`;
     }
 
     const result = await db
@@ -307,7 +403,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/buildings/:id/model - Upload File Mô hình 3D (.glb, .gltf)
-router.post("/:id/model", upload.single("file"), async (req: Request, res: Response): Promise<void> => {
+router.post("/:id/model", uploadBuildingModel, async (req: Request, res: Response): Promise<void> => {
   try {
     const buildingId = Number(req.params.id);
 

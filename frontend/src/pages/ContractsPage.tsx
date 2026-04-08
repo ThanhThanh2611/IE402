@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api, ApiError } from "@/lib/api";
 import { formatVND, formatDate } from "@/lib/hooks";
 import { contractSchema, validateForm, type ContractInput } from "@/lib/validators";
+import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import type { RentalContract, Apartment, Tenant } from "@/types";
 import { toast } from "sonner";
 import {
@@ -70,10 +71,12 @@ export default function ContractsPage() {
   const [form, setForm] = useState<ContractInput>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      setPageError(null);
       const [c, a, t] = await Promise.all([
         api.get<RentalContract[]>("/contracts"),
         api.get<Apartment[]>("/apartments"),
@@ -82,8 +85,10 @@ export default function ContractsPage() {
       setContracts(c);
       setApartments(a);
       setTenants(t);
-    } catch {
-      toast.error("Lỗi tải dữ liệu");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Không thể tải danh sách hợp đồng";
+      toast.error(message);
+      setPageError(message);
     } finally {
       setLoading(false);
     }
@@ -129,14 +134,24 @@ export default function ContractsPage() {
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/contracts/${editId}`, validation.data);
+        const updatedContract = await api.put<RentalContract>(`/contracts/${editId}`, validation.data);
+        setContracts((current) =>
+          current.map((contract) => (contract.id === editId ? updatedContract : contract)),
+        );
         toast.success("Cập nhật hợp đồng thành công");
       } else {
-        await api.post("/contracts", validation.data);
+        const createdContract = await api.post<RentalContract>("/contracts", validation.data);
+        setContracts((current) => [...current, createdContract]);
+        setApartments((current) =>
+          current.map((apartment) =>
+            apartment.id === createdContract.apartmentId
+              ? { ...apartment, status: "rented" }
+              : apartment,
+          ),
+        );
         toast.success("Thêm hợp đồng thành công");
       }
       setDialogOpen(false);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     } finally {
@@ -147,17 +162,28 @@ export default function ContractsPage() {
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
+      const contractToDelete = contracts.find((contract) => contract.id === deleteId) ?? null;
       await api.delete(`/contracts/${deleteId}`);
+      setContracts((current) => current.filter((contract) => contract.id !== deleteId));
+      if (contractToDelete) {
+        setApartments((current) =>
+          current.map((apartment) =>
+            apartment.id === contractToDelete.apartmentId
+              ? { ...apartment, status: "available" }
+              : apartment,
+          ),
+        );
+      }
       toast.success("Xóa hợp đồng thành công");
       setDeleteId(null);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
   };
 
   // Auto-fill rent when apartment selected
-  const handleApartmentSelect = (aptId: string) => {
+  const handleApartmentSelect = (aptId: string | null) => {
+    if (!aptId) return;
     const apt = apartments.find((a) => a.id === Number(aptId));
     setForm((f) => ({
       ...f,
@@ -168,7 +194,16 @@ export default function ContractsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Màn hình hợp đồng đang tải lỗi"
+          description={pageError}
+          onRetry={() => void fetchData()}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Quản lý hợp đồng</h1>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -184,8 +219,14 @@ export default function ContractsPage() {
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
           ) : (
+            contracts.length === 0 ? (
+              <EmptyState
+                title="Chưa có hợp đồng"
+                description="Bạn có thể tạo hợp đồng mới để hệ thống bắt đầu ghi nhận doanh thu và tỷ lệ lấp đầy."
+              />
+            ) : (
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Căn hộ</TableHead>
@@ -220,16 +261,10 @@ export default function ContractsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {contracts.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      Chưa có hợp đồng
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
             </div>
+            )
           )}
         </CardContent>
       </Card>
@@ -240,7 +275,7 @@ export default function ContractsPage() {
             <DialogTitle>{editId ? "Sửa hợp đồng" : "Thêm hợp đồng"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Căn hộ *</Label>
                 <Select value={form.apartmentId ? String(form.apartmentId) : ""} onValueChange={handleApartmentSelect}>
@@ -255,7 +290,7 @@ export default function ContractsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Người thuê *</Label>
-                <Select value={form.tenantId ? String(form.tenantId) : ""} onValueChange={(v) => setForm((f) => ({ ...f, tenantId: Number(v) }))}>
+                <Select value={form.tenantId ? String(form.tenantId) : ""} onValueChange={(v) => setForm((f) => ({ ...f, tenantId: Number(v || 0) }))}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Chọn người thuê" /></SelectTrigger>
                   <SelectContent>
                     {tenants.map((t) => (
@@ -266,7 +301,7 @@ export default function ContractsPage() {
                 {errors.tenantId && <p className="text-sm text-destructive">{errors.tenantId}</p>}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Ngày bắt đầu *</Label>
                 <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
@@ -278,7 +313,7 @@ export default function ContractsPage() {
                 {errors.endDate && <p className="text-sm text-destructive">{errors.endDate}</p>}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Tiền thuê/tháng (VND) *</Label>
                 <Input type="number" value={form.monthlyRent} onChange={(e) => setForm((f) => ({ ...f, monthlyRent: e.target.value }))} />

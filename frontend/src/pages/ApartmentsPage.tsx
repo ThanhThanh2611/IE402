@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/lib/api";
 import { formatVND } from "@/lib/hooks";
 import { apartmentSchema, validateForm, type ApartmentInput } from "@/lib/validators";
+import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import type { Apartment, Building, Floor } from "@/types";
 import { toast } from "sonner";
 import {
@@ -64,6 +66,7 @@ const emptyForm: ApartmentInput = {
 };
 
 export default function ApartmentsPage() {
+  const navigate = useNavigate();
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -74,6 +77,7 @@ export default function ApartmentsPage() {
   const [form, setForm] = useState<ApartmentInput>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Filters
   const [filterBuildingId, setFilterBuildingId] = useState<string>("");
@@ -82,6 +86,7 @@ export default function ApartmentsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      setPageError(null);
       const [apts, blds, flrs] = await Promise.all([
         api.get<Apartment[]>("/apartments"),
         api.get<Building[]>("/buildings"),
@@ -90,8 +95,10 @@ export default function ApartmentsPage() {
       setApartments(apts);
       setBuildings(blds);
       setFloors(flrs);
-    } catch {
-      toast.error("Lỗi tải dữ liệu");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Không thể tải danh sách căn hộ lúc này";
+      toast.error(message);
+      setPageError(message);
     } finally {
       setLoading(false);
     }
@@ -151,14 +158,17 @@ export default function ApartmentsPage() {
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/apartments/${editId}`, validation.data);
+        const updatedApartment = await api.put<Apartment>(`/apartments/${editId}`, validation.data);
+        setApartments((current) =>
+          current.map((apartment) => (apartment.id === editId ? updatedApartment : apartment)),
+        );
         toast.success("Cập nhật căn hộ thành công");
       } else {
-        await api.post("/apartments", validation.data);
+        const createdApartment = await api.post<Apartment>("/apartments", validation.data);
+        setApartments((current) => [...current, createdApartment]);
         toast.success("Thêm căn hộ thành công");
       }
       setDialogOpen(false);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     } finally {
@@ -170,9 +180,9 @@ export default function ApartmentsPage() {
     if (!deleteId) return;
     try {
       await api.delete(`/apartments/${deleteId}`);
+      setApartments((current) => current.filter((apartment) => apartment.id !== deleteId));
       toast.success("Xóa căn hộ thành công");
       setDeleteId(null);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
@@ -180,9 +190,11 @@ export default function ApartmentsPage() {
 
   const handleStatusChange = async (id: number, status: string) => {
     try {
-      await api.patch(`/apartments/${id}/status`, { status });
+      const updatedApartment = await api.patch<Apartment>(`/apartments/${id}/status`, { status });
+      setApartments((current) =>
+        current.map((apartment) => (apartment.id === id ? updatedApartment : apartment)),
+      );
       toast.success("Cập nhật trạng thái thành công");
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
@@ -190,7 +202,16 @@ export default function ApartmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Màn hình căn hộ đang tải lỗi"
+          description={pageError}
+          onRetry={() => void fetchData()}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Quản lý căn hộ</h1>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -199,9 +220,9 @@ export default function ApartmentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <Select value={filterBuildingId || undefined} onValueChange={(v) => { setFilterBuildingId(v === "__all__" ? "" : v); setFilterFloorId(""); }}>
-          <SelectTrigger className="w-[200px]">
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <Select value={filterBuildingId || undefined} onValueChange={(v) => { setFilterBuildingId(!v || v === "__all__" ? "" : v); setFilterFloorId(""); }}>
+          <SelectTrigger className="w-full lg:w-[220px]">
             <SelectValue placeholder="Tất cả tòa nhà" />
           </SelectTrigger>
           <SelectContent>
@@ -211,8 +232,8 @@ export default function ApartmentsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={filterFloorId || undefined} onValueChange={(v) => setFilterFloorId(v === "__all__" ? "" : v)}>
-          <SelectTrigger className="w-[200px]">
+        <Select value={filterFloorId || undefined} onValueChange={(v) => setFilterFloorId(!v || v === "__all__" ? "" : v)}>
+          <SelectTrigger className="w-full lg:w-[220px]">
             <SelectValue placeholder="Tất cả tầng" />
           </SelectTrigger>
           <SelectContent>
@@ -233,8 +254,14 @@ export default function ApartmentsPage() {
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
           ) : (
+            filteredApartments.length === 0 ? (
+              <EmptyState
+                title="Không có căn hộ phù hợp"
+                description="Hãy đổi bộ lọc tòa nhà hoặc tầng để xem thêm căn hộ."
+              />
+            ) : (
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Mã</TableHead>
@@ -255,7 +282,7 @@ export default function ApartmentsPage() {
                     <TableCell className="text-center">{apt.numBedrooms ?? "-"}</TableCell>
                     <TableCell className="text-right">{formatVND(apt.rentalPrice)}</TableCell>
                     <TableCell className="text-center">
-                      <Select value={apt.status} onValueChange={(v) => handleStatusChange(apt.id, v)}>
+                      <Select value={apt.status} onValueChange={(v) => v && handleStatusChange(apt.id, v)}>
                         <SelectTrigger className="w-[140px] mx-auto border-none shadow-none justify-center gap-2">
                           <Badge className={statusColors[apt.status]}>{statusLabels[apt.status]}</Badge>
                         </SelectTrigger>
@@ -268,6 +295,20 @@ export default function ApartmentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const floor = floors.find((f) => f.id === apt.floorId);
+                            if (!floor) {
+                              toast.error("Không tìm thấy tầng của căn hộ");
+                              return;
+                            }
+                            navigate(`/buildings/${floor.buildingId}/apartments/${apt.id}`);
+                          }}
+                        >
+                          Xem
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => openEdit(apt)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -278,16 +319,10 @@ export default function ApartmentsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredApartments.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      Không có căn hộ nào
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
             </div>
+            )
           )}
         </CardContent>
       </Card>
@@ -301,7 +336,7 @@ export default function ApartmentsPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Tầng *</Label>
-              <Select value={form.floorId ? String(form.floorId) : ""} onValueChange={(v) => setForm((f) => ({ ...f, floorId: Number(v) }))}>
+              <Select value={form.floorId ? String(form.floorId) : ""} onValueChange={(v) => setForm((f) => ({ ...f, floorId: Number(v || 0) }))}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="Chọn tầng" /></SelectTrigger>
                 <SelectContent>
                   {floors.map((f) => {
