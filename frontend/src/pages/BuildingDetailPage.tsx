@@ -890,7 +890,7 @@ export default function BuildingDetailPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-1/3" />
-        <Skeleton className="h-[520px] w-full" />
+        <Skeleton className="h-130 w-full" />
       </div>
     );
   }
@@ -958,7 +958,7 @@ export default function BuildingDetailPage() {
             <CardTitle className="text-base">Danh sách tầng</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <ScrollArea className="h-[220px] pr-4 md:h-[290px]">
+            <ScrollArea className="h-72.5 pr-4">
               <div className="space-y-2">
                 {floors.map((floor) => (
                   <div
@@ -1168,59 +1168,15 @@ export default function BuildingDetailPage() {
           </CardHeader>
 
           <CardContent>
-            <div className="relative h-[420px] overflow-hidden rounded-md border bg-muted/20 md:h-[600px]">
-              {viewMode === "overview" ? (
-                modelUrl ? (
-                  <AppErrorBoundary
-                    resetKeys={[modelUrl, resetTick]}
-                    fallback={
-                      <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-                        <div>
-                          <Box className="mx-auto mb-2 h-10 w-10" />
-                          <p>Không thể render mô hình 3D cho tòa nhà này.</p>
-                          <p className="text-sm">Hãy thử reset góc nhìn hoặc tải lại trang để nạp lại model.</p>
-                        </div>
-                      </div>
-                    }
-                  >
-                    <ModelCanvas
-                      modelUrl={modelUrl}
-                      apartments={allApartments}
-                      visibleFloorNumbers={visibleFloorNumbers}
-                      onApartmentClick={handleModelApartmentClick}
-                      resetTick={resetTick}
-                    />
-                  </AppErrorBoundary>
-                ) : (
-                  <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-                    <div>
-                      <Box className="mx-auto mb-2 h-10 w-10" />
-                      <p>Tòa nhà chưa có file mô hình 3D.</p>
-                      <p className="text-sm">Hãy upload file .glb/.gltf ở panel bên trái để hiển thị.</p>
-                    </div>
-                  </div>
-                )
-              ) : selectedFloorModelUrl || selectedFloorHotspots.length > 0 ? (
-                <AppErrorBoundary
-                  resetKeys={[selectedFloorModelUrl, selectedFloorId, resetTick, selectedFloorHotspots.length]}
-                  fallback={
-                    <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-                      <div>
-                        <Box className="mx-auto mb-2 h-10 w-10" />
-                        <p>Không thể render mặt sàn 3D cho tầng này.</p>
-                        <p className="text-sm">Hãy thử chọn tầng khác hoặc kiểm tra lại file model của tầng.</p>
-                      </div>
-                    </div>
-                  }
-                >
-                  <FloorHotspotScene
-                    modelUrl={selectedFloorModelUrl}
-                    nodes={selectedFloorHotspots}
-                    activeNodeId={connectorNode?.id ?? null}
-                    onNodeClick={handleFloorNodeClick}
-                    resetTick={resetTick}
-                  />
-                </AppErrorBoundary>
+            <div className="relative h-150 overflow-hidden rounded-md border bg-muted/20">
+              {modelUrl ? (
+                <ModelCanvas
+                  modelUrl={modelUrl}
+                  apartments={allApartments}
+                  visibleFloorNumbers={visibleFloorNumbers}
+                  onApartmentClick={handleModelApartmentClick}
+                  resetTick={resetTick}
+                />
               ) : (
                 <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
                   <div>
@@ -1238,7 +1194,7 @@ export default function BuildingDetailPage() {
               )}
 
               {popupData && !popupLoading && (
-                <Card className="absolute left-2 right-2 top-2 z-20 border shadow-lg md:left-auto md:right-3 md:top-3 md:w-[340px]">
+                <Card className="absolute right-3 top-3 z-20 w-85 border shadow-lg">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="text-base">Căn hộ {popupData.apartment.code}</CardTitle>

@@ -71,7 +71,7 @@ export default function LoginPage() {
         }}
       />
 
-      <Card className="w-full max-w-md relative z-10 bg-white/[0.04] backdrop-blur-xl border-white/[0.08] shadow-2xl">
+      <Card className="w-full max-w-md relative z-10 bg-white/4 backdrop-blur-xl border-white/8 shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-5">
             <div className="rounded-2xl bg-primary/20 p-4 glow-primary">
@@ -98,7 +98,7 @@ export default function LoginPage() {
                   setForm((f) => ({ ...f, username: e.target.value }))
                 }
                 placeholder="Nhập username"
-                className="bg-white/[0.06] border-white/[0.1] text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                className="bg-white/6 border-white/1 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
               />
               {errors.username && (
                 <p className="text-sm text-destructive">{errors.username}</p>
@@ -116,7 +116,7 @@ export default function LoginPage() {
                   setForm((f) => ({ ...f, password: e.target.value }))
                 }
                 placeholder="Nhập mật khẩu"
-                className="bg-white/[0.06] border-white/[0.1] text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                className="bg-white/6 border-white/1 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
               />
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
