@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api, ApiError } from "@/lib/api";
 import { tenantSchema, validateForm, type TenantInput } from "@/lib/validators";
+import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import type { Tenant } from "@/types";
 import { toast } from "sonner";
 import {
@@ -51,13 +52,17 @@ export default function TenantsPage() {
   const [form, setForm] = useState<TenantInput>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      setPageError(null);
       setTenants(await api.get<Tenant[]>("/tenants"));
-    } catch {
-      toast.error("Lỗi tải dữ liệu");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Không thể tải danh sách người thuê";
+      toast.error(message);
+      setPageError(message);
     } finally {
       setLoading(false);
     }
@@ -76,7 +81,7 @@ export default function TenantsPage() {
     setEditId(t.id);
     setForm({
       fullName: t.fullName,
-      phone: t.phone,
+      phone: t.phone || "",
       email: t.email || "",
       idCard: t.idCard,
       address: t.address || "",
@@ -94,14 +99,17 @@ export default function TenantsPage() {
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/tenants/${editId}`, validation.data);
+        const updatedTenant = await api.put<Tenant>(`/tenants/${editId}`, validation.data);
+        setTenants((current) =>
+          current.map((tenant) => (tenant.id === editId ? updatedTenant : tenant)),
+        );
         toast.success("Cập nhật thành công");
       } else {
-        await api.post("/tenants", validation.data);
+        const createdTenant = await api.post<Tenant>("/tenants", validation.data);
+        setTenants((current) => [...current, createdTenant]);
         toast.success("Thêm thành công");
       }
       setDialogOpen(false);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     } finally {
@@ -113,9 +121,9 @@ export default function TenantsPage() {
     if (!deleteId) return;
     try {
       await api.delete(`/tenants/${deleteId}`);
+      setTenants((current) => current.filter((tenant) => tenant.id !== deleteId));
       toast.success("Xóa thành công");
       setDeleteId(null);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
@@ -123,7 +131,16 @@ export default function TenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Màn hình người thuê đang tải lỗi"
+          description={pageError}
+          onRetry={() => void fetchData()}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Quản lý người thuê</h1>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -139,8 +156,14 @@ export default function TenantsPage() {
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
           ) : (
+            tenants.length === 0 ? (
+              <EmptyState
+                title="Chưa có người thuê"
+                description="Hãy thêm hồ sơ người thuê để sẵn sàng cho luồng tạo hợp đồng và theo dõi cư dân."
+              />
+            ) : (
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[840px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Họ tên</TableHead>
@@ -171,16 +194,10 @@ export default function TenantsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {tenants.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      Chưa có người thuê
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
             </div>
+            )
           )}
         </CardContent>
       </Card>
@@ -197,7 +214,7 @@ export default function TenantsPage() {
               <Input value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
               {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>SĐT *</Label>
                 <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="0901234567" />

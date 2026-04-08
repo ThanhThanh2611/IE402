@@ -22,7 +22,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Apartment, Floor, Building, RentalContract, Tenant } from "@/types";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { PageErrorState } from "@/components/PageFeedback";
+import type { Apartment, ApartmentDetailResponse, Floor, Building, RentalContract, Tenant } from "@/types";
 import { toast } from "sonner";
 
 const statusLabels: Record<string, string> = {
@@ -41,6 +43,7 @@ type ApartmentPopupData = {
   contract: RentalContract | null;
   tenant: Tenant | null;
   canReadContract: boolean;
+  canReadTenant: boolean;
 };
 
 const DEFAULT_CAMERA_POS: [number, number, number] = [22, 18, 22];
@@ -296,10 +299,8 @@ export default function BuildingDetailPage() {
   const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
   const [popupLoading, setPopupLoading] = useState(false);
   const [popupData, setPopupData] = useState<ApartmentPopupData | null>(null);
-
-  const [contractsCache, setContractsCache] = useState<RentalContract[] | null>(null);
-  const [tenantsCache, setTenantsCache] = useState<Tenant[] | null>(null);
   const [resetTick, setResetTick] = useState(0);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const allApartments = useMemo(
     () => Object.values(apartmentsByFloor).flat(),
@@ -323,115 +324,77 @@ export default function BuildingDetailPage() {
     return apartmentsByFloor[selectedFloorId] ?? [];
   }, [apartmentsByFloor, selectedFloorId]);
 
+  const selectedFloor = useMemo(
+    () => floors.find((floor) => floor.id === selectedFloorId) ?? null,
+    [floors, selectedFloorId],
+  );
+
   const modelUrl = useMemo(() => resolveModelUrl(building?.model3dUrl ?? null), [building?.model3dUrl]);
+
+  const loadBuildingDetail = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      setPageError(null);
+      const [buildingData, floorData] = await Promise.all([
+        api.get<Building>(`/buildings/${buildingId}`),
+        api.get<Floor[]>(`/floors?buildingId=${buildingId}`),
+      ]);
+
+      const sortedFloors = [...floorData].sort((a, b) => b.floorNumber - a.floorNumber);
+
+      setBuilding(buildingData);
+      setFloors(sortedFloors);
+
+      const visibilityByFloorId: Record<number, boolean> = {};
+      for (const floor of sortedFloors) {
+        visibilityByFloorId[floor.id] = true;
+      }
+      setFloorVisibility(visibilityByFloorId);
+
+      setSelectedFloorId(sortedFloors[0]?.id ?? null);
+
+      const apartmentsOfFloors = await Promise.all(
+        sortedFloors.map((floor) => api.get<Apartment[]>(`/apartments?floorId=${floor.id}`)),
+      );
+
+      const nextApartmentsMap: Record<number, Apartment[]> = {};
+      sortedFloors.forEach((floor, index) => {
+        nextApartmentsMap[floor.id] = apartmentsOfFloors[index] ?? [];
+      });
+
+      setApartmentsByFloor(nextApartmentsMap);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Không thể tải dữ liệu chi tiết tòa nhà";
+      toast.error(message);
+      setPageError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildingId]);
 
   useEffect(() => {
     if (Number.isNaN(buildingId)) {
       toast.error("ID tòa nhà không hợp lệ");
       return;
     }
-
-    let cancelled = false;
-
-    const loadBuildingDetail = async () => {
-      setLoading(true);
-
-      try {
-        const [buildingData, floorData] = await Promise.all([
-          api.get<Building>(`/buildings/${buildingId}`),
-          api.get<Floor[]>(`/floors?buildingId=${buildingId}`),
-        ]);
-
-        if (cancelled) return;
-
-        const sortedFloors = [...floorData].sort((a, b) => b.floorNumber - a.floorNumber);
-
-        setBuilding(buildingData);
-        setFloors(sortedFloors);
-
-        const visibilityByFloorId: Record<number, boolean> = {};
-        for (const floor of sortedFloors) {
-          visibilityByFloorId[floor.id] = true;
-        }
-        setFloorVisibility(visibilityByFloorId);
-
-        if (sortedFloors.length > 0) {
-          setSelectedFloorId((previous) => previous ?? sortedFloors[0].id);
-        }
-
-        const apartmentsOfFloors = await Promise.all(
-          sortedFloors.map((floor) => api.get<Apartment[]>(`/apartments?floorId=${floor.id}`)),
-        );
-
-        if (cancelled) return;
-
-        const nextApartmentsMap: Record<number, Apartment[]> = {};
-        sortedFloors.forEach((floor, index) => {
-          nextApartmentsMap[floor.id] = apartmentsOfFloors[index] ?? [];
-        });
-
-        setApartmentsByFloor(nextApartmentsMap);
-      } catch (error) {
-        if (cancelled) return;
-
-        const message = error instanceof ApiError ? error.message : "Không thể tải dữ liệu chi tiết tòa nhà";
-        toast.error(message);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadBuildingDetail();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [buildingId]);
+    void loadBuildingDetail().catch(() => undefined);
+  }, [buildingId, loadBuildingDetail]);
 
   const fetchPopupData = useCallback(
     async (apartmentId: number) => {
       setPopupLoading(true);
 
       try {
-        const apartment = await api.get<Apartment>(`/apartments/${apartmentId}`);
-        let contract: RentalContract | null = null;
-        let tenant: Tenant | null = null;
-        let canReadContract = isManager;
+        const detail = await api.get<ApartmentDetailResponse>(`/apartments/${apartmentId}/details`);
 
-        if (isManager) {
-          try {
-            const [contracts, tenants] = await Promise.all([
-              contractsCache ? Promise.resolve(contractsCache) : api.get<RentalContract[]>("/contracts"),
-              tenantsCache ? Promise.resolve(tenantsCache) : api.get<Tenant[]>("/tenants"),
-            ]);
-
-            setContractsCache(contracts);
-            setTenantsCache(tenants);
-
-            const contractsByApartment = contracts
-              .filter((item) => item.apartmentId === apartment.id)
-              .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-
-            contract =
-              contractsByApartment.find((item) => item.status === "active") ??
-              contractsByApartment[0] ??
-              null;
-
-            if (contract) {
-              tenant = tenants.find((item) => item.id === contract?.tenantId) ?? null;
-            }
-          } catch (error) {
-            if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-              canReadContract = false;
-            } else {
-              toast.error("Không thể tải dữ liệu hợp đồng của căn hộ");
-            }
-          }
-        }
-
-        setPopupData({ apartment, contract, tenant, canReadContract });
+        setPopupData({
+          apartment: detail.apartment,
+          contract: detail.activeContract,
+          tenant: detail.tenant,
+          canReadContract: detail.canViewContract,
+          canReadTenant: detail.canViewTenant,
+        });
       } catch (error) {
         const message = error instanceof ApiError ? error.message : "Không thể tải chi tiết căn hộ";
         toast.error(message);
@@ -439,7 +402,7 @@ export default function BuildingDetailPage() {
         setPopupLoading(false);
       }
     },
-    [contractsCache, isManager, tenantsCache],
+    [],
   );
 
   const handleModelApartmentClick = useCallback(
@@ -498,6 +461,15 @@ export default function BuildingDetailPage() {
 
   return (
     <div className="space-y-4">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Không thể tải màn hình tòa nhà"
+          description={pageError}
+          onRetry={() => void loadBuildingDetail()}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-1">
           <Button variant="outline" size="sm" onClick={() => navigate("/map")}>
@@ -513,13 +485,13 @@ export default function BuildingDetailPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Danh sách tầng</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <ScrollArea className="h-[290px] pr-4">
+            <ScrollArea className="h-[220px] pr-4 md:h-[290px]">
               <div className="space-y-2">
                 {floors.map((floor) => (
                   <div
@@ -530,23 +502,29 @@ export default function BuildingDetailPage() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <Button
-                        variant="ghost"
-                        className="h-auto p-0 text-sm"
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-sm px-1 py-1 text-left transition hover:text-primary"
                         onClick={() => setSelectedFloorId(floor.id)}
                       >
-                        Tầng {floor.floorNumber}
-                      </Button>
+                        <span className="text-sm font-medium">Tầng {floor.floorNumber}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {apartmentsByFloor[floor.id]?.length ?? 0} căn
+                        </span>
+                      </button>
 
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() =>
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          return (
                           setFloorVisibility((prev) => ({
                             ...prev,
                             [floor.id]: !prev[floor.id],
                           }))
-                        }
+                          );
+                        }}
                       >
                         {floorVisibility[floor.id] ? (
                           <Eye className="h-4 w-4" />
@@ -572,12 +550,13 @@ export default function BuildingDetailPage() {
                 id="model-file"
                 type="file"
                 accept=".glb,.gltf"
+                disabled={!isManager}
                 onChange={(event) => setSelectedModelFile(event.target.files?.[0] ?? null)}
               />
               <Button
                 className="w-full"
                 onClick={() => void handleUploadModel()}
-                disabled={uploadingModel || !selectedModelFile}
+                disabled={!isManager || uploadingModel || !selectedModelFile}
               >
                 {uploadingModel ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -601,15 +580,28 @@ export default function BuildingDetailPage() {
           </CardHeader>
 
           <CardContent>
-            <div className="relative h-[600px] overflow-hidden rounded-md border bg-muted/20">
+            <div className="relative h-[420px] overflow-hidden rounded-md border bg-muted/20 md:h-[600px]">
               {modelUrl ? (
-                <ModelCanvas
-                  modelUrl={modelUrl}
-                  apartments={allApartments}
-                  visibleFloorNumbers={visibleFloorNumbers}
-                  onApartmentClick={handleModelApartmentClick}
-                  resetTick={resetTick}
-                />
+                <AppErrorBoundary
+                  resetKeys={[modelUrl, resetTick]}
+                  fallback={
+                    <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+                      <div>
+                        <Box className="mx-auto mb-2 h-10 w-10" />
+                        <p>Không thể render mô hình 3D cho tòa nhà này.</p>
+                        <p className="text-sm">Hãy thử reset góc nhìn hoặc tải lại trang để nạp lại model.</p>
+                      </div>
+                    </div>
+                  }
+                >
+                  <ModelCanvas
+                    modelUrl={modelUrl}
+                    apartments={allApartments}
+                    visibleFloorNumbers={visibleFloorNumbers}
+                    onApartmentClick={handleModelApartmentClick}
+                    resetTick={resetTick}
+                  />
+                </AppErrorBoundary>
               ) : (
                 <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
                   <div>
@@ -627,7 +619,7 @@ export default function BuildingDetailPage() {
               )}
 
               {popupData && !popupLoading && (
-                <Card className="absolute right-3 top-3 z-20 w-[340px] border shadow-lg">
+                <Card className="absolute left-2 right-2 top-2 z-20 border shadow-lg md:left-auto md:right-3 md:top-3 md:w-[340px]">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="text-base">Căn hộ {popupData.apartment.code}</CardTitle>
@@ -665,7 +657,9 @@ export default function BuildingDetailPage() {
                           </p>
                           <p>
                             <span className="text-muted-foreground">Người thuê:</span>{" "}
-                            {popupData.tenant?.fullName ?? "Không có dữ liệu"}
+                            {popupData.canReadTenant
+                              ? (popupData.tenant?.fullName ?? "Không có dữ liệu")
+                              : "Dữ liệu riêng tư"}
                           </p>
                         </div>
                       ) : (
@@ -674,6 +668,13 @@ export default function BuildingDetailPage() {
                     ) : (
                       <p className="text-muted-foreground">Tài khoản hiện tại không có quyền xem dữ liệu hợp đồng.</p>
                     )}
+                    <Separator />
+                    <Button
+                      className="w-full"
+                      onClick={() => navigate(`/buildings/${buildingId}/apartments/${popupData.apartment.id}`)}
+                    >
+                      Mở trang chi tiết căn hộ
+                    </Button>
                   </CardContent>
                 </Card>
               )}
@@ -690,7 +691,7 @@ export default function BuildingDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Căn hộ tầng {floors.find((floor) => floor.id === selectedFloorId)?.floorNumber ?? "-"}
+            Căn hộ tầng {selectedFloor?.floorNumber ?? "-"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -703,7 +704,7 @@ export default function BuildingDetailPage() {
                   key={apartment.id}
                   type="button"
                   className="rounded-md border p-3 text-left transition hover:border-primary"
-                  onClick={() => void fetchPopupData(apartment.id)}
+                  onClick={() => navigate(`/buildings/${buildingId}/apartments/${apartment.id}`)}
                 >
                   <p className="font-medium">{apartment.code}</p>
                   <p className="text-sm text-muted-foreground">{formatArea(apartment.area)}</p>

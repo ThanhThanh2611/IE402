@@ -16,7 +16,7 @@ export const userSchema = z.object({
 export const userUpdateSchema = userSchema.omit({ password: true });
 
 export const apartmentSchema = z.object({
-  floorId: z.number({ required_error: "Vui lòng chọn tầng" }),
+  floorId: z.number().min(1, "Vui lòng chọn tầng"),
   code: z.string().min(1, "Vui lòng nhập mã căn hộ"),
   area: z.string().min(1, "Vui lòng nhập diện tích"),
   numBedrooms: z.number().nullable(),
@@ -41,8 +41,8 @@ export const tenantSchema = z.object({
 
 export const contractSchema = z
   .object({
-    apartmentId: z.number({ required_error: "Vui lòng chọn căn hộ" }),
-    tenantId: z.number({ required_error: "Vui lòng chọn người thuê" }),
+    apartmentId: z.number().min(1, "Vui lòng chọn căn hộ"),
+    tenantId: z.number().min(1, "Vui lòng chọn người thuê"),
     startDate: z.string().min(1, "Vui lòng chọn ngày bắt đầu"),
     endDate: z.string().min(1, "Vui lòng chọn ngày kết thúc"),
     monthlyRent: z.string().min(1, "Vui lòng nhập tiền thuê"),
@@ -55,12 +55,79 @@ export const contractSchema = z
   });
 
 export const paymentSchema = z.object({
-  contractId: z.number({ required_error: "Vui lòng chọn hợp đồng" }),
+  contractId: z.number().min(1, "Vui lòng chọn hợp đồng"),
   amount: z.string().min(1, "Vui lòng nhập số tiền"),
   paymentDate: z.string().min(1, "Vui lòng chọn ngày thanh toán"),
   status: z.enum(["pending", "paid", "overdue"]),
   note: z.string().optional(),
 });
+
+export const apartmentSpaceSchema = z.object({
+  name: z.string().min(1, "Vui lòng nhập tên không gian"),
+  spaceType: z.enum(["unit", "room", "zone"]),
+  roomType: z
+    .enum([
+      "living_room",
+      "bedroom",
+      "kitchen",
+      "bathroom",
+      "balcony",
+      "corridor",
+      "storage",
+      "other",
+    ])
+    .nullable(),
+  parentSpaceId: z.number().nullable(),
+  model3dUrl: z.string().optional(),
+  boundary: z.string().optional(),
+  metadata: z.string().optional(),
+});
+
+export const furnitureLayoutSchema = z.object({
+  name: z.string().min(1, "Vui lòng nhập tên layout"),
+  status: z.enum(["draft", "published", "archived"]),
+  version: z.number().min(1, "Version tối thiểu là 1"),
+});
+
+export const furnitureItemSchema = z.object({
+  catalogId: z.number().min(1, "Vui lòng chọn mẫu nội thất"),
+  spaceId: z.number().nullable(),
+  label: z.string().optional(),
+  position: z.string().min(1, "Vui lòng nhập tọa độ vị trí"),
+  rotationX: z.string().min(1, "Vui lòng nhập rotation X"),
+  rotationY: z.string().min(1, "Vui lòng nhập rotation Y"),
+  rotationZ: z.string().min(1, "Vui lòng nhập rotation Z"),
+  scaleX: z.string().min(1, "Vui lòng nhập scale X"),
+  scaleY: z.string().min(1, "Vui lòng nhập scale Y"),
+  scaleZ: z.string().min(1, "Vui lòng nhập scale Z"),
+  isLocked: z.boolean(),
+  metadata: z.string().optional(),
+});
+
+export const furnitureCatalogSchema = z.object({
+  code: z.string().min(1, "Vui lòng nhập mã nội thất"),
+  name: z.string().min(1, "Vui lòng nhập tên nội thất"),
+  category: z.enum(["sofa", "table", "chair", "bed", "cabinet", "appliance", "decor", "other"]),
+  model3dUrl: z.string().min(1, "Vui lòng nhập đường dẫn model"),
+  defaultWidth: z.string().optional(),
+  defaultDepth: z.string().optional(),
+  defaultHeight: z.string().optional(),
+  metadata: z.string().optional(),
+  isActive: z.boolean(),
+});
+
+export const apartmentAccessGrantSchema = z
+  .object({
+    userId: z.number().min(1, "Vui lòng chọn người dùng"),
+    canViewTenant: z.boolean(),
+    canViewContract: z.boolean(),
+    expiresAt: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((data) => data.canViewTenant || data.canViewContract, {
+    message: "Cần bật ít nhất một quyền truy cập",
+    path: ["canViewTenant"],
+  });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UserInput = z.infer<typeof userSchema>;
@@ -69,6 +136,11 @@ export type ApartmentInput = z.infer<typeof apartmentSchema>;
 export type TenantInput = z.infer<typeof tenantSchema>;
 export type ContractInput = z.infer<typeof contractSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
+export type ApartmentSpaceInput = z.infer<typeof apartmentSpaceSchema>;
+export type FurnitureLayoutInput = z.infer<typeof furnitureLayoutSchema>;
+export type FurnitureItemInput = z.infer<typeof furnitureItemSchema>;
+export type FurnitureCatalogInput = z.infer<typeof furnitureCatalogSchema>;
+export type ApartmentAccessGrantInput = z.infer<typeof apartmentAccessGrantSchema>;
 
 export function validateForm<T>(
   schema: z.ZodSchema<T>,

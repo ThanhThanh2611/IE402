@@ -4,6 +4,39 @@ export type PaymentStatus = "pending" | "paid" | "overdue";
 export type UserRole = "user" | "manager";
 export type NodeType = "door" | "elevator" | "stairs" | "junction";
 export type EdgeType = "hallway" | "stairs" | "elevator";
+export type LodLevel = "lod2" | "lod3" | "lod4";
+export type IndoorSpaceType = "unit" | "room" | "zone";
+export type RoomType =
+  | "living_room"
+  | "bedroom"
+  | "kitchen"
+  | "bathroom"
+  | "balcony"
+  | "corridor"
+  | "storage"
+  | "other";
+export type FurnitureCategory =
+  | "sofa"
+  | "table"
+  | "chair"
+  | "bed"
+  | "cabinet"
+  | "appliance"
+  | "decor"
+  | "other";
+export type FurnitureLayoutStatus = "draft" | "published" | "archived";
+
+export type GeoJsonPointGeometry = {
+  type: "Point";
+  coordinates: [number, number] | [number, number, number];
+};
+
+export type GeoJsonPolygonGeometry = {
+  type: "Polygon";
+  coordinates: number[][][];
+};
+
+export type GeoJsonGeometry = GeoJsonPointGeometry | GeoJsonPolygonGeometry;
 
 export interface User {
   id: number;
@@ -27,7 +60,8 @@ export interface AuthUser {
 
 export interface LoginResponse {
   user: AuthUser;
-  token: string;
+  accessToken: string;
+  refreshToken: string;
 }
 
 export interface Building {
@@ -38,11 +72,16 @@ export interface Building {
   district: string | null;
   city: string | null;
   totalFloors: number;
+  lodLevel?: LodLevel;
   description: string | null;
   imageUrl: string | null;
   model3dUrl: string | null;
-  latitude?: number;
-  longitude?: number;
+  location?: string;
+  footprint?: string | null;
+  footprintGeoJson?: GeoJsonPolygonGeometry | null;
+  lng?: number;
+  lat?: number;
+  z?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,14 +96,18 @@ export interface BuildingGeoJsonProperties {
   totalFloors: number;
   imageUrl: string | null;
   model3dUrl: string | null;
+  lodLevel?: LodLevel;
+  hasDetailedGeometry?: boolean;
+  center?: {
+    lng: number;
+    lat: number;
+    z?: number;
+  };
 }
 
 export interface BuildingGeoJsonFeature {
   type: "Feature";
-  geometry: {
-    type: "Point";
-    coordinates: [number, number];
-  };
+  geometry: GeoJsonGeometry;
   properties: BuildingGeoJsonProperties;
 }
 
@@ -87,14 +130,13 @@ export interface NearbyBuildingResult {
 export interface OccupancyHistoryPoint {
   month: string;
   newContracts: number;
+  activeContracts: number;
+  occupancyRate: number;
 }
 
 export interface MapSnapshotFeature {
   type: "Feature";
-  geometry: {
-    type: "Point";
-    coordinates: [number, number];
-  };
+  geometry: GeoJsonPointGeometry;
   properties: {
     id: number;
     name: string;
@@ -120,6 +162,10 @@ export interface Floor {
   id: number;
   buildingId: number;
   floorNumber: number;
+  elevation: string;
+  floorPlan: string | null;
+  floorPlanGeoJson?: GeoJsonPolygonGeometry | null;
+  model3dUrl: string | null;
   description: string | null;
   createdAt: string;
   updatedAt: string;
@@ -135,6 +181,8 @@ export interface Apartment {
   numBathrooms: number | null;
   rentalPrice: string;
   status: ApartmentStatus;
+  indoorModelUrl: string | null;
+  indoorLodLevel: LodLevel | null;
   description: string | null;
   createdById: number | null;
   updatedById: number | null;
@@ -144,8 +192,9 @@ export interface Apartment {
 
 export interface Tenant {
   id: number;
+  linkedUserId: number | null;
   fullName: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   idCard: string;
   address: string | null;
@@ -196,8 +245,8 @@ export interface BuildingOccupancy {
 }
 
 export interface MonthlyRevenue {
-  month: number;
-  revenue: number;
+  month: string;
+  revenue: string;
   count: number;
 }
 
@@ -229,4 +278,95 @@ export interface NavigationEdge {
 export interface BuildingGraph {
   nodes: NavigationNode[];
   edges: NavigationEdge[];
+}
+
+export interface ApartmentSpace {
+  id: number;
+  apartmentId: number;
+  parentSpaceId: number | null;
+  name: string;
+  spaceType: IndoorSpaceType;
+  roomType: RoomType | null;
+  lodLevel: LodLevel;
+  boundary: string | null;
+  model3dUrl: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FurnitureCatalogItem {
+  id: number;
+  code: string;
+  name: string;
+  category: FurnitureCategory;
+  model3dUrl: string;
+  defaultWidth: string | null;
+  defaultDepth: string | null;
+  defaultHeight: string | null;
+  metadata: Record<string, unknown> | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FurnitureItem {
+  id: number;
+  layoutId: number;
+  spaceId: number | null;
+  catalogId: number;
+  label: string | null;
+  position: string;
+  rotationX: string;
+  rotationY: string;
+  rotationZ: string;
+  scaleX: string;
+  scaleY: string;
+  scaleZ: string;
+  isLocked: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FurnitureLayout {
+  id: number;
+  apartmentId: number;
+  name: string;
+  status: FurnitureLayoutStatus;
+  version: number;
+  createdById: number | null;
+  updatedById: number | null;
+  createdAt: string;
+  updatedAt: string;
+  items: FurnitureItem[];
+}
+
+export interface ApartmentDetailResponse {
+  apartment: Apartment;
+  floor: Floor | null;
+  building: Building | null;
+  canViewTenant: boolean;
+  canViewContract: boolean;
+  activeContract: RentalContract | null;
+  tenant: Tenant | null;
+  spaces: ApartmentSpace[];
+  layouts: FurnitureLayout[];
+  furnitureCatalog: FurnitureCatalogItem[];
+}
+
+export interface ApartmentAccessGrant {
+  id: number;
+  apartmentId: number;
+  userId: number;
+  canViewTenant: boolean;
+  canViewContract: boolean;
+  expiresAt: string | null;
+  note: string | null;
+  grantedById: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  username: string;
+  fullName: string;
+  email: string | null;
 }

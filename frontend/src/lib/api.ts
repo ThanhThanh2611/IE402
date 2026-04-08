@@ -1,4 +1,8 @@
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
+const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
+const LEGACY_TOKEN_KEY = "token";
+const USER_KEY = "user";
 
 class ApiError extends Error {
   status: number;
@@ -10,8 +14,85 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("token");
+function getStoredAccessToken(): string | null {
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
+}
+
+function getStoredRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setStoredAuth(auth: { accessToken: string; refreshToken: string; user?: unknown }) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, auth.accessToken);
+  localStorage.setItem(REFRESH_TOKEN_KEY, auth.refreshToken);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  if (auth.user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
+  }
+}
+
+export function clearStoredAuth() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+function redirectToLogin() {
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) return false;
+
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!res.ok) {
+    clearStoredAuth();
+    return false;
+  }
+
+  const body = await res.json();
+  if (!body?.accessToken || !body?.refreshToken) {
+    clearStoredAuth();
+    return false;
+  }
+
+  setStoredAuth({
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken,
+    user: body.user,
+  });
+  return true;
+}
+
+async function ensureFreshAccessToken(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = refreshAccessToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+async function request<T>(
+  endpoint: string,
+  options?: RequestInit,
+  canRetry = true
+): Promise<T> {
+  const token = getStoredAccessToken();
   const isFormDataBody = typeof FormData !== "undefined" && options?.body instanceof FormData;
 
   const headers: Record<string, string> = {
@@ -32,9 +113,21 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/login";
+    const shouldTryRefresh =
+      canRetry &&
+      !endpoint.startsWith("/auth/login") &&
+      !endpoint.startsWith("/auth/refresh") &&
+      !endpoint.startsWith("/auth/logout");
+
+    if (shouldTryRefresh) {
+      const refreshed = await ensureFreshAccessToken();
+      if (refreshed) {
+        return request<T>(endpoint, options, false);
+      }
+    }
+
+    clearStoredAuth();
+    redirectToLogin();
     throw new ApiError(401, "Phiên đăng nhập đã hết hạn");
   }
 

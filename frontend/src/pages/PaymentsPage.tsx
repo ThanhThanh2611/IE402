@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api, ApiError } from "@/lib/api";
 import { formatVND, formatDate } from "@/lib/hooks";
 import { paymentSchema, validateForm, type PaymentInput } from "@/lib/validators";
+import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import type { Payment, RentalContract, Apartment, Tenant } from "@/types";
 import { toast } from "sonner";
 import {
@@ -69,10 +70,12 @@ export default function PaymentsPage() {
   const [form, setForm] = useState<PaymentInput>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      setPageError(null);
       const [p, c, a, t] = await Promise.all([
         api.get<Payment[]>("/payments"),
         api.get<RentalContract[]>("/contracts"),
@@ -83,8 +86,10 @@ export default function PaymentsPage() {
       setContracts(c);
       setApartments(a);
       setTenants(t);
-    } catch {
-      toast.error("Lỗi tải dữ liệu");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Không thể tải danh sách thanh toán";
+      toast.error(message);
+      setPageError(message);
     } finally {
       setLoading(false);
     }
@@ -129,14 +134,17 @@ export default function PaymentsPage() {
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/payments/${editId}`, validation.data);
+        const updatedPayment = await api.put<Payment>(`/payments/${editId}`, validation.data);
+        setPayments((current) =>
+          current.map((payment) => (payment.id === editId ? updatedPayment : payment)),
+        );
         toast.success("Cập nhật thành công");
       } else {
-        await api.post("/payments", validation.data);
+        const createdPayment = await api.post<Payment>("/payments", validation.data);
+        setPayments((current) => [...current, createdPayment]);
         toast.success("Thêm thành công");
       }
       setDialogOpen(false);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     } finally {
@@ -148,15 +156,16 @@ export default function PaymentsPage() {
     if (!deleteId) return;
     try {
       await api.delete(`/payments/${deleteId}`);
+      setPayments((current) => current.filter((payment) => payment.id !== deleteId));
       toast.success("Xóa thành công");
       setDeleteId(null);
-      fetchData();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra");
     }
   };
 
-  const handleContractSelect = (contractId: string) => {
+  const handleContractSelect = (contractId: string | null) => {
+    if (!contractId) return;
     const contract = contracts.find((c) => c.id === Number(contractId));
     setForm((f) => ({
       ...f,
@@ -167,7 +176,16 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {pageError && (
+        <PageErrorState
+          compact
+          title="Màn hình thanh toán đang tải lỗi"
+          description={pageError}
+          onRetry={() => void fetchData()}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Quản lý thanh toán</h1>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -183,8 +201,14 @@ export default function PaymentsPage() {
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
           ) : (
+            payments.length === 0 ? (
+              <EmptyState
+                title="Chưa có thanh toán"
+                description="Khi phát sinh giao dịch thuê nhà, các lần thanh toán sẽ xuất hiện ở đây để theo dõi công nợ."
+              />
+            ) : (
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Hợp đồng</TableHead>
@@ -217,16 +241,10 @@ export default function PaymentsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {payments.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      Chưa có thanh toán
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
             </div>
+            )
           )}
         </CardContent>
       </Card>
@@ -255,7 +273,7 @@ export default function PaymentsPage() {
               </Select>
               {errors.contractId && <p className="text-sm text-destructive">{errors.contractId}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Số tiền (VND) *</Label>
                 <Input type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
@@ -269,7 +287,7 @@ export default function PaymentsPage() {
             </div>
             <div className="space-y-2">
               <Label>Trạng thái *</Label>
-              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v as PaymentInput["status"] }))}>
+              <Select value={form.status} onValueChange={(v) => v && setForm((f) => ({ ...f, status: v as PaymentInput["status"] }))}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Chọn trạng thái">
                     {statusLabels[form.status]}
