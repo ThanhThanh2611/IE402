@@ -86,3 +86,10 @@
 - [x] FE: Render boundary không gian LoD4 trực tiếp trên workspace kéo thả và tự gắn item vào space phù hợp
 - [x] FE: Chuẩn hóa hành vi button để không submit/reload ngoài ý muốn và thay reload cứng bằng retry SPA
 - [x] FE: Giảm reload dữ liệu sau CRUD ở các trang quản trị chính bằng cập nhật state cục bộ
+- [x] FE+BE: Hỗ trợ hotspot local cho model tầng, chuyển tầng bằng thang máy/cầu thang và thêm mode 3D tổng quan quanh tòa nhà
+- [x] FE+BE: Reset DB sạch, seed lại local hotspot mẫu cho building 5 và thêm UI manager chỉnh local hotspot ngay trên trang tòa nhà
+- [x] BE: Nới giới hạn upload model 3D và trả lỗi Multer thân thiện khi file vượt quá dung lượng cho phép
+- [x] FE+BE: Thêm upload model 3D riêng cho từng tầng để floor mode không còn phụ thuộc vào model tổng quan của building
+- [x] FE: Fix input upload model tầng để đổi tầng xong vẫn chọn lại file và upload tiếp được
+- [x] Docs: Viết hướng dẫn kỹ thuật chuẩn bị floor model, hotspot local và workflow Blender cho màn `/buildings/:id`
+- [x] FE: Bổ sung UI tạo hotspot mới và chọn `node type` trực tiếp trên trang chi tiết tòa nhà

@@ -259,6 +259,13 @@ export interface NavigationNode {
   lng: number;
   lat: number;
   z: number;
+  localX: number | null;
+  localY: number | null;
+  localZ: number | null;
+  meshRef: string | null;
+  metadata: Record<string, unknown> | null;
+  apartmentId: number | null;
+  apartmentCode: string | null;
   createdAt: string;
   updatedAt: string;
 }

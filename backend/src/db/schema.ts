@@ -191,6 +191,11 @@ export const navigationNodes = pgTable("navigation_nodes", {
   nodeType: nodeTypeEnum("node_type").notNull(),
   label: varchar("label", { length: 255 }),
   location: pointGeometry("location").notNull(), // PointZ (x, y, z) — z xác định tầng
+  localX: decimal("local_x", { precision: 12, scale: 3 }),
+  localY: decimal("local_y", { precision: 12, scale: 3 }),
+  localZ: decimal("local_z", { precision: 12, scale: 3 }),
+  meshRef: varchar("mesh_ref", { length: 255 }),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

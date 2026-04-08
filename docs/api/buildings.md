@@ -215,7 +215,7 @@ Upload file mô hình 3D cho tòa nhà bằng `multipart/form-data`.
 
 **Giới hạn:**
 - Chỉ chấp nhận định dạng `.glb` / `.gltf`
-- Kích thước tối đa: 50MB
+- Kích thước tối đa: 150MB
 
 **Response:** `200`
 
@@ -232,5 +232,7 @@ Upload file mô hình 3D cho tòa nhà bằng `multipart/form-data`.
 
 **Lỗi thường gặp:**
 - `400`: không có file đính kèm
+- `400`: định dạng file không hợp lệ (`.glb` / `.gltf` only)
+- `413`: file vượt quá giới hạn upload 150MB
 - `404`: không tìm thấy tòa nhà
 - `500`: lỗi upload hoặc lỗi hệ thống

@@ -188,6 +188,11 @@ async function seed() {
     lng: number;
     lat: number;
     z: number;
+    localX: string | null;
+    localY: string | null;
+    localZ: string | null;
+    meshRef: string | null;
+    metadata: Record<string, unknown> | null;
   }[] = [];
 
   // Map để theo dõi node theo tầng: floorId -> { junction, elevator, stairs, doors[] }
@@ -210,6 +215,11 @@ async function seed() {
       lng: base.lng,
       lat: base.lat,
       z,
+      localX: "0",
+      localY: "0.6",
+      localZ: "-1.5",
+      meshRef: `HOTSPOT_JUNCTION_F${floor.floorNumber}`,
+      metadata: { seed: true, kind: "junction" },
     });
 
     const elevatorIdx = nodeInserts.length;
@@ -220,6 +230,11 @@ async function seed() {
       lng: base.lng + offset,
       lat: base.lat,
       z,
+      localX: "-4.5",
+      localY: "0.6",
+      localZ: "-7.5",
+      meshRef: `HOTSPOT_ELEVATOR_F${floor.floorNumber}`,
+      metadata: { seed: true, kind: "elevator" },
     });
 
     const stairsIdx = nodeInserts.length;
@@ -230,12 +245,18 @@ async function seed() {
       lng: base.lng - offset,
       lat: base.lat,
       z,
+      localX: "4.5",
+      localY: "0.6",
+      localZ: "-7.5",
+      meshRef: `HOTSPOT_STAIRS_F${floor.floorNumber}`,
+      metadata: { seed: true, kind: "stairs" },
     });
 
     // Tạo door nodes cho các căn hộ thuộc tầng này
     const floorApartments = insertedApartments.filter((a) => a.floorId === floor.id);
     const doorIdxes: number[] = [];
     floorApartments.forEach((apt, i) => {
+      const localDoorSlots = ["-9.0", "0", "9.0", "18.0"];
       const doorIdx = nodeInserts.length;
       doorIdxes.push(doorIdx);
       nodeInserts.push({
@@ -245,6 +266,11 @@ async function seed() {
         lng: base.lng + offset * (i + 2),
         lat: base.lat + offset,
         z,
+        localX: localDoorSlots[i] ?? String(i * 9),
+        localY: "0.6",
+        localZ: "7.5",
+        meshRef: `HOTSPOT_APT_${apt.code.replace(/[^A-Za-z0-9]/g, "_")}`,
+        metadata: { seed: true, apartmentCode: apt.code, apartmentOrder: i + 1 },
       });
     });
 
@@ -269,6 +295,11 @@ async function seed() {
         nodeType: node.nodeType,
         label: node.label,
         location: sql`ST_SetSRID(ST_MakePoint(${node.lng}, ${node.lat}, ${node.z}), 4326)`,
+        localX: node.localX,
+        localY: node.localY,
+        localZ: node.localZ,
+        meshRef: node.meshRef,
+        metadata: node.metadata,
       })
       .returning();
     insertedNodes.push(result[0]);

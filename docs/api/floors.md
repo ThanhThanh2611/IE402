@@ -91,6 +91,49 @@ PUT /api/floors/:id
 
 ---
 
+## Upload mô hình 3D riêng cho tầng
+
+```
+POST /api/floors/:id/model
+```
+
+Upload file mô hình 3D riêng cho một tầng bằng `multipart/form-data`.
+
+**Quyền:** `Manager`
+
+**Form-data:**
+
+| Field | Type | Bắt buộc | Mô tả |
+|-------|------|----------|-------|
+| file | File | Yes | File mô hình `.glb` hoặc `.gltf` của tầng |
+
+**Giới hạn:**
+- Chỉ chấp nhận định dạng `.glb` / `.gltf`
+- Kích thước tối đa: 70MB
+
+**Response:** `200`
+
+```json
+{
+  "message": "Upload mô hình 3D cho tầng thành công!",
+  "data": {
+    "id": 8,
+    "buildingId": 2,
+    "floorNumber": 5,
+    "model3dUrl": "/uploads/models/floor-8-1775669999999.glb"
+  }
+}
+```
+
+**Lỗi thường gặp:**
+- `400`: không có file đính kèm
+- `400`: định dạng file không hợp lệ (`.glb` / `.gltf` only)
+- `403`: chỉ Manager mới có quyền upload model tầng
+- `404`: không tìm thấy tầng
+- `413`: file vượt quá giới hạn upload 70MB
+
+---
+
 ## Xóa tầng
 
 ```

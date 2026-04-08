@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { buildings, floors, apartments } from "../db/schema";
 import { eq, and, sql, count, SQL } from "drizzle-orm";
@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 
 const router = Router();
+const MAX_MODEL_UPLOAD_MB = 150;
 
 function parseGeoJson<T>(value: unknown): T | null {
   if (typeof value !== "string" || !value) return null;
@@ -74,8 +75,31 @@ const fileFilter = (req: any, file: any, cb: any) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 }, // Giới hạn file 50MB
+  limits: { fileSize: MAX_MODEL_UPLOAD_MB * 1024 * 1024 }, // Giới hạn file 150MB
 });
+
+function uploadBuildingModel(req: Request, res: Response, next: NextFunction) {
+  upload.single("file")(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({
+        error: `File mô hình quá lớn. Giới hạn hiện tại là ${MAX_MODEL_UPLOAD_MB}MB.`,
+      });
+      return;
+    }
+
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    res.status(500).json({ error: "Không thể xử lý file upload." });
+  });
+}
 
 // GET /api/buildings - Lấy danh sách tòa nhà (UC03 - Filter)
 router.get("/", async (req: Request, res: Response) => {
@@ -379,7 +403,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/buildings/:id/model - Upload File Mô hình 3D (.glb, .gltf)
-router.post("/:id/model", upload.single("file"), async (req: Request, res: Response): Promise<void> => {
+router.post("/:id/model", uploadBuildingModel, async (req: Request, res: Response): Promise<void> => {
   try {
     const buildingId = Number(req.params.id);
 

@@ -80,6 +80,9 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
 ### Trạng thái hiện tại
 - Đã triển khai mô hình 3D bằng `@react-three/fiber` + `@react-three/drei`.
 - Có upload model `.glb/.gltf`, reset camera, bật/tắt tầng, click mesh căn hộ để mở popup.
+- Đã bổ sung 2 mode xem:
+  - `3D tổng quan` cho exterior / toàn bộ tòa nhà
+  - `Mặt sàn theo tầng` cho indoor floor model + hotspot
 
 ### UC06 — Mô hình 3D tòa nhà
 - **API**: `GET /api/buildings/:id` → lấy `model3dUrl` (file .glb/.gltf)
@@ -90,8 +93,9 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
 ### UC07 — Xem danh sách tầng
 - **API**: `GET /api/floors?buildingId=:id`
 - Hiển thị danh sách tầng dạng list bên cạnh mô hình 3D
-- Click tầng → highlight tầng đó trên mô hình + load danh sách căn hộ
-- FE đang dùng `floorNumber` để nhóm/bật tắt độ mờ của mesh tầng
+- Click tầng → chuyển sang floor mode, load model 3D riêng của tầng nếu `floors.model3dUrl` có dữ liệu
+- FE vẫn giữ danh sách căn hộ của tầng và hotspot indoor cho `door`, `elevator`, `stairs`
+- Với `Manager`, trang còn có ô `Upload model tầng` để gán trực tiếp model 3D riêng cho tầng đang chọn qua `POST /api/floors/:id/model`
 
 ### UC08 — Xem căn hộ trong tầng
 - **API**: `GET /api/apartments?floorId=:floorId`
@@ -107,6 +111,9 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
 
 - Click căn hộ → navigate đến `/buildings/:id/apartments/:apartmentId`
 - Click mesh trong model 3D → FE gọi `GET /api/apartments/:apartmentId/details` để hiện popup
+- Trong floor mode, FE còn có thể:
+  - click hotspot `door` → mở popup căn hộ hoặc vào trang căn hộ
+  - click hotspot `elevator` / `stairs` → hiện danh sách tầng đích để chuyển nhanh
 
 ### UC09 — Zoom / Rotate mô hình 3D
 - Hỗ trợ thao tác:
@@ -115,6 +122,39 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
   - Kéo chuột phải → di chuyển (pan)
 - Nút reset về góc nhìn mặc định
 - FE dùng `OrbitControls`
+
+### Hotspot indoor theo tầng
+
+- **API**: `GET /api/navigation/graph/:buildingId`
+- FE lấy:
+  - `localX`, `localY`, `localZ`
+  - `meshRef`
+  - `apartmentId`, `apartmentCode`
+- Các hotspot được render nổi trực tiếp trên model tầng:
+  - `door`: cửa căn hộ/phòng
+  - `elevator`: thang máy
+  - `stairs`: cầu thang
+- Với `Manager`, trang chi tiết tòa nhà hiện có thể sửa trực tiếp:
+  - tạo hotspot mới
+  - chọn `node type`
+  - `localX`
+  - `localY`
+  - `localZ`
+  - `lng`
+  - `lat`
+  - `z`
+  - `meshRef`
+  - `metadata`
+  cho từng hotspot của tầng đang chọn
+- Nếu chưa có `floors.model3dUrl`, FE vẫn có thể vào floor mode bằng scene lưới thử nghiệm để test hotspot và đổi tầng
+
+### Nút xem 3D tổng quan
+
+- Trên trang chi tiết tòa nhà hiện có nút `3D tổng quan`
+- Dùng để quay lại góc nhìn exterior / toàn bộ building model sau khi đang xem từng tầng
+- Upload model `tòa nhà` và upload model `tầng` là hai luồng riêng:
+  - `POST /api/buildings/:id/model` → dùng cho `3D tổng quan`
+  - `POST /api/floors/:id/model` → dùng cho `Mặt sàn theo tầng`
 
 ### Layout trang chi tiết tòa nhà
 
@@ -145,3 +185,4 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
 
 - FE hiện không render trực tiếp polygon footprint của building detail trong trang 3D; footprint chủ yếu phục vụ map/type model
 - Popup căn hộ trong trang tòa nhà không còn tự gọi `/contracts` và `/tenants`, mà dùng trực tiếp payload tổng hợp từ `/apartments/:id/details`
+- Hướng dẫn thao tác đầy đủ cho luồng model tầng + hotspot local xem thêm tại [floor-model-hotspot-workflow.md](D:\Workspace\IE402\docs\frontend\floor-model-hotspot-workflow.md)

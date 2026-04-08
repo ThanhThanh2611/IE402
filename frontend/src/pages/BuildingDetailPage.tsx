@@ -4,7 +4,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Canvas } from "@react-three/fiber";
 import { Html, OrbitControls, useGLTF } from "@react-three/drei";
 import { Material, Mesh, Object3D } from "three";
-import { Box, Eye, EyeOff, Loader2, RefreshCcw, Upload } from "lucide-react";
+import { ArrowUpDown, ArrowUp, Box, DoorOpen, Eye, EyeOff, Loader2, RefreshCcw, Upload } from "lucide-react";
 
 import {
   Badge,
@@ -13,18 +13,38 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   ScrollArea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Separator,
   Skeleton,
+  Textarea,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { PageErrorState } from "@/components/PageFeedback";
-import type { Apartment, ApartmentDetailResponse, Floor, Building, RentalContract, Tenant } from "@/types";
+import type {
+  Apartment,
+  ApartmentDetailResponse,
+  Building,
+  BuildingGraph,
+  Floor,
+  NavigationNode,
+  RentalContract,
+  Tenant,
+} from "@/types";
 import { toast } from "sonner";
 
 const statusLabels: Record<string, string> = {
@@ -46,7 +66,21 @@ type ApartmentPopupData = {
   canReadTenant: boolean;
 };
 
+type NavigationHotspotForm = {
+  nodeType: "door" | "elevator" | "stairs" | "junction";
+  label: string;
+  lng: string;
+  lat: string;
+  z: string;
+  localX: string;
+  localY: string;
+  localZ: string;
+  meshRef: string;
+  metadata: string;
+};
+
 const DEFAULT_CAMERA_POS: [number, number, number] = [22, 18, 22];
+const DEFAULT_FLOOR_CAMERA_POS: [number, number, number] = [0, 18, 18];
 const FLOOR_PATTERNS = [/floor[\s_-]?(\d{1,2})/i, /tang[\s_-]?(\d{1,2})/i, /\bf(\d{1,2})\b/i];
 
 function formatCurrency(value: string | number | null | undefined): string {
@@ -91,6 +125,38 @@ function extractFloorNumberFromText(text: string): number | null {
 function normalizeToken(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value).trim().toLowerCase();
+}
+
+function getNodeDisplayLabel(node: NavigationNode) {
+  if (node.nodeType === "door") {
+    return node.apartmentCode ?? node.label ?? "Cửa căn hộ";
+  }
+
+  if (node.nodeType === "junction") {
+    return node.label ?? "Điểm giao";
+  }
+
+  return node.label ?? (node.nodeType === "elevator" ? "Thang máy" : "Cầu thang");
+}
+
+function stringifyHotspotMetadata(value: Record<string, unknown> | null | undefined) {
+  return value ? JSON.stringify(value, null, 2) : "";
+}
+
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function parseRequiredNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return Number.NaN;
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
 function collectObjectTokens(target: Object3D | null): string[] {
@@ -227,6 +293,13 @@ function BuildingModel({
   return <primitive object={clonedScene} onClick={handleModelClick} />;
 }
 
+function FloorModel({ modelUrl }: { modelUrl: string }) {
+  const { scene } = useGLTF(modelUrl);
+  const clonedScene = useMemo(() => scene.clone(true), [scene]);
+
+  return <primitive object={clonedScene} />;
+}
+
 type ModelCanvasProps = {
   modelUrl: string;
   apartments: Apartment[];
@@ -282,25 +355,149 @@ function ModelCanvas({
   );
 }
 
+type FloorHotspotSceneProps = {
+  modelUrl: string | null;
+  nodes: NavigationNode[];
+  activeNodeId?: number | null;
+  onNodeClick: (node: NavigationNode) => void;
+  resetTick: number;
+};
+
+function FloorHotspotScene({
+  modelUrl,
+  nodes,
+  activeNodeId,
+  onNodeClick,
+  resetTick,
+}: FloorHotspotSceneProps) {
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    controls.object.position.set(...DEFAULT_FLOOR_CAMERA_POS);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }, [resetTick]);
+
+  const renderableNodes = useMemo(
+    () => nodes.filter((node) => node.localX !== null && node.localY !== null && node.localZ !== null),
+    [nodes],
+  );
+
+  return (
+    <Canvas camera={{ position: DEFAULT_FLOOR_CAMERA_POS, fov: 45 }}>
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[12, 18, 8]} intensity={1} />
+      <directionalLight position={[-8, 8, -6]} intensity={0.35} />
+
+      {modelUrl ? (
+        <Suspense
+          fallback={
+            <Html center>
+              <div className="rounded-md border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm">
+                Đang tải mặt sàn 3D...
+              </div>
+            </Html>
+          }
+        >
+          <FloorModel modelUrl={modelUrl} />
+        </Suspense>
+      ) : (
+        <Html center>
+          <div className="rounded-md border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm">
+            Đang dùng chế độ hotspot thử nghiệm, chưa có model 3D riêng cho tầng.
+          </div>
+        </Html>
+      )}
+
+      {renderableNodes.map((node) => {
+        const markerLabel = getNodeDisplayLabel(node);
+        const isActive = activeNodeId === node.id;
+        const markerIcon =
+          node.nodeType === "door" ? (
+            <DoorOpen className="h-4 w-4" />
+          ) : node.nodeType === "elevator" ? (
+            <ArrowUpDown className="h-4 w-4" />
+          ) : node.nodeType === "junction" ? (
+            <Box className="h-4 w-4" />
+          ) : (
+            <ArrowUp className="h-4 w-4" />
+          );
+
+        return (
+          <Html
+            key={node.id}
+            position={[node.localX ?? 0, node.localY ?? 0, node.localZ ?? 0]}
+            center
+            occlude={false}
+          >
+            <button
+              type="button"
+              onClick={() => onNodeClick(node)}
+              className={cn(
+                "min-w-24 rounded-full border bg-card/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur transition hover:border-primary hover:text-primary",
+                isActive && "border-primary bg-primary/10 text-primary",
+              )}
+            >
+              <span className="flex items-center justify-center gap-2">
+                {markerIcon}
+                <span>{markerLabel}</span>
+              </span>
+            </button>
+          </Html>
+        );
+      })}
+
+      <OrbitControls ref={controlsRef} makeDefault enablePan minDistance={3} maxDistance={80} />
+      <gridHelper args={[60, 30, "#bcbcbc", "#d9d9d9"]} />
+    </Canvas>
+  );
+}
+
 export default function BuildingDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isManager } = useAuth();
   const buildingId = Number(id);
+  const buildingModelInputRef = useRef<HTMLInputElement | null>(null);
+  const floorModelInputRef = useRef<HTMLInputElement | null>(null);
 
   const [building, setBuilding] = useState<Building | null>(null);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [apartmentsByFloor, setApartmentsByFloor] = useState<Record<number, Apartment[]>>({});
   const [floorVisibility, setFloorVisibility] = useState<Record<number, boolean>>({});
   const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"overview" | "floor">("overview");
+  const [graph, setGraph] = useState<BuildingGraph | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [uploadingModel, setUploadingModel] = useState(false);
   const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
+  const [uploadingFloorModel, setUploadingFloorModel] = useState(false);
+  const [selectedFloorModelFile, setSelectedFloorModelFile] = useState<File | null>(null);
   const [popupLoading, setPopupLoading] = useState(false);
   const [popupData, setPopupData] = useState<ApartmentPopupData | null>(null);
+  const [connectorNode, setConnectorNode] = useState<NavigationNode | null>(null);
   const [resetTick, setResetTick] = useState(0);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [graphError, setGraphError] = useState<string | null>(null);
+  const [hotspotDialogOpen, setHotspotDialogOpen] = useState(false);
+  const [editingHotspot, setEditingHotspot] = useState<NavigationNode | null>(null);
+  const [hotspotForm, setHotspotForm] = useState<NavigationHotspotForm>({
+    nodeType: "door",
+    label: "",
+    lng: "",
+    lat: "",
+    z: "",
+    localX: "",
+    localY: "",
+    localZ: "",
+    meshRef: "",
+    metadata: "",
+  });
+  const [savingHotspot, setSavingHotspot] = useState(false);
 
   const allApartments = useMemo(
     () => Object.values(apartmentsByFloor).flat(),
@@ -330,12 +527,66 @@ export default function BuildingDetailPage() {
   );
 
   const modelUrl = useMemo(() => resolveModelUrl(building?.model3dUrl ?? null), [building?.model3dUrl]);
+  const selectedFloorModelUrl = useMemo(
+    () => resolveModelUrl(selectedFloor?.model3dUrl ?? null),
+    [selectedFloor?.model3dUrl],
+  );
+  const selectedFloorNodes = useMemo(
+    () => graph?.nodes.filter((node) => node.floorId === selectedFloorId) ?? [],
+    [graph?.nodes, selectedFloorId],
+  );
+  const selectedFloorHotspots = useMemo(
+    () =>
+      selectedFloorNodes.filter(
+        (node) => node.localX !== null && node.localY !== null && node.localZ !== null,
+      ),
+    [selectedFloorNodes],
+  );
+  const connectorDestinations = useMemo(() => {
+    if (!connectorNode || !graph) return [];
+
+    const connectorEdgeType = connectorNode.nodeType === "elevator" ? "elevator" : "stairs";
+    const visitedNodeIds = new Set<number>([connectorNode.id]);
+    const queue = [connectorNode.id];
+    const destinationFloorIds = new Set<number>();
+
+    while (queue.length > 0) {
+      const currentNodeId = queue.shift();
+      if (!currentNodeId) continue;
+
+      for (const edge of graph.edges) {
+        if (edge.edgeType !== connectorEdgeType) continue;
+
+        const isStart = edge.startNodeId === currentNodeId;
+        const isEnd = edge.endNodeId === currentNodeId;
+        if (!isStart && !isEnd) continue;
+
+        const targetNodeId = isStart ? edge.endNodeId : edge.startNodeId;
+        if (visitedNodeIds.has(targetNodeId)) continue;
+
+        const targetNode = graph.nodes.find((node) => node.id === targetNodeId);
+        if (!targetNode || targetNode.nodeType !== connectorNode.nodeType) continue;
+
+        visitedNodeIds.add(targetNodeId);
+        queue.push(targetNodeId);
+
+        if (targetNode.floorId !== connectorNode.floorId) {
+          destinationFloorIds.add(targetNode.floorId);
+        }
+      }
+    }
+
+    return floors
+      .filter((floor) => destinationFloorIds.has(floor.id))
+      .sort((left, right) => left.floorNumber - right.floorNumber);
+  }, [connectorNode, floors, graph]);
 
   const loadBuildingDetail = useCallback(async () => {
     setLoading(true);
 
     try {
       setPageError(null);
+      setGraphError(null);
       const [buildingData, floorData] = await Promise.all([
         api.get<Building>(`/buildings/${buildingId}`),
         api.get<Floor[]>(`/floors?buildingId=${buildingId}`),
@@ -364,6 +615,16 @@ export default function BuildingDetailPage() {
       });
 
       setApartmentsByFloor(nextApartmentsMap);
+
+      try {
+        const graphData = await api.get<BuildingGraph>(`/navigation/graph/${buildingId}`);
+        setGraph(graphData);
+      } catch (error) {
+        setGraph(null);
+        const message =
+          error instanceof ApiError ? error.message : "Không thể tải hotspot indoor của tòa nhà";
+        setGraphError(message);
+      }
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Không thể tải dữ liệu chi tiết tòa nhà";
       toast.error(message);
@@ -381,9 +642,17 @@ export default function BuildingDetailPage() {
     void loadBuildingDetail().catch(() => undefined);
   }, [buildingId, loadBuildingDetail]);
 
+  useEffect(() => {
+    setSelectedFloorModelFile(null);
+    if (floorModelInputRef.current) {
+      floorModelInputRef.current.value = "";
+    }
+  }, [selectedFloorId]);
+
   const fetchPopupData = useCallback(
     async (apartmentId: number) => {
       setPopupLoading(true);
+      setConnectorNode(null);
 
       try {
         const detail = await api.get<ApartmentDetailResponse>(`/apartments/${apartmentId}/details`);
@@ -407,10 +676,146 @@ export default function BuildingDetailPage() {
 
   const handleModelApartmentClick = useCallback(
     (apartment: Apartment) => {
+      setViewMode("overview");
       void fetchPopupData(apartment.id);
     },
     [fetchPopupData],
   );
+
+  const handleFloorNodeClick = useCallback(
+    (node: NavigationNode) => {
+      if (node.nodeType === "door" && node.apartmentId) {
+        void fetchPopupData(node.apartmentId);
+        return;
+      }
+
+      if (node.nodeType === "elevator" || node.nodeType === "stairs") {
+        setPopupData(null);
+        setConnectorNode(node);
+        return;
+      }
+
+      toast.info("Node này chưa có hành động tương tác riêng.");
+    },
+    [fetchPopupData],
+  );
+
+  const openEditHotspot = useCallback((node: NavigationNode) => {
+    setEditingHotspot(node);
+    setHotspotForm({
+      nodeType: node.nodeType,
+      label: node.label ?? "",
+      lng: String(node.lng),
+      lat: String(node.lat),
+      z: String(node.z ?? 0),
+      localX: node.localX !== null ? String(node.localX) : "",
+      localY: node.localY !== null ? String(node.localY) : "",
+      localZ: node.localZ !== null ? String(node.localZ) : "",
+      meshRef: node.meshRef ?? "",
+      metadata: stringifyHotspotMetadata(node.metadata),
+    });
+    setHotspotDialogOpen(true);
+  }, []);
+
+  const openCreateHotspot = useCallback(() => {
+    if (!selectedFloor) {
+      toast.error("Vui lòng chọn tầng trước khi thêm hotspot");
+      return;
+    }
+
+    setEditingHotspot(null);
+    setHotspotForm({
+      nodeType: "door",
+      label: "",
+      lng: building?.lng !== undefined ? String(building.lng) : "",
+      lat: building?.lat !== undefined ? String(building.lat) : "",
+      z: selectedFloor.elevation ? String(selectedFloor.elevation) : "0",
+      localX: "",
+      localY: "",
+      localZ: "",
+      meshRef: "",
+      metadata: "",
+    });
+    setHotspotDialogOpen(true);
+  }, [building?.lat, building?.lng, selectedFloor]);
+
+  const handleSaveHotspot = useCallback(async () => {
+    if (!selectedFloor) return;
+
+    const localX = parseOptionalNumber(hotspotForm.localX);
+    const localY = parseOptionalNumber(hotspotForm.localY);
+    const localZ = parseOptionalNumber(hotspotForm.localZ);
+    const lng = parseRequiredNumber(hotspotForm.lng);
+    const lat = parseRequiredNumber(hotspotForm.lat);
+    const z = parseRequiredNumber(hotspotForm.z);
+
+    if ([localX, localY, localZ].some((value) => Number.isNaN(value))) {
+      toast.error("Tọa độ local phải là số hợp lệ");
+      return;
+    }
+
+    if ([lng, lat, z].some((value) => Number.isNaN(value))) {
+      toast.error("Lng, lat, z phải là số hợp lệ");
+      return;
+    }
+
+    let metadata: Record<string, unknown> | null = null;
+    if (hotspotForm.metadata.trim()) {
+      try {
+        metadata = JSON.parse(hotspotForm.metadata) as Record<string, unknown>;
+      } catch {
+        toast.error("Metadata phải là JSON hợp lệ");
+        return;
+      }
+    }
+
+    setSavingHotspot(true);
+    try {
+      const payload = {
+        floorId: selectedFloor.id,
+        nodeType: hotspotForm.nodeType,
+        label: hotspotForm.label.trim() || null,
+        lng,
+        lat,
+        z,
+        localX,
+        localY,
+        localZ,
+        meshRef: hotspotForm.meshRef.trim() || null,
+        metadata,
+      };
+
+      const savedNode = editingHotspot
+        ? await api.put<NavigationNode>(`/navigation/nodes/${editingHotspot.id}`, payload)
+        : await api.post<NavigationNode>("/navigation/nodes", payload);
+
+      setGraph((current) => {
+        if (!current) {
+          return {
+            nodes: [savedNode],
+            edges: [],
+          };
+        }
+
+        return editingHotspot
+          ? {
+              ...current,
+              nodes: current.nodes.map((node) => (node.id === savedNode.id ? savedNode : node)),
+            }
+          : {
+              ...current,
+              nodes: [...current.nodes, savedNode],
+            };
+      });
+      setHotspotDialogOpen(false);
+      setEditingHotspot(savedNode);
+      toast.success(editingHotspot ? "Đã cập nhật hotspot local" : "Đã tạo hotspot mới");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Không thể lưu hotspot");
+    } finally {
+      setSavingHotspot(false);
+    }
+  }, [editingHotspot, hotspotForm, selectedFloor]);
 
   const handleUploadModel = useCallback(async () => {
     if (!selectedModelFile) {
@@ -430,6 +835,9 @@ export default function BuildingDetailPage() {
 
       setBuilding(response.data);
       setSelectedModelFile(null);
+      if (buildingModelInputRef.current) {
+        buildingModelInputRef.current.value = "";
+      }
       setResetTick((value) => value + 1);
       toast.success(response.message || "Upload mô hình 3D thành công");
     } catch (error) {
@@ -439,6 +847,44 @@ export default function BuildingDetailPage() {
       setUploadingModel(false);
     }
   }, [buildingId, selectedModelFile]);
+
+  const handleUploadFloorModel = useCallback(async () => {
+    if (!selectedFloor) {
+      toast.error("Vui lòng chọn tầng trước khi upload model");
+      return;
+    }
+
+    if (!selectedFloorModelFile) {
+      toast.error("Vui lòng chọn file .glb hoặc .gltf cho tầng");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", selectedFloorModelFile);
+
+    setUploadingFloorModel(true);
+    try {
+      const response = await api.postFormData<{ message: string; data: Floor }>(
+        `/floors/${selectedFloor.id}/model`,
+        formData,
+      );
+
+      setFloors((current) =>
+        current.map((floor) => (floor.id === response.data.id ? response.data : floor)),
+      );
+      setSelectedFloorModelFile(null);
+      if (floorModelInputRef.current) {
+        floorModelInputRef.current.value = "";
+      }
+      setResetTick((value) => value + 1);
+      toast.success(response.message || `Đã upload model 3D cho tầng ${selectedFloor.floorNumber}`);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Upload model tầng thất bại";
+      toast.error(message);
+    } finally {
+      setUploadingFloorModel(false);
+    }
+  }, [selectedFloor, selectedFloorModelFile]);
 
   if (loading) {
     return (
@@ -479,10 +925,31 @@ export default function BuildingDetailPage() {
           <p className="text-sm text-muted-foreground">{building.address}</p>
         </div>
 
-        <Button variant="outline" onClick={() => setResetTick((value) => value + 1)}>
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Reset góc nhìn
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={viewMode === "overview" ? "default" : "outline"}
+            onClick={() => {
+              setViewMode("overview");
+              setConnectorNode(null);
+            }}
+          >
+            3D tổng quan
+          </Button>
+          <Button
+            variant={viewMode === "floor" ? "default" : "outline"}
+            onClick={() => {
+              setViewMode("floor");
+              setPopupData(null);
+            }}
+            disabled={!selectedFloor}
+          >
+            Mặt sàn theo tầng
+          </Button>
+          <Button variant="outline" onClick={() => setResetTick((value) => value + 1)}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Reset góc nhìn
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -505,7 +972,11 @@ export default function BuildingDetailPage() {
                       <button
                         type="button"
                         className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-sm px-1 py-1 text-left transition hover:text-primary"
-                        onClick={() => setSelectedFloorId(floor.id)}
+                        onClick={() => {
+                          setSelectedFloorId(floor.id);
+                          setViewMode("floor");
+                          setConnectorNode(null);
+                        }}
                       >
                         <span className="text-sm font-medium">Tầng {floor.floorNumber}</span>
                         <span className="text-xs text-muted-foreground">
@@ -545,8 +1016,81 @@ export default function BuildingDetailPage() {
             <Separator />
 
             <div className="space-y-2">
-              <Label htmlFor="model-file">Upload mô hình 3D (.glb/.gltf)</Label>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Hotspot tầng đang chọn</p>
+                {isManager && (
+                  <Button size="sm" variant="outline" onClick={openCreateHotspot} disabled={!selectedFloor}>
+                    Thêm hotspot
+                  </Button>
+                )}
+              </div>
+              {graphError && (
+                <p className="text-xs text-muted-foreground">
+                  Dữ liệu hotspot indoor hiện chưa tải được: {graphError}
+                </p>
+              )}
+              {selectedFloorHotspots.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedFloorHotspots.map((node) => (
+                    <div
+                      key={node.id}
+                      className={cn(
+                        "rounded-md border px-3 py-2",
+                        connectorNode?.id === node.id && "border-primary bg-primary/5",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between text-left text-sm transition hover:text-primary"
+                        onClick={() => {
+                          setViewMode("floor");
+                          handleFloorNodeClick(node);
+                        }}
+                      >
+                        <span>{getNodeDisplayLabel(node)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {node.nodeType === "door"
+                            ? "Cửa phòng"
+                            : node.nodeType === "elevator"
+                              ? "Thang máy"
+                              : node.nodeType === "stairs"
+                                ? "Cầu thang"
+                                : "Điểm giao"}
+                        </span>
+                      </button>
+                      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          local: {node.localX ?? "-"}, {node.localY ?? "-"}, {node.localZ ?? "-"}
+                        </span>
+                        {isManager && (
+                          <Button variant="outline" size="sm" onClick={() => openEditHotspot(node)}>
+                            Sửa hotspot
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Tầng này chưa có hotspot local để bấm trong mô hình 3D.
+                  </p>
+                  {isManager && (
+                    <Button size="sm" variant="secondary" onClick={openCreateHotspot} disabled={!selectedFloor}>
+                      Tạo hotspot đầu tiên
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="model-file">Upload mô hình 3D tổng quan tòa nhà (.glb/.gltf)</Label>
               <Input
+                ref={buildingModelInputRef}
                 id="model-file"
                 type="file"
                 accept=".glb,.gltf"
@@ -570,35 +1114,110 @@ export default function BuildingDetailPage() {
                   Tài khoản User chỉ xem được mô hình; upload dành cho luồng quản trị dữ liệu.
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">
+                File này chỉ dùng cho chế độ <span className="font-medium">3D tổng quan</span>.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="floor-model-file">
+                Upload model 3D riêng cho {selectedFloor ? `tầng ${selectedFloor.floorNumber}` : "tầng đang chọn"} (.glb/.gltf)
+              </Label>
+              <Input
+                ref={floorModelInputRef}
+                id="floor-model-file"
+                type="file"
+                accept=".glb,.gltf"
+                disabled={!isManager || !selectedFloor}
+                onChange={(event) => setSelectedFloorModelFile(event.target.files?.[0] ?? null)}
+              />
+              <Button
+                className="w-full"
+                variant="secondary"
+                onClick={() => void handleUploadFloorModel()}
+                disabled={!isManager || !selectedFloor || uploadingFloorModel || !selectedFloorModelFile}
+              >
+                {uploadingFloorModel ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="mr-2 h-4 w-4" />
+                )}
+                Upload model tầng
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Floor mode chỉ render khi `floors.model3dUrl` có dữ liệu. Giới hạn upload: 70MB.
+              </p>
+              {selectedFloor?.model3dUrl && (
+                <p className="text-xs text-muted-foreground">
+                  Model tầng hiện tại: <span className="font-medium">{selectedFloor.model3dUrl}</span>
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card className="relative overflow-hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Mô hình 3D tòa nhà</CardTitle>
+            <CardTitle className="text-base">
+              {viewMode === "overview"
+                ? "Mô hình 3D tổng quan tòa nhà"
+                : `Mặt sàn 3D tầng ${selectedFloor?.floorNumber ?? "-"}`}
+            </CardTitle>
           </CardHeader>
 
           <CardContent>
             <div className="relative h-[420px] overflow-hidden rounded-md border bg-muted/20 md:h-[600px]">
-              {modelUrl ? (
+              {viewMode === "overview" ? (
+                modelUrl ? (
+                  <AppErrorBoundary
+                    resetKeys={[modelUrl, resetTick]}
+                    fallback={
+                      <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+                        <div>
+                          <Box className="mx-auto mb-2 h-10 w-10" />
+                          <p>Không thể render mô hình 3D cho tòa nhà này.</p>
+                          <p className="text-sm">Hãy thử reset góc nhìn hoặc tải lại trang để nạp lại model.</p>
+                        </div>
+                      </div>
+                    }
+                  >
+                    <ModelCanvas
+                      modelUrl={modelUrl}
+                      apartments={allApartments}
+                      visibleFloorNumbers={visibleFloorNumbers}
+                      onApartmentClick={handleModelApartmentClick}
+                      resetTick={resetTick}
+                    />
+                  </AppErrorBoundary>
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+                    <div>
+                      <Box className="mx-auto mb-2 h-10 w-10" />
+                      <p>Tòa nhà chưa có file mô hình 3D.</p>
+                      <p className="text-sm">Hãy upload file .glb/.gltf ở panel bên trái để hiển thị.</p>
+                    </div>
+                  </div>
+                )
+              ) : selectedFloorModelUrl || selectedFloorHotspots.length > 0 ? (
                 <AppErrorBoundary
-                  resetKeys={[modelUrl, resetTick]}
+                  resetKeys={[selectedFloorModelUrl, selectedFloorId, resetTick, selectedFloorHotspots.length]}
                   fallback={
                     <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
                       <div>
                         <Box className="mx-auto mb-2 h-10 w-10" />
-                        <p>Không thể render mô hình 3D cho tòa nhà này.</p>
-                        <p className="text-sm">Hãy thử reset góc nhìn hoặc tải lại trang để nạp lại model.</p>
+                        <p>Không thể render mặt sàn 3D cho tầng này.</p>
+                        <p className="text-sm">Hãy thử chọn tầng khác hoặc kiểm tra lại file model của tầng.</p>
                       </div>
                     </div>
                   }
                 >
-                  <ModelCanvas
-                    modelUrl={modelUrl}
-                    apartments={allApartments}
-                    visibleFloorNumbers={visibleFloorNumbers}
-                    onApartmentClick={handleModelApartmentClick}
+                  <FloorHotspotScene
+                    modelUrl={selectedFloorModelUrl}
+                    nodes={selectedFloorHotspots}
+                    activeNodeId={connectorNode?.id ?? null}
+                    onNodeClick={handleFloorNodeClick}
                     resetTick={resetTick}
                   />
                 </AppErrorBoundary>
@@ -606,8 +1225,8 @@ export default function BuildingDetailPage() {
                 <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
                   <div>
                     <Box className="mx-auto mb-2 h-10 w-10" />
-                    <p>Tòa nhà chưa có file mô hình 3D.</p>
-                    <p className="text-sm">Hãy upload file .glb/.gltf ở panel bên trái để hiển thị.</p>
+                    <p>Tầng này chưa có file model 3D riêng.</p>
+                    <p className="text-sm">Bạn vẫn có thể xem 3D tổng quan của cả tòa nhà hoặc gán `floors.model3dUrl` để bật floor mode.</p>
                   </div>
                 </div>
               )}
@@ -678,11 +1297,46 @@ export default function BuildingDetailPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {connectorNode && connectorDestinations.length > 0 && (
+                <Card className="absolute left-2 right-2 bottom-2 z-20 border shadow-lg md:left-auto md:right-3 md:bottom-3 md:w-[320px]">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base">{getNodeDisplayLabel(connectorNode)}</CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setConnectorNode(null)}>
+                        Đóng
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <p className="text-muted-foreground">
+                      Chọn tầng đích để chuyển nhanh qua {connectorNode.nodeType === "elevator" ? "thang máy" : "cầu thang"}.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {connectorDestinations.map((floor) => (
+                        <Button
+                          key={floor.id}
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedFloorId(floor.id);
+                            setViewMode("floor");
+                            setConnectorNode(null);
+                            setPopupData(null);
+                          }}
+                        >
+                          Tầng {floor.floorNumber}
+                        </Button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Thao tác: kéo chuột trái để xoay, cuộn chuột để zoom, kéo chuột phải để pan. Nhấn mesh căn hộ có
-              gắn ID/mã phòng trong model để xem popup.
+              {viewMode === "overview"
+                ? "Thao tác: kéo chuột trái để xoay, cuộn chuột để zoom, kéo chuột phải để pan. Nhấn mesh căn hộ có gắn ID/mã phòng trong model để xem popup."
+                : "Trong chế độ tầng, các hotspot cửa phòng, thang máy và cầu thang sẽ nổi trực tiếp trên mặt sàn. Bấm cửa để mở thông tin căn hộ, bấm thang máy hoặc cầu thang để đổi tầng."}
             </p>
           </CardContent>
         </Card>
@@ -715,6 +1369,141 @@ export default function BuildingDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={hotspotDialogOpen} onOpenChange={setHotspotDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingHotspot ? "Chỉnh hotspot local" : "Thêm hotspot mới"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Loại node</Label>
+              <Select
+                value={hotspotForm.nodeType}
+                onValueChange={(value) =>
+                  setHotspotForm((current) => ({
+                    ...current,
+                    nodeType: value as NavigationHotspotForm["nodeType"],
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn loại node" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="door">Cửa phòng</SelectItem>
+                  <SelectItem value="elevator">Thang máy</SelectItem>
+                  <SelectItem value="stairs">Cầu thang</SelectItem>
+                  <SelectItem value="junction">Điểm giao</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Nhãn hotspot</Label>
+              <Input
+                value={hotspotForm.label}
+                onChange={(event) =>
+                  setHotspotForm((current) => ({ ...current, label: event.target.value }))
+                }
+                placeholder="Ví dụ: Thang máy tầng 2"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Lng</Label>
+                <Input
+                  value={hotspotForm.lng}
+                  onChange={(event) =>
+                    setHotspotForm((current) => ({ ...current, lng: event.target.value }))
+                  }
+                  placeholder="106.7001"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Lat</Label>
+                <Input
+                  value={hotspotForm.lat}
+                  onChange={(event) =>
+                    setHotspotForm((current) => ({ ...current, lat: event.target.value }))
+                  }
+                  placeholder="10.7381"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Z</Label>
+                <Input
+                  value={hotspotForm.z}
+                  onChange={(event) =>
+                    setHotspotForm((current) => ({ ...current, z: event.target.value }))
+                  }
+                  placeholder="15"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Local X</Label>
+                <Input
+                  value={hotspotForm.localX}
+                  onChange={(event) =>
+                    setHotspotForm((current) => ({ ...current, localX: event.target.value }))
+                  }
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Local Y</Label>
+                <Input
+                  value={hotspotForm.localY}
+                  onChange={(event) =>
+                    setHotspotForm((current) => ({ ...current, localY: event.target.value }))
+                  }
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Local Z</Label>
+                <Input
+                  value={hotspotForm.localZ}
+                  onChange={(event) =>
+                    setHotspotForm((current) => ({ ...current, localZ: event.target.value }))
+                  }
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Mesh ref</Label>
+              <Input
+                value={hotspotForm.meshRef}
+                onChange={(event) =>
+                  setHotspotForm((current) => ({ ...current, meshRef: event.target.value }))
+                }
+                placeholder="Ví dụ: HOTSPOT_ELEVATOR_F2_A"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Metadata (JSON)</Label>
+              <Textarea
+                rows={4}
+                value={hotspotForm.metadata}
+                onChange={(event) =>
+                  setHotspotForm((current) => ({ ...current, metadata: event.target.value }))
+                }
+                placeholder='{"source":"manual"}'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHotspotDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={() => void handleSaveHotspot()} disabled={savingHotspot}>
+              {savingHotspot ? "Đang lưu..." : "Lưu hotspot"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

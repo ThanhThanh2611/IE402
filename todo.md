@@ -81,3 +81,10 @@
 - [x] FE: Vẽ boundary LoD4 trên workspace và tự gắn item vào không gian khi kéo thả
 - [x] FE: Chặn button submit/reload ngoài ý muốn và chuyển retry/navigation về SPA flow
 - [x] FE: Bỏ reload toàn bảng sau CRUD ở các màn quản trị chính, chuyển sang cập nhật state tại chỗ
+- [x] FE+BE: Thêm support model tầng với hotspot local, bấm door/elevator/stairs và nút 3D tổng quan tòa nhà
+- [x] FE+BE: Reset DB sạch, seed hotspot local mẫu cho building 5 và thêm UI sửa local x/y/z, meshRef ngay trên màn hình
+- [x] BE: Tăng giới hạn upload `.glb/.gltf` và trả lỗi upload file quá lớn theo dạng dễ hiểu
+- [x] FE+BE: Thêm upload model 3D riêng cho tầng để `floors.model3dUrl` có thể được gán ngay từ UI
+- [x] FE: Fix input upload model tầng để không bị disable sai sau khi đổi tầng hoặc chọn lại cùng file
+- [x] Docs: Thêm file hướng dẫn workflow model tầng, hotspot local và cách lấy local X/Y/Z từ Blender
+- [x] FE: Thêm nút tạo hotspot và cho chỉnh `node type` ngay trong dialog hotspot ở trang tòa nhà
