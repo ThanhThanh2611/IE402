@@ -1,101 +1,78 @@
 # Quản lý hợp đồng thuê
 
-Use Cases: UC18-21 — Chỉ Manager
+Use Cases: UC18-21
 
-## Trang quản lý hợp đồng (`/contracts`)
+## 1. Trang quản lý hợp đồng (`/contracts`) - Chỉ Manager
+
+FE hiện có trang quản lý hợp đồng riêng chỉ dành cho `Manager`. Route này được bảo vệ bởi `ManagerRoute`, nên người dùng thông thường không vào được màn hình CRUD hợp đồng.
 
 ### Danh sách hợp đồng
 
 - **API**: `GET /api/contracts`
 - Hiển thị dạng bảng
 
-#### Cột bảng
+#### Cột chính
 
-| Cột | Field | Ghi chú |
-|---|---|---|
-| Căn hộ | `apartmentId` | Hiển thị mã căn hộ (join hoặc populate) |
-| Người thuê | `tenantId` | Hiển thị họ tên (join hoặc populate) |
-| Ngày bắt đầu | `startDate` | Format: `dd/MM/yyyy` |
-| Ngày kết thúc | `endDate` | Format: `dd/MM/yyyy` |
-| Tiền thuê/tháng | `monthlyRent` | Format VND |
-| Tiền cọc | `deposit` | Format VND |
-| Trạng thái | `status` | Badge |
-| Hành động | — | Xem, Sửa, Xóa |
+| Cột | Field |
+|---|---|
+| Căn hộ | `apartmentId` / thông tin apartment |
+| Người thuê | `tenantId` / thông tin tenant |
+| Ngày bắt đầu | `startDate` |
+| Ngày kết thúc | `endDate` |
+| Tiền thuê/tháng | `monthlyRent` |
+| Tiền cọc | `deposit` |
+| Trạng thái | `status` |
+| Hành động | xem, sửa, xóa |
 
 #### Trạng thái hợp đồng
 
-| Giá trị | Label tiếng Việt | Badge |
-|---|---|---|
-| `active` | Đang hiệu lực | Xanh lá |
-| `expired` | Hết hạn | Xám |
-| `cancelled` | Đã hủy | Đỏ |
+| Giá trị | Label tiếng Việt |
+|---|---|
+| `active` | Đang hiệu lực |
+| `expired` | Hết hạn |
+| `cancelled` | Đã hủy |
 
----
+### UC18 - Thêm hợp đồng
 
-### UC18 — Thêm hợp đồng
-
-- Nút "Thêm hợp đồng" → mở Dialog
 - **API**: `POST /api/contracts`
-- **Lưu ý nghiệp vụ**: Khi tạo hợp đồng → backend tự động set căn hộ `status = rented`
+- FE mở dialog form để tạo hợp đồng mới
+- Khi chọn căn hộ, giá thuê có thể được auto-fill từ dữ liệu apartment
+- Backend tự động cập nhật trạng thái căn hộ sang `rented`
 
-#### Form fields
+### UC19 - Sửa hợp đồng
 
-| Trường | Kiểu | Bắt buộc | Ghi chú |
-|---|---|---|---|
-| Căn hộ | Select (`apartmentId`) | Có | Chỉ hiện căn hộ `available` |
-| Người thuê | Select (`tenantId`) | Có | Cho phép tìm kiếm theo tên/CCCD |
-| Ngày bắt đầu | DatePicker (`startDate`) | Có | |
-| Ngày kết thúc | DatePicker (`endDate`) | Có | Phải sau ngày bắt đầu |
-| Tiền thuê/tháng | Input number (`monthlyRent`) | Có | Có thể auto-fill từ giá thuê căn hộ |
-| Tiền cọc | Input number (`deposit`) | Không | |
-| Ghi chú | Textarea (`note`) | Không | |
-
-### UC19 — Sửa hợp đồng
-
-- Click "Sửa" → mở Dialog với dữ liệu fill sẵn
 - **API**: `PUT /api/contracts/:id`
-- Form fields giống thêm hợp đồng
+- FE dùng lại form create/edit
 
-### UC20 — Xóa hợp đồng
+### UC20 - Xóa hợp đồng
 
-- Click "Xóa" → AlertDialog xác nhận
-- Nội dung: "Bạn có chắc muốn xóa hợp đồng này? Căn hộ sẽ được chuyển về trạng thái Còn trống."
-- **API**: `DELETE /api/contracts/:id` (soft delete)
-- **Lưu ý nghiệp vụ**: Backend tự động set căn hộ `status = available`
+- **API**: `DELETE /api/contracts/:id`
+- Backend dùng soft delete và tự động trả trạng thái căn hộ về `available`
 
-### UC21 — Xem chi tiết hợp đồng
+### UC21 - Xem chi tiết hợp đồng
 
-- Click "Xem" hoặc click hàng → mở Sheet/Dialog chi tiết
 - **API**: `GET /api/contracts/:id`
-- Hiển thị toàn bộ thông tin hợp đồng
-- Section thêm: danh sách thanh toán của hợp đồng
+- Trên trang quản lý, FE dùng endpoint này để xem chi tiết hợp đồng khi cần
 
----
+## 2. Khác biệt giữa quyền backend và UI hiện tại
 
-## Thanh toán (trong chi tiết hợp đồng)
+Backend hiện đã mở `GET /api/contracts/:id` cho các trường hợp có quyền theo ngữ cảnh:
+- `Manager`
+- tenant được liên kết tài khoản
+- user có `apartment_access_grants`
 
-- **API**: `GET /api/payments?contractId=:id`
-- Hiển thị bảng thanh toán bên trong trang chi tiết hợp đồng
+Tuy nhiên FE hiện chưa có trang hợp đồng riêng cho user cuối. Việc hiển thị thông tin hợp đồng với user đang diễn ra gián tiếp trong:
+- trang chi tiết tòa nhà
+- trang chi tiết căn hộ
 
-#### Cột bảng thanh toán
+Nói cách khác, backend đã hỗ trợ đọc hợp đồng theo quyền hẹp hơn role, còn FE management page `/contracts` vẫn là màn hình tác nghiệp của manager.
 
-| Cột | Field | Ghi chú |
-|---|---|---|
-| Ngày thanh toán | `paymentDate` | Format: `dd/MM/yyyy` |
-| Số tiền | `amount` | Format VND |
-| Trạng thái | `status` | Badge |
-| Ghi chú | `note` | |
-| Hành động | — | Sửa, Xóa |
+## 3. Thanh toán liên quan đến hợp đồng
 
-#### Trạng thái thanh toán
+FE quản lý thanh toán ở route riêng `/payments`, không nhúng bảng thanh toán ngay trong `/contracts` theo dạng trang detail lớn như mô tả thiết kế ban đầu.
 
-| Giá trị | Label tiếng Việt | Badge |
-|---|---|---|
-| `pending` | Chờ thanh toán | Vàng |
-| `paid` | Đã thanh toán | Xanh lá |
-| `overdue` | Quá hạn | Đỏ |
-
-#### Thêm thanh toán
-
-- **API**: `POST /api/payments`
-- Form: ngày thanh toán, số tiền, trạng thái, ghi chú
+Các API liên quan:
+- `GET /api/payments`
+- `POST /api/payments`
+- `PUT /api/payments/:id`
+- `DELETE /api/payments/:id`

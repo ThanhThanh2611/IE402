@@ -2,6 +2,9 @@
 
 Base URL: `/api/tenants`
 
+> Tất cả route yêu cầu `Manager`.
+> Bảng tenant dùng **soft delete**.
+
 ---
 
 ## Danh sách người thuê
@@ -52,6 +55,7 @@ POST /api/tenants
 | Field | Type | Bắt buộc | Mô tả |
 |-------|------|----------|-------|
 | fullName | string | Yes | Họ tên |
+| linkedUserId | number | No | Liên kết tới `users.id` nếu tenant có account |
 | phone | string | Yes | Số điện thoại |
 | email | string | No | Email |
 | idCard | string | Yes | CCCD/CMND (unique) |

@@ -68,17 +68,22 @@ cd frontend && npm install && npm run dev
 
 ## Authentication
 
-- Đăng nhập qua `POST /api/auth/login` → nhận JWT token
-- Mọi API (trừ login + health) đều yêu cầu header `Authorization: Bearer <token>`
+- Đăng nhập qua `POST /api/auth/login` → nhận `accessToken` và `refreshToken`
+- FE tự gọi `POST /api/auth/refresh` khi access token hết hạn
+- Logout qua `POST /api/auth/logout` để revoke session refresh token
+- Mọi API bảo vệ đều yêu cầu header `Authorization: Bearer <accessToken>`
 - Password được hash bằng bcrypt
-- Token hết hạn sau 7 ngày
-- Role-based access: routes quản lý (contracts, tenants, payments, users) chỉ Manager mới truy cập được
+- Access token sống ngắn, refresh token được rotate và lưu session ở bảng `auth_sessions`
+- Role-based access:
+  - `tenants`, `payments`, `users`, `status-history` yêu cầu `Manager`
+  - `contracts` cho phép `Manager` quản lý toàn bộ, và cho phép `User` xem chi tiết hợp đồng nếu là tenant liên kết hoặc có grant `canViewContract`
+  - `apartments/:id/details` hỗ trợ phân quyền theo căn hộ qua `apartment_access_grants`
 
 ## Tech Stack
 
 | | Công nghệ |
 |---|---|
-| **Backend** | Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL + PostGIS (PointZ), JWT, bcrypt |
+| **Backend** | Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL + PostGIS (PointZ/PolygonZ), JWT, bcrypt |
 | **Frontend** | React 19, Vite 7, TypeScript, Tailwind CSS v4, shadcn/ui, React Router, Recharts, Zod |
 | **Font** | Geist Variable |
 
@@ -113,25 +118,42 @@ cd frontend && npm install && npm run dev
 |--------|----------|-------|------|
 | GET | `/api/health` | Health check | - |
 | **Auth** | | | |
-| POST | `/api/auth/login` | Đăng nhập → JWT token | - |
+| POST | `/api/auth/login` | Đăng nhập → access/refresh token | - |
+| POST | `/api/auth/refresh` | Làm mới access token | - |
+| POST | `/api/auth/logout` | Revoke session refresh token | - |
 | **Buildings** | | | |
 | GET | `/api/buildings` | Danh sách tòa nhà (filter: district, city, ward, minPrice, maxPrice) | Login |
-| GET | `/api/buildings/geojson` | GeoJSON FeatureCollection | Login |
+| GET | `/api/buildings/geojson` | GeoJSON FeatureCollection, ưu tiên `footprint` nếu có | Login |
 | GET | `/api/buildings/nearby` | Tìm gần vị trí (lat, lng, radius) | Login |
 | GET | `/api/buildings/:id` | Chi tiết tòa nhà | Login |
 | GET | `/api/buildings/:id/occupancy` | Tỷ lệ lấp đầy | Login |
-| POST/PUT/DELETE | `/api/buildings/:id` | CRUD tòa nhà | Login |
+| POST | `/api/buildings` | Tạo tòa nhà, hỗ trợ `footprintWkt` | Login |
+| PUT | `/api/buildings/:id` | Cập nhật tòa nhà, hỗ trợ `footprintWkt` | Login |
+| DELETE | `/api/buildings/:id` | Xóa tòa nhà | Login |
+| POST | `/api/buildings/:id/model` | Upload model `.glb/.gltf` cho tòa nhà | Login |
 | **Floors** | | | |
 | GET | `/api/floors?buildingId=X` | Danh sách tầng | Login |
-| POST/PUT/DELETE | `/api/floors/:id` | CRUD tầng | Login |
+| GET | `/api/floors/:id` | Chi tiết tầng | Login |
+| POST | `/api/floors` | Tạo tầng, hỗ trợ `floorPlanWkt`, `elevation`, `model3dUrl` | Login |
+| PUT | `/api/floors/:id` | Cập nhật tầng | Login |
+| DELETE | `/api/floors/:id` | Xóa tầng | Login |
 | **Apartments** | | | |
 | GET | `/api/apartments?floorId=X` | Danh sách căn hộ | Login |
 | GET | `/api/apartments/:id` | Chi tiết căn hộ | Login |
-| POST/PUT/DELETE | `/api/apartments/:id` | CRUD căn hộ (soft delete) | Login |
+| GET | `/api/apartments/:id/details` | Chi tiết căn hộ + LoD4 + quyền tenant/contract theo ngữ cảnh | Login |
+| GET/POST/PUT/DELETE | `/api/apartments/:id/access-grants...` | Quản lý grant xem tenant/hợp đồng theo căn hộ | Manager |
+| POST/PUT/DELETE | `/api/apartments/:id/spaces...` | CRUD không gian indoor | Manager |
+| POST/PUT/DELETE | `/api/apartments/:id/layouts...` | CRUD layout nội thất | Login |
+| POST/PUT/DELETE | `/api/apartments/:id/layouts/:layoutId/items...` | CRUD item nội thất | Login |
+| POST | `/api/apartments` | Tạo căn hộ | Login |
+| PUT | `/api/apartments/:id` | Cập nhật căn hộ | Login |
+| DELETE | `/api/apartments/:id` | Xóa mềm căn hộ | Login |
 | PATCH | `/api/apartments/:id/status` | Cập nhật trạng thái | Login |
 | **Contracts** | | | |
-| GET/POST | `/api/contracts` | Danh sách / Thêm hợp đồng | Manager |
-| GET/PUT/DELETE | `/api/contracts/:id` | Chi tiết / Sửa / Xóa | Manager |
+| GET | `/api/contracts` | Danh sách hợp đồng | Manager |
+| POST | `/api/contracts` | Thêm hợp đồng | Manager |
+| GET | `/api/contracts/:id` | Chi tiết hợp đồng theo role/grant | Login |
+| PUT/DELETE | `/api/contracts/:id` | Sửa / Xóa hợp đồng | Manager |
 | **Tenants** | | | |
 | GET/POST | `/api/tenants` | Danh sách / Thêm người thuê | Manager |
 | GET/PUT/DELETE | `/api/tenants/:id` | Chi tiết / Sửa / Xóa | Manager |
@@ -153,11 +175,16 @@ cd frontend && npm install && npm run dev
 | **Navigation** | | | |
 | GET | `/api/navigation/nodes?floorId=X` | Danh sách nodes theo tầng | Login |
 | GET | `/api/navigation/nodes/:id` | Chi tiết node | Login |
-| POST/PUT/DELETE | `/api/navigation/nodes/:id` | CRUD node | Login |
+| POST | `/api/navigation/nodes` | Tạo node | Login |
+| PUT/DELETE | `/api/navigation/nodes/:id` | Cập nhật / Xóa node | Login |
 | GET | `/api/navigation/edges?floorId=X` | Danh sách edges (lọc theo tầng) | Login |
 | GET | `/api/navigation/edges/:id` | Chi tiết edge | Login |
-| POST/PUT/DELETE | `/api/navigation/edges/:id` | CRUD edge | Login |
+| POST | `/api/navigation/edges` | Tạo edge | Login |
+| PUT/DELETE | `/api/navigation/edges/:id` | Cập nhật / Xóa edge | Login |
 | GET | `/api/navigation/graph/:buildingId` | Toàn bộ graph (nodes + edges) của tòa nhà | Login |
+| **Furniture Catalog** | | | |
+| GET | `/api/furniture-catalog` | Danh mục nội thất | Login |
+| POST/PUT/DELETE | `/api/furniture-catalog/:id` | CRUD mẫu nội thất | Manager |
 | **Status History** | | | |
 | GET | `/api/status-history?apartmentId=X` | Lịch sử trạng thái | Manager |
 | POST | `/api/status-history` | Thêm lịch sử trạng thái | Manager |

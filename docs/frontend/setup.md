@@ -4,6 +4,7 @@
 
 - Node.js >= 20
 - npm >= 10
+- Backend API đang chạy để FE gọi dữ liệu thật
 
 ## Cài đặt và chạy
 
@@ -13,165 +14,121 @@ npm install
 npm run dev
 ```
 
-Mặc định chạy tại `http://localhost:5173`.
+Mặc định app chạy tại `http://localhost:5173`.
 
-### Các lệnh khác
+## Scripts
 
 | Lệnh | Mô tả |
 |---|---|
-| `npm run dev` | Chạy dev server (HMR) |
+| `npm run dev` | Chạy dev server |
 | `npm run build` | Build production |
 | `npm run preview` | Preview bản build |
-| `npm run lint` | Kiểm tra linting |
+| `npm run lint` | Kiểm tra lint |
 
-## Tech Stack
+## Công nghệ chính
 
 | Công nghệ | Phiên bản | Ghi chú |
 |---|---|---|
-| React | 19 | |
-| TypeScript | 5.9 | |
+| React | 19 | SPA |
+| TypeScript | 5.9 | Typing toàn dự án |
 | Vite | 7 | Build tool |
-| Tailwind CSS | 4 | CSS-first config, không cần `tailwind.config.js` |
-| shadcn/ui | 4 | Style: `base-nova`, icon: `lucide` |
-| Font | Geist Variable | Tự động import qua `@fontsource-variable/geist` |
+| Tailwind CSS | 4 | CSS-first config |
+| shadcn/ui | 4 | Style `base-nova`, icon `lucide` |
+| React Router DOM | 7 | Routing |
+| Recharts | 3 | Dashboard charts |
+| Leaflet + react-leaflet | 5 | Bản đồ GIS |
+| React Three Fiber + drei | 9/10 | Mô hình 3D |
 
-## Cấu trúc thư mục
+## Cấu trúc route hiện tại
 
-```
+### Public
+
+- `/login`
+
+### Protected
+
+- `/dashboard`
+- `/map`
+- `/buildings/:id`
+- `/buildings/:id/apartments/:apartmentId`
+
+### Manager-only
+
+- `/apartments`
+- `/contracts`
+- `/tenants`
+- `/payments`
+- `/users`
+
+### Redirect
+
+- sau login: điều hướng về `/dashboard`
+- route `*`: hiển thị trang `404`
+
+## Cấu trúc thư mục chính
+
+```text
 frontend/
 ├── src/
 │   ├── components/
-│   │   └── ui/           # shadcn/ui components
-│   │       ├── index.ts   # Barrel export (import gọn từ đây)
-│   │       ├── button.tsx
-│   │       ├── card.tsx
-│   │       └── ...
-│   ├── hooks/             # Custom hooks
+│   │   ├── ui/
+│   │   └── ...
+│   ├── contexts/
 │   ├── lib/
-│   │   └── utils.ts       # Utility cn() để merge Tailwind class
+│   ├── pages/
+│   ├── types/
 │   ├── App.tsx
 │   ├── main.tsx
-│   └── index.css          # Tailwind v4 + theme config
-├── components.json        # Config shadcn/ui
+│   └── index.css
+├── components.json
+├── package.json
 ├── vite.config.ts
 └── tsconfig.json
 ```
 
-## Path Alias
+## Auth flow
 
-Đã cấu hình alias `@/` trỏ tới `src/`:
+- Đăng nhập qua `POST /api/auth/login`
+- Backend trả về `{ user, accessToken, refreshToken }`
+- FE lưu `accessToken` và `refreshToken` vào session cục bộ
+- FE tự gắn `Authorization: Bearer <accessToken>` cho request
+- Nếu API trả `401`, FE sẽ thử `POST /api/auth/refresh`
+- Nếu refresh thất bại, FE mới logout và chuyển về `/login`
 
-```tsx
-// Thay vì
-import { Button } from '../../../components/ui/button'
+## Error handling và fallback
 
-// Dùng
-import { Button } from '@/components/ui/button'
-```
+- Toàn app được bọc bởi `AppErrorBoundary`
+- Route không tồn tại sẽ vào trang `404`
+- Các màn hình chính có state lỗi và empty state thân thiện hơn, kèm nút thử lại ở các chỗ phù hợp
 
-## shadcn/ui
+## Path alias và import
 
-### Component đã cài sẵn
+Alias `@/` trỏ tới `src/`.
 
-| Nhóm | Components |
-|---|---|
-| Layout | `Card`, `Separator`, `ScrollArea`, `Skeleton`, `Sidebar`, `Sheet` |
-| Form | `Button`, `Input`, `InputGroup`, `Textarea`, `Label`, `Checkbox`, `Switch`, `Select` |
-| Feedback | `Alert`, `AlertDialog`, `Badge`, `Sonner` (toast) |
-| Overlay | `Dialog`, `Popover`, `Tooltip`, `DropdownMenu`, `Command` |
-| Navigation | `Tabs`, `Breadcrumb`, `Pagination` |
-| Data | `Table`, `Avatar` |
-| Form validation | `Form` (tích hợp react-hook-form + zod) |
-
-### Import component
-
-Có 2 cách import:
+Ưu tiên import UI component từ barrel:
 
 ```tsx
-// Cách 1: Import từ barrel index (gọn, dùng khi cần nhiều component)
-import { Button, Card, CardHeader, CardTitle, Input } from '@/components/ui'
-
-// Cách 2: Import trực tiếp từ file (rõ ràng hơn)
-import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button, Card } from '@/components/ui'
 ```
 
-### Thêm component mới
+## Design tokens
 
-```bash
-# Thêm 1 component
-npx shadcn@latest add calendar
+Toàn bộ màu được định nghĩa trong `src/index.css` bằng CSS variables. Khi viết UI:
+- không hardcode màu
+- dùng token như `bg-background`, `bg-card`, `text-foreground`, `border-border`, `bg-primary`
 
-# Thêm nhiều component
-npx shadcn@latest add chart progress slider
-```
+## Quy ước component
 
-Sau khi thêm, **cập nhật barrel index** tại `src/components/ui/index.ts`:
+- Ưu tiên dùng shadcn trước khi tự viết mới
+- Component tự viết đặt trong `src/components/`
+- Không đặt component custom vào `src/components/ui/`
+- Khi thêm shadcn component mới, cập nhật `src/components/ui/index.ts`
+- Dùng `cn()` từ `@/lib/utils` để merge class có điều kiện
 
-```ts
-export * from './calendar'
-```
+## Lưu ý triển khai hiện tại
 
-### Tham khảo
-
-- Docs shadcn/ui: https://ui.shadcn.com/docs/components
-- Danh sách component: https://ui.shadcn.com/docs/components/button (thay `button` bằng tên component)
-
-## Bảng màu (Design Tokens)
-
-Toàn bộ màu được khai báo trong `src/index.css` dưới dạng CSS variables. Dùng class Tailwind tương ứng, **không hardcode mã màu**.
-
-### Main UI
-
-| Token | Màu | Tailwind class |
-|---|---|---|
-| `--background` | `#FFFFFF` | `bg-background`, `text-background` |
-| `--foreground` | `#2C2C2C` | `text-foreground`, `bg-foreground` |
-| `--card` | `#F5EEDC` | `bg-card` |
-| `--border` | `#E5E4E2` | `border-border` |
-| `--muted` | `#F5EEDC` | `bg-muted`, `text-muted-foreground` |
-
-### Primary (CTA)
-
-| Token | Màu | Tailwind class |
-|---|---|---|
-| `--primary` | `#D4AF37` (gold) | `bg-primary`, `text-primary` |
-| `--primary-foreground` | `#FFFFFF` | `text-primary-foreground` |
-| `--primary-hover` | `#C19B2C` | `hover:bg-primary-hover` |
-
-### Sidebar
-
-| Token | Màu | Tailwind class |
-|---|---|---|
-| `--sidebar` | `#2C2C2C` | `bg-sidebar` |
-| `--sidebar-foreground` | `#FFFFFF` | `text-sidebar-foreground` |
-| `--sidebar-primary` | `#D4AF37` | `bg-sidebar-primary` |
-| `--sidebar-accent` | `#3D3D3D` | `bg-sidebar-accent` |
-
-### Ví dụ sử dụng
-
-```tsx
-// Đúng - dùng design token
-<div className="bg-card border border-border rounded-lg p-4">
-  <h2 className="text-foreground">Tiêu đề</h2>
-  <p className="text-muted-foreground">Mô tả</p>
-  <Button>Xác nhận</Button> {/* Button primary mặc định dùng --primary */}
-</div>
-
-// Sai - hardcode màu
-<div className="bg-[#F5EEDC] border border-[#E5E4E2]">...</div>
-```
-
-## Quy ước code
-
-1. **Không hardcode màu** — luôn dùng design token (`bg-primary`, `text-foreground`, ...)
-2. **Dùng shadcn component** trước khi tự viết — kiểm tra danh sách component có sẵn
-3. **Đặt component tự viết** vào `src/components/` (không đặt trong `ui/`, thư mục đó dành cho shadcn)
-4. **Cập nhật `index.ts`** mỗi khi thêm shadcn component mới
-5. **Dùng `cn()`** để merge class có điều kiện:
-
-```tsx
-import { cn } from '@/lib/utils'
-
-<div className={cn('p-4 rounded-lg', isActive && 'bg-primary text-primary-foreground')}>
-```
+- FE đã khớp với backend mới về GeoJSON polygon/point của building và floor.
+- Trang chi tiết tòa nhà hiện lấy popup căn hộ từ `GET /api/apartments/:id/details`.
+- Trang dashboard đã parse doanh thu tháng theo format `YYYY-MM`.
+- Dashboard hiện có thêm occupancy history, snapshot theo mốc thời gian và state lỗi thân thiện hơn.
+- Quyền xem tenant/hợp đồng ở FE bám theo cờ backend trả về, không chỉ dựa trên role cố định.

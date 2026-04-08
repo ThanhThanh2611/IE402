@@ -8,7 +8,9 @@ Table buildings {
   district varchar [note: 'Quận/Huyện']
   city varchar [note: 'Thành phố/Tỉnh']
   location geometry(PointZ,4326) [not null, note: 'Tọa độ GIS 3D - PostGIS PointZ (x, y, z)']
+  footprint geometry(PolygonZ,4326) [note: 'Footprint chi tiết của tòa nhà để hiển thị GIS 3D thay vì chỉ centroid']
   total_floors integer [not null]
+  lod_level lod_level [not null, default: 'lod3', note: 'Mức độ chi tiết mô hình tòa nhà, phục vụ LoD2/LoD3']
   description text
   image_url varchar
   model_3d_url varchar [note: 'Đường dẫn mô hình 3D']
@@ -20,6 +22,9 @@ Table floors {
   id integer [pk, increment]
   building_id integer [not null, ref: > buildings.id]
   floor_number integer [not null]
+  elevation decimal [not null, default: 0, note: 'Cao độ sàn tầng trong không gian 3D']
+  floor_plan geometry(PolygonZ,4326) [note: 'Mặt bằng hình học của tầng']
+  model_3d_url varchar [note: 'Đường dẫn mô hình 3D riêng cho tầng nếu có']
   description text
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
@@ -61,6 +66,8 @@ Table apartments {
   num_bathrooms integer
   rental_price decimal [not null, note: 'Giá thuê (VND/tháng)']
   status apartment_status [not null, default: 'available', note: 'Trạng thái: available, rented, maintenance']
+  indoor_model_url varchar [note: 'Đường dẫn mô hình không gian bên trong căn hộ']
+  indoor_lod_level lod_level [default: 'lod4', note: 'LoD cho không gian trong căn hộ']
   description text
   created_by_id integer [ref: > users.id, note: 'Manager tạo']
   updated_by_id integer [ref: > users.id, note: 'Manager cập nhật']
@@ -71,6 +78,7 @@ Table apartments {
 
 Table tenants {
   id integer [pk, increment]
+  linked_user_id integer [ref: > users.id, note: 'Liên kết tùy chọn tới tài khoản đăng nhập nếu khách thuê có account']
   full_name varchar [not null]
   phone varchar [not null]
   email varchar
@@ -79,6 +87,27 @@ Table tenants {
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
   deleted_at timestamp [note: 'Xóa mềm']
+
+  indexes {
+    (linked_user_id) [unique]
+  }
+}
+
+Table apartment_access_grants {
+  id integer [pk, increment]
+  apartment_id integer [not null, ref: > apartments.id]
+  user_id integer [not null, ref: > users.id]
+  can_view_tenant boolean [not null, default: false, note: 'Xem thông tin tenant đầy đủ']
+  can_view_contract boolean [not null, default: false, note: 'Xem chi tiết hợp đồng']
+  expires_at timestamp [note: 'Hết hạn grant nếu có']
+  granted_by_id integer [ref: > users.id, note: 'Manager cấp quyền']
+  note text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (apartment_id, user_id) [unique]
+  }
 }
 
 Table rental_contracts {
@@ -131,6 +160,71 @@ Table users {
   deleted_at timestamp [note: 'Xóa mềm']
 }
 
+Table apartment_spaces {
+  id integer [pk, increment]
+  apartment_id integer [not null, ref: > apartments.id]
+  parent_space_id integer [ref: > apartment_spaces.id, note: 'Cho phép mô hình hóa phân cấp: căn hộ -> phòng -> zone']
+  name varchar [not null, note: 'Tên không gian, ví dụ: Phòng khách']
+  space_type indoor_space_type [not null, default: 'room', note: 'Loại không gian: unit, room, zone']
+  room_type room_type [note: 'Ngữ nghĩa phòng']
+  lod_level lod_level [not null, default: 'lod4', note: 'Không gian nội thất dùng LoD4']
+  boundary geometry(PolygonZ,4326) [note: 'Ranh giới 3D của không gian phục vụ kiểm tra đặt nội thất']
+  model_3d_url varchar [note: 'Mô hình 3D của không gian/phòng nếu có']
+  metadata json [note: 'Thuộc tính mở rộng như vật liệu, chiều cao trần, vùng cấm']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (apartment_id, name) [unique]
+  }
+}
+
+Table furniture_catalog {
+  id integer [pk, increment]
+  code varchar [not null, unique, note: 'Mã đồ nội thất trong thư viện']
+  name varchar [not null]
+  category furniture_category [not null, default: 'other']
+  model_3d_url varchar [not null, note: 'Mô hình 3D để render khi kéo/thả']
+  default_width decimal [note: 'Chiều rộng mặc định']
+  default_depth decimal [note: 'Chiều sâu mặc định']
+  default_height decimal [note: 'Chiều cao mặc định']
+  metadata json [note: 'Thuộc tính mở rộng, ví dụ material, anchor rules']
+  is_active boolean [not null, default: true]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table furniture_layouts {
+  id integer [pk, increment]
+  apartment_id integer [not null, ref: > apartments.id]
+  name varchar [not null, note: 'Tên layout nội thất']
+  status furniture_layout_status [not null, default: 'draft']
+  version integer [not null, default: 1]
+  created_by_id integer [ref: > users.id]
+  updated_by_id integer [ref: > users.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table furniture_items {
+  id integer [pk, increment]
+  layout_id integer [not null, ref: > furniture_layouts.id]
+  space_id integer [ref: > apartment_spaces.id, note: 'Không gian/phòng chứa item']
+  catalog_id integer [not null, ref: > furniture_catalog.id]
+  label varchar [note: 'Tên gợi nhớ của item trong layout']
+  position geometry(PointZ,4326) [not null, note: 'Tọa độ đặt nội thất (x, y, z)']
+  rotation_x decimal [not null, default: 0, note: 'Góc xoay theo trục X']
+  rotation_y decimal [not null, default: 0, note: 'Góc xoay theo trục Y']
+  rotation_z decimal [not null, default: 0, note: 'Góc xoay theo trục Z']
+  scale_x decimal [not null, default: 1, note: 'Tỉ lệ theo trục X']
+  scale_y decimal [not null, default: 1, note: 'Tỉ lệ theo trục Y']
+  scale_z decimal [not null, default: 1, note: 'Tỉ lệ theo trục Z']
+  is_locked boolean [not null, default: false, note: 'Khóa item để tránh chỉnh sửa ngoài ý muốn']
+  metadata json [note: 'Thuộc tính mở rộng, ví dụ trạng thái va chạm, anchor, preset']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
 Enum apartment_status {
   available [note: 'Còn trống']
   rented [note: 'Đã thuê']
@@ -152,6 +246,46 @@ Enum payment_status {
 Enum user_role {
   user [note: 'Người dùng thông thường']
   manager [note: 'Quản lý']
+}
+
+Enum lod_level {
+  lod2 [note: 'Mô hình khối cơ bản']
+  lod3 [note: 'Mô hình kiến trúc chi tiết bên ngoài']
+  lod4 [note: 'Mô hình không gian bên trong và nội thất']
+}
+
+Enum indoor_space_type {
+  unit [note: 'Toàn bộ căn hộ']
+  room [note: 'Phòng chức năng']
+  zone [note: 'Vùng con trong phòng, ví dụ khu bếp hoặc lối đi']
+}
+
+Enum room_type {
+  living_room [note: 'Phòng khách']
+  bedroom [note: 'Phòng ngủ']
+  kitchen [note: 'Bếp']
+  bathroom [note: 'Phòng tắm/WC']
+  balcony [note: 'Ban công']
+  corridor [note: 'Hành lang/lối đi']
+  storage [note: 'Kho']
+  other [note: 'Không gian khác']
+}
+
+Enum furniture_category {
+  sofa [note: 'Sofa']
+  table [note: 'Bàn']
+  chair [note: 'Ghế']
+  bed [note: 'Giường']
+  cabinet [note: 'Tủ/Kệ']
+  appliance [note: 'Thiết bị']
+  decor [note: 'Trang trí']
+  other [note: 'Khác']
+}
+
+Enum furniture_layout_status {
+  draft [note: 'Bản nháp']
+  published [note: 'Đã công bố']
+  archived [note: 'Lưu trữ']
 }
 
 Enum node_type {

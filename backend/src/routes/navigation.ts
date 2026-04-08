@@ -145,7 +145,7 @@ router.get("/edges", async (req, res) => {
         JOIN navigation_nodes n2 ON e.end_node_id = n2.id
         WHERE n1.floor_id = ${Number(floorId)} OR n2.floor_id = ${Number(floorId)}
       `);
-      return res.json(result.rows);
+      return res.json(result);
     }
 
     const result = await db.select().from(navigationEdges);
@@ -246,8 +246,8 @@ router.get("/graph/:buildingId", async (req, res) => {
     `);
 
     res.json({
-      nodes: nodes.rows,
-      edges: edges.rows,
+      nodes,
+      edges,
     });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy graph tòa nhà" });

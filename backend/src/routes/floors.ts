@@ -1,20 +1,57 @@
 import { Router } from "express";
 import { db } from "../db";
 import { floors } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const router = Router();
+
+function parseGeoJson<T>(value: unknown): T | null {
+  if (typeof value !== "string" || !value) return null;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+const floorSelectFields = {
+  id: floors.id,
+  buildingId: floors.buildingId,
+  floorNumber: floors.floorNumber,
+  elevation: floors.elevation,
+  floorPlan: floors.floorPlan,
+  model3dUrl: floors.model3dUrl,
+  description: floors.description,
+  createdAt: floors.createdAt,
+  updatedAt: floors.updatedAt,
+  floorPlanGeoJson:
+    sql<string | null>`CASE WHEN ${floors.floorPlan} IS NOT NULL THEN ST_AsGeoJSON(${floors.floorPlan}) ELSE NULL END`.as(
+      "floorPlanGeoJson"
+    ),
+};
 
 // GET /api/floors?buildingId=1 - Lấy danh sách tầng (theo tòa nhà)
 router.get("/", async (req, res) => {
   try {
     const { buildingId } = req.query;
-    const query = db.select().from(floors);
+    const query = db.select(floorSelectFields).from(floors);
     if (buildingId) {
       const result = await query.where(eq(floors.buildingId, Number(buildingId)));
-      return res.json(result);
+      return res.json(
+        result.map((floor) => ({
+          ...floor,
+          floorPlanGeoJson: parseGeoJson(floor.floorPlanGeoJson),
+        }))
+      );
     }
-    res.json(await query);
+    const result = await query;
+    res.json(
+      result.map((floor) => ({
+        ...floor,
+        floorPlanGeoJson: parseGeoJson(floor.floorPlanGeoJson),
+      }))
+    );
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy danh sách tầng" });
   }
@@ -24,13 +61,16 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const result = await db
-      .select()
+      .select(floorSelectFields)
       .from(floors)
       .where(eq(floors.id, Number(req.params.id)));
     if (result.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy tầng" });
     }
-    res.json(result[0]);
+    res.json({
+      ...result[0],
+      floorPlanGeoJson: parseGeoJson(result[0].floorPlanGeoJson),
+    });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy thông tin tầng" });
   }
@@ -39,7 +79,16 @@ router.get("/:id", async (req, res) => {
 // POST /api/floors
 router.post("/", async (req, res) => {
   try {
-    const result = await db.insert(floors).values(req.body).returning();
+    const { floorPlanWkt, ...rest } = req.body;
+    const result = await db
+      .insert(floors)
+      .values({
+        ...rest,
+        floorPlan: floorPlanWkt
+          ? sql`ST_GeomFromText(${String(floorPlanWkt)}, 4326)`
+          : null,
+      })
+      .returning();
     res.status(201).json(result[0]);
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi thêm tầng" });
@@ -49,9 +98,19 @@ router.post("/", async (req, res) => {
 // PUT /api/floors/:id
 router.put("/:id", async (req, res) => {
   try {
+    const { floorPlanWkt, ...rest } = req.body;
     const result = await db
       .update(floors)
-      .set({ ...req.body, updatedAt: new Date() })
+      .set({
+        ...rest,
+        floorPlan:
+          floorPlanWkt === undefined
+            ? undefined
+            : floorPlanWkt === null || floorPlanWkt === ""
+              ? null
+              : sql`ST_GeomFromText(${String(floorPlanWkt)}, 4326)`,
+        updatedAt: new Date(),
+      })
       .where(eq(floors.id, Number(req.params.id)))
       .returning();
     if (result.length === 0) {

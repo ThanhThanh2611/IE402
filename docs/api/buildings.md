@@ -3,6 +3,8 @@
 Base URL: `/api/buildings`
 
 > Tọa độ được lưu dạng PostGIS `geometry(PointZ, 4326)`. Khi tạo/cập nhật tòa nhà, truyền `longitude` và `latitude` trong body (z mặc định = 0).
+> Có thể truyền thêm `footprintWkt` để lưu geometry chi tiết của tòa nhà dưới dạng `PolygonZ`.
+> Tất cả route yêu cầu đăng nhập.
 
 ---
 
@@ -28,7 +30,7 @@ GET /api/buildings
 GET /api/buildings?district=Binh Thanh&city=Ho Chi Minh
 ```
 
-**Response:** `200` - Mảng tòa nhà (location trả về dạng GeoJSON Point)
+**Response:** `200` - Mảng tòa nhà kèm `lng`, `lat`, `z` và `footprintGeoJson` nếu có
 
 ---
 
@@ -39,6 +41,7 @@ GET /api/buildings/geojson
 ```
 
 Trả về chuẩn GeoJSON `FeatureCollection`, FE (Leaflet/Mapbox) dùng trực tiếp.
+Nếu tòa nhà có `footprint`, `geometry` sẽ là polygon; nếu chưa có sẽ fallback về point centroid.
 
 **Query params:** Hỗ trợ filter `district`, `city`, `ward`
 
@@ -158,6 +161,7 @@ POST /api/buildings
 | description | string | No | Mô tả |
 | imageUrl | string | No | URL hình ảnh |
 | model3dUrl | string | No | URL mô hình 3D |
+| footprintWkt | string | No | WKT `POLYGON Z(...)` mô tả footprint chi tiết |
 
 > `longitude` và `latitude` được chuyển thành PostGIS Point bằng `ST_SetSRID(ST_MakePoint(lng, lat), 4326)`
 
@@ -171,7 +175,7 @@ POST /api/buildings
 PUT /api/buildings/:id
 ```
 
-**Body:** Các field cần cập nhật (nếu có longitude + latitude sẽ cập nhật geometry)
+**Body:** Các field cần cập nhật (nếu có `longitude` + `latitude` sẽ cập nhật centroid, nếu có `footprintWkt` sẽ cập nhật geometry chi tiết)
 
 **Response:** `200` - Object tòa nhà đã cập nhật
 

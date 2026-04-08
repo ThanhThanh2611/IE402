@@ -15,6 +15,7 @@ import dashboardRouter from "./routes/dashboard";
 import statusHistoryRouter from "./routes/statusHistory";
 import usersRouter from "./routes/users";
 import navigationRouter from "./routes/navigation";
+import furnitureCatalogRouter from "./routes/furnitureCatalog";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,14 +40,15 @@ app.use("/api/buildings", authenticate, buildingsRouter);
 app.use("/api/floors", authenticate, floorsRouter);
 app.use("/api/apartments", authenticate, apartmentsRouter);
 app.use("/api/dashboard", authenticate, dashboardRouter);
+app.use("/api/contracts", authenticate, contractsRouter);
 
 // Manager-only routes
-app.use("/api/contracts", authenticate, requireManager, contractsRouter);
 app.use("/api/tenants", authenticate, requireManager, tenantsRouter);
 app.use("/api/payments", authenticate, requireManager, paymentsRouter);
 app.use("/api/status-history", authenticate, requireManager, statusHistoryRouter);
 app.use("/api/users", authenticate, requireManager, usersRouter);
 app.use("/api/navigation", authenticate, navigationRouter);
+app.use("/api/furniture-catalog", authenticate, furnitureCatalogRouter);
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);

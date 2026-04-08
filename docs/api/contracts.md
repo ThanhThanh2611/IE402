@@ -4,6 +4,7 @@ Base URL: `/api/contracts`
 
 > Khi tạo hợp đồng, trạng thái căn hộ tự động chuyển thành `rented`.
 > Khi xóa hợp đồng, trạng thái căn hộ tự động chuyển về `available`.
+> Hợp đồng dùng **soft delete**.
 
 ---
 
@@ -43,9 +44,14 @@ GET /api/contracts
 GET /api/contracts/:id
 ```
 
+**Quyền truy cập:**
+- `Manager`
+- `User` là tenant liên kết của hợp đồng
+- `User` được cấp grant `canViewContract` trên căn hộ tương ứng
+
 **Response:** `200` - Object hợp đồng
 
-**Lỗi:** `404` - Không tìm thấy
+**Lỗi:** `403` - Không có quyền xem, `404` - Không tìm thấy
 
 ---
 

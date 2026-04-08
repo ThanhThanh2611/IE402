@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { sql } from "drizzle-orm";
 import * as turf from "@turf/turf";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
 
 import { db } from "./index";
 import { buildings } from "./schema";
@@ -70,14 +71,26 @@ function toCentroid(feature: GeoFeature): { lng: number; lat: number } | null {
   }
 
   try {
-    const centroid = turf.centroid({
-      type: "Feature",
-      properties: {},
-      geometry: {
-        type: feature.geometry.type as "Polygon" | "MultiPolygon",
-        coordinates: feature.geometry.coordinates as number[][][] | number[][][][],
-      },
-    });
+    const polygonFeature: Feature<Polygon | MultiPolygon> =
+      feature.geometry.type === "Polygon"
+        ? {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: feature.geometry.coordinates as number[][][],
+            },
+          }
+        : {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "MultiPolygon",
+              coordinates: feature.geometry.coordinates as number[][][][],
+            },
+          };
+
+    const centroid = turf.centroid(polygonFeature);
 
     const [lng, lat] = centroid.geometry.coordinates;
 
@@ -182,7 +195,7 @@ async function run(): Promise<void> {
         city: item.city,
         totalFloors: item.totalFloors,
         description: item.description,
-        location: sql`ST_SetSRID(ST_MakePoint(${item.lng}, ${item.lat}), 4326)`,
+        location: sql`ST_SetSRID(ST_MakePoint(${item.lng}, ${item.lat}, 0), 4326)`,
       })),
     );
   }
