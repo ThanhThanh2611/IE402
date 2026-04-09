@@ -46,7 +46,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { PageErrorState } from "@/components/PageFeedback";
 import type {
   Apartment,
@@ -1819,20 +1818,47 @@ export default function BuildingDetailPage() {
 
           <CardContent>
             <div className="relative h-150 overflow-hidden rounded-md border bg-muted/20">
-              {modelUrl ? (
-                <ModelCanvas
-                  modelUrl={modelUrl}
-                  apartments={allApartments}
-                  visibleFloorNumbers={visibleFloorNumbers}
-                  onApartmentClick={handleModelApartmentClick}
-                  resetTick={resetTick}
-                />
+              {viewMode === "overview" ? (
+                modelUrl ? (
+                  <ModelCanvas
+                    modelUrl={modelUrl}
+                    apartments={allApartments}
+                    visibleFloorNumbers={visibleFloorNumbers}
+                    onApartmentClick={handleModelApartmentClick}
+                    resetTick={resetTick}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+                    <div>
+                      <Box className="mx-auto mb-2 h-10 w-10" />
+                      <p>Tòa nhà chưa có file model 3D tổng quan.</p>
+                      <p className="text-sm">Hãy upload model tổng quan của building hoặc chuyển sang mặt sàn theo tầng nếu tầng đã có model riêng.</p>
+                    </div>
+                  </div>
+                )
+              ) : selectedFloor ? (
+                selectedFloorModelUrl || selectedFloorHotspots.length > 0 ? (
+                  <FloorHotspotScene
+                    modelUrl={selectedFloorModelUrl}
+                    nodes={selectedFloorHotspots}
+                    activeNodeId={connectorNode?.id ?? null}
+                    onNodeClick={handleFloorNodeClick}
+                    resetTick={resetTick}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+                    <div>
+                      <Box className="mx-auto mb-2 h-10 w-10" />
+                      <p>Tầng này chưa có file model 3D riêng.</p>
+                      <p className="text-sm">Bạn vẫn có thể xem 3D tổng quan của cả tòa nhà hoặc gán `floors.model3dUrl` để bật floor mode.</p>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
                   <div>
                     <Box className="mx-auto mb-2 h-10 w-10" />
-                    <p>Tầng này chưa có file model 3D riêng.</p>
-                    <p className="text-sm">Bạn vẫn có thể xem 3D tổng quan của cả tòa nhà hoặc gán `floors.model3dUrl` để bật floor mode.</p>
+                    <p>Vui lòng chọn một tầng để xem mặt sàn 3D.</p>
                   </div>
                 </div>
               )}

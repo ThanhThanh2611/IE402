@@ -29,7 +29,7 @@ import {
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { EmptyState, PageErrorState } from "@/components/PageFeedback";
+import { PageErrorState } from "@/components/PageFeedback";
 import type {
   Building,
   BuildingGeoJsonFeature,
