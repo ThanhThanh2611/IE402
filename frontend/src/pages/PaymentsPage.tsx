@@ -258,13 +258,18 @@ export default function PaymentsPage() {
             <div className="space-y-2">
               <Label>Hợp đồng *</Label>
               <Select value={form.contractId ? String(form.contractId) : ""} onValueChange={handleContractSelect}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Chọn hợp đồng" /></SelectTrigger>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn hợp đồng">
+                    {form.contractId ? getContractLabel(form.contractId) : undefined}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {contracts.filter((c) => c.status === "active").map((c) => {
                     const apt = apartments.find((a) => a.id === c.apartmentId);
                     const tenant = tenants.find((t) => t.id === c.tenantId);
+                    const label = `${apt?.code ?? "Căn hộ"} - ${tenant?.fullName ?? "Người thuê"}`;
                     return (
-                      <SelectItem key={c.id} value={String(c.id)}>
+                      <SelectItem key={c.id} value={String(c.id)} label={label}>
                         {apt?.code} - {tenant?.fullName}
                       </SelectItem>
                     );

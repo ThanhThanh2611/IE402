@@ -279,10 +279,14 @@ export default function ContractsPage() {
               <div className="space-y-2">
                 <Label>Căn hộ *</Label>
                 <Select value={form.apartmentId ? String(form.apartmentId) : ""} onValueChange={handleApartmentSelect}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Chọn căn hộ" /></SelectTrigger>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn căn hộ">
+                      {form.apartmentId ? getApartmentCode(form.apartmentId) : undefined}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {availableApartments.map((a) => (
-                      <SelectItem key={a.id} value={String(a.id)}>{a.code}</SelectItem>
+                      <SelectItem key={a.id} value={String(a.id)} label={a.code}>{a.code}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -291,10 +295,16 @@ export default function ContractsPage() {
               <div className="space-y-2">
                 <Label>Người thuê *</Label>
                 <Select value={form.tenantId ? String(form.tenantId) : ""} onValueChange={(v) => setForm((f) => ({ ...f, tenantId: Number(v || 0) }))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Chọn người thuê" /></SelectTrigger>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn người thuê">
+                      {form.tenantId ? getTenantName(form.tenantId) : undefined}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {tenants.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>{t.fullName} - {t.idCard}</SelectItem>
+                      <SelectItem key={t.id} value={String(t.id)} label={`${t.fullName} - ${t.idCard}`}>
+                        {t.fullName} - {t.idCard}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

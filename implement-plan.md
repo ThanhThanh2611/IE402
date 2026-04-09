@@ -93,3 +93,11 @@
 - [x] FE: Fix input upload model tầng để đổi tầng xong vẫn chọn lại file và upload tiếp được
 - [x] Docs: Viết hướng dẫn kỹ thuật chuẩn bị floor model, hotspot local và workflow Blender cho màn `/buildings/:id`
 - [x] FE: Bổ sung UI tạo hotspot mới và chọn `node type` trực tiếp trên trang chi tiết tòa nhà
+- [x] FE: Thêm gợi ý tạo nhanh `navigation_edges` khi vừa tạo/cập nhật hotspot `elevator` hoặc `stairs`
+- [x] FE: Hạ z-index hotspot 3D để không đè lên dialog chỉnh hotspot
+- [x] FE: Sửa component Select dùng chung để dropdown luôn hiển thị label đã chọn thay vì raw value
+- [x] FE: Chuẩn hóa lại flow tạo/sửa hotspot để fetch node chi tiết sau khi lưu, tránh lệch dữ liệu render ở list và scene 3D
+- [x] FE: Bổ sung bind `door -> apartment.entryNodeId`, xóa hotspot an toàn và refresh graph sau thao tác trong trang tòa nhà
+- [x] FE: Bổ sung UI CRUD edge topology thủ công ngay trên trang chi tiết tòa nhà
+- [x] FE: Bổ sung UI CRUD tầng ngay trong trang chi tiết tòa nhà để dùng trực tiếp Floors API
+- [x] Docs: Viết hướng dẫn chi tiết cách dùng màn 3D/2D của tòa nhà và trang chi tiết căn hộ theo UI hiện tại

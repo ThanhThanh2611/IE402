@@ -33,6 +33,7 @@ Hệ thống **3D GIS Apartment Management System** có 2 nhóm người dùng c
 
 - [Hướng dẫn cho User](D:\Workspace\IE402\docs\user-guide\user.md)
 - [Hướng dẫn cho Manager](D:\Workspace\IE402\docs\user-guide\manager.md)
+- [Hướng dẫn chi tiết màn 3D/2D tòa nhà và căn hộ](D:\Workspace\IE402\docs\user-guide\building-apartment-3d-2d-guide.md)
 
 ## Ghi chú về quyền xem dữ liệu
 

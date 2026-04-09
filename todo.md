@@ -88,3 +88,11 @@
 - [x] FE: Fix input upload model tầng để không bị disable sai sau khi đổi tầng hoặc chọn lại cùng file
 - [x] Docs: Thêm file hướng dẫn workflow model tầng, hotspot local và cách lấy local X/Y/Z từ Blender
 - [x] FE: Thêm nút tạo hotspot và cho chỉnh `node type` ngay trong dialog hotspot ở trang tòa nhà
+- [x] FE: Thêm gợi ý tạo edge liên tầng nhanh sau khi tạo/sửa hotspot `elevator` hoặc `stairs`
+- [x] FE: Fix hotspot 3D hiển thị đè lên dialog bằng cách hạ z-index của overlay scene
+- [x] FE: Fix Select dùng chung để giá trị đã chọn hiển thị đúng label ở tất cả dropdown
+- [x] FE: Fix thêm/sửa hotspot để dữ liệu mới hiển thị ngay trong list và mặt sàn 3D mà không cần reload trang
+- [x] FE: Cho bind hotspot `door` với căn hộ, thêm xóa hotspot và tự gỡ `entryNodeId` an toàn
+- [x] FE: Thêm UI CRUD edge topology thủ công trên trang chi tiết tòa nhà
+- [x] FE: Thêm UI CRUD tầng ngay trong trang chi tiết tòa nhà
+- [x] Docs: Viết hướng dẫn chi tiết cho màn 3D/2D tòa nhà và trang chi tiết căn hộ

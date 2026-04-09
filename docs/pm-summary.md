@@ -14,6 +14,7 @@ Hệ thống hiện đã ở mức demo khá hoàn chỉnh cho phần nghiệp v
 - phân quyền route và phân quyền xem tenant/hợp đồng theo từng căn hộ
 - bản đồ GIS, chọn tòa nhà, timeline snapshot
 - mô hình 3D tòa nhà, xem tầng, căn hộ và popup thông tin
+- upload model riêng cho từng tầng, quản trị hotspot indoor, edge topology và tầng ngay tại trang tòa nhà
 - trang chi tiết căn hộ với dữ liệu LoD4, layout nội thất và access grant
 - quản lý căn hộ, hợp đồng, tenant, thanh toán, người dùng
 - dashboard có overview, revenue, occupancy history, snapshot theo mốc thời gian
@@ -28,6 +29,10 @@ Ngoài ra:
 ## 2. Những việc còn lại
 
 Các việc còn lại chủ yếu là nhóm “nâng chất lượng demo”, đặc biệt là đồ họa/render 3D và độ hoàn thiện cuối sản phẩm.
+
+Lưu ý để PM nắm đúng phạm vi:
+- nhóm việc “quản trị topology tầng, hotspot local, upload model tầng, bind cửa với căn hộ” đã xong ở mức dùng được
+- phần còn thiếu lớn nhất của nhánh 3D hiện nay là `indoor 3D đúng nghĩa trong căn hộ`, chưa phải quản trị dữ liệu tòa nhà nữa
 
 ### Nhóm A - Ưu tiên cao nhất
 

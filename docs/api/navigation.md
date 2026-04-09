@@ -83,7 +83,7 @@ POST /api/navigation/nodes
 
 **Response:** `201` - Node mới tạo
 
-> Trang `/buildings/:id` hiện đã có UI manager để tạo node hotspot trực tiếp cho tầng đang chọn, không cần gọi API thủ công.
+> Trang `/buildings/:id` hiện đã có UI manager để tạo node hotspot trực tiếp cho tầng đang chọn, không cần gọi API thủ công. Nếu `nodeType = door`, FE còn cho chọn căn hộ để tự bind `apartments.entryNodeId`.
 
 ---
 
@@ -97,7 +97,7 @@ PUT /api/navigation/nodes/:id
 
 **Response:** `200` - Node đã cập nhật | `404`
 
-> UI manager trên trang chi tiết tòa nhà hiện hỗ trợ sửa cả `nodeType`, `lng/lat/z`, `localX/localY/localZ`, `meshRef`, `metadata`.
+> UI manager trên trang chi tiết tòa nhà hiện hỗ trợ sửa cả `nodeType`, `lng/lat/z`, `localX/localY/localZ`, `meshRef`, `metadata`, và căn hộ liên kết của node `door`.
 
 ---
 
@@ -109,9 +109,13 @@ DELETE /api/navigation/nodes/:id
 
 **Response:** `200` - `{ "message": "Đã xóa node" }` | `404`
 
+> FE manager hiện đã có nút xóa hotspot trực tiếp. Nếu node `door` đang gắn với một căn hộ, UI sẽ gỡ `entryNodeId` trước khi gọi xóa node.
+
 ---
 
 ## Edges
+
+> Hiện tại UI manager trên trang `/buildings/:id` đã có cơ chế gợi ý tạo nhanh edge khi vừa tạo hoặc cập nhật hotspot `elevator` / `stairs` mà chưa có kết nối liên tầng tương ứng, đồng thời đã có dialog CRUD edge thủ công ngay trên giao diện.
 
 ### Danh sách edges
 

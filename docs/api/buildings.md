@@ -207,6 +207,9 @@ POST /api/buildings/:id/model
 
 Upload file mô hình 3D cho tòa nhà bằng `multipart/form-data`.
 
+> Luồng này phục vụ cho chế độ `3D tổng quan` của trang `/buildings/:id`.
+> Nếu muốn gán model riêng cho từng tầng trong chế độ `Mặt sàn theo tầng`, dùng endpoint `POST /api/floors/:id/model`.
+
 **Form-data:**
 
 | Field | Type | Bắt buộc | Mô tả |
