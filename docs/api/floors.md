@@ -75,6 +75,8 @@ POST /api/floors
 
 **Response:** `201` - Object tầng đã tạo
 
+> Manager hiện đã có UI trực tiếp trên trang `/buildings/:id` để thêm tầng, không cần gọi API thủ công khi thao tác từ frontend.
+
 ---
 
 ## Cập nhật tầng
@@ -88,6 +90,8 @@ PUT /api/floors/:id
 **Response:** `200` - Object tầng đã cập nhật
 
 **Lỗi:** `404` - Không tìm thấy
+
+> UI `/buildings/:id` đã có dialog sửa tầng với các field `floorNumber`, `elevation`, `floorPlanWkt`, `description`.
 
 ---
 
@@ -132,6 +136,8 @@ Upload file mô hình 3D riêng cho một tầng bằng `multipart/form-data`.
 - `404`: không tìm thấy tầng
 - `413`: file vượt quá giới hạn upload 70MB
 
+> Frontend hiện đã có ô upload riêng cho tầng đang chọn ngay trên trang `/buildings/:id`.
+
 ---
 
 ## Xóa tầng
@@ -147,3 +153,5 @@ DELETE /api/floors/:id
 ```
 
 **Lỗi:** `404` - Không tìm thấy
+
+> Frontend hiện đã có nút xóa tầng ngay trong danh sách tầng ở trang chi tiết tòa nhà.

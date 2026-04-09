@@ -223,23 +223,31 @@ export default function ApartmentsPage() {
       <div className="flex flex-col gap-4 lg:flex-row">
         <Select value={filterBuildingId || undefined} onValueChange={(v) => { setFilterBuildingId(!v || v === "__all__" ? "" : v); setFilterFloorId(""); }}>
           <SelectTrigger className="w-full lg:w-[220px]">
-            <SelectValue placeholder="Tất cả tòa nhà" />
+            <SelectValue placeholder="Tất cả tòa nhà">
+              {filterBuildingId
+                ? buildings.find((building) => String(building.id) === filterBuildingId)?.name
+                : "Tất cả tòa nhà"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tất cả tòa nhà</SelectItem>
+            <SelectItem value="__all__" label="Tất cả tòa nhà">Tất cả tòa nhà</SelectItem>
             {buildings.map((b) => (
-              <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+              <SelectItem key={b.id} value={String(b.id)} label={b.name}>{b.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={filterFloorId || undefined} onValueChange={(v) => setFilterFloorId(!v || v === "__all__" ? "" : v)}>
           <SelectTrigger className="w-full lg:w-[220px]">
-            <SelectValue placeholder="Tất cả tầng" />
+            <SelectValue placeholder="Tất cả tầng">
+              {filterFloorId
+                ? `Tầng ${filteredFloors.find((floor) => String(floor.id) === filterFloorId)?.floorNumber ?? ""}`.trim()
+                : "Tất cả tầng"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tất cả tầng</SelectItem>
+            <SelectItem value="__all__" label="Tất cả tầng">Tất cả tầng</SelectItem>
             {filteredFloors.map((f) => (
-              <SelectItem key={f.id} value={String(f.id)}>Tầng {f.floorNumber}</SelectItem>
+              <SelectItem key={f.id} value={String(f.id)} label={`Tầng ${f.floorNumber}`}>Tầng {f.floorNumber}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -337,12 +345,22 @@ export default function ApartmentsPage() {
             <div className="space-y-2">
               <Label>Tầng *</Label>
               <Select value={form.floorId ? String(form.floorId) : ""} onValueChange={(v) => setForm((f) => ({ ...f, floorId: Number(v || 0) }))}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Chọn tầng" /></SelectTrigger>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn tầng">
+                    {form.floorId
+                      ? (() => {
+                          const floor = floors.find((item) => item.id === form.floorId);
+                          const building = floor ? buildings.find((item) => item.id === floor.buildingId) : null;
+                          return floor ? `${building?.name ?? "Tòa nhà"} - Tầng ${floor.floorNumber}` : undefined;
+                        })()
+                      : undefined}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {floors.map((f) => {
                     const b = buildings.find((b) => b.id === f.buildingId);
                     return (
-                      <SelectItem key={f.id} value={String(f.id)}>
+                      <SelectItem key={f.id} value={String(f.id)} label={`${b?.name ?? "Tòa nhà"} - Tầng ${f.floorNumber}`}>
                         {b?.name} - Tầng {f.floorNumber}
                       </SelectItem>
                     );

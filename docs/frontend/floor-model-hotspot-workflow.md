@@ -409,6 +409,7 @@ Trên UI hiện đã có:
 - nhập `localX/localY/localZ`
 - nhập `meshRef`
 - nhập `metadata`
+- với `elevator/stairs`, sau khi lưu UI có thể gợi ý tạo nhanh edge liên tầng tới hotspot cùng loại gần nhất chưa được nối
 
 ### Bước 6. Nối graph
 

@@ -173,6 +173,18 @@ function stringifyMetadata(value: Record<string, unknown> | null | undefined) {
   return value ? JSON.stringify(value, null, 2) : "";
 }
 
+function getSpaceLabel(space: ApartmentSpace) {
+  return space.name;
+}
+
+function getCatalogLabel(item: FurnitureCatalogItem) {
+  return item.name;
+}
+
+function getGrantUserLabel(user: User) {
+  return `${user.fullName} (@${user.username})`;
+}
+
 function parsePointZ(value: string): { x: number; y: number; z: number } {
   const matched = value.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
   if (!matched) return { x: 0, y: 0, z: 0 };
@@ -1562,22 +1574,22 @@ export default function ApartmentDetailPage() {
             <div className="space-y-2">
               <Label>Loại không gian *</Label>
               <Select value={spaceForm.spaceType} onValueChange={(value) => setSpaceForm((prev) => ({ ...prev, spaceType: value as ApartmentSpaceInput["spaceType"] }))}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue>{spaceTypeLabels[spaceForm.spaceType]}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unit">Toàn bộ căn hộ</SelectItem>
-                  <SelectItem value="room">Phòng</SelectItem>
-                  <SelectItem value="zone">Vùng con</SelectItem>
+                  <SelectItem value="unit" label="Toàn bộ căn hộ">Toàn bộ căn hộ</SelectItem>
+                  <SelectItem value="room" label="Phòng">Phòng</SelectItem>
+                  <SelectItem value="zone" label="Vùng con">Vùng con</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Room type</Label>
               <Select value={spaceForm.roomType ?? "__none__"} onValueChange={(value) => setSpaceForm((prev) => ({ ...prev, roomType: value === "__none__" ? null : (value as ApartmentSpaceInput["roomType"]) }))}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue>{spaceForm.roomType ? roomTypeLabels[spaceForm.roomType] : "Không chọn"}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Không chọn</SelectItem>
+                  <SelectItem value="__none__" label="Không chọn">Không chọn</SelectItem>
                   {Object.entries(roomTypeLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem key={value} value={value} label={label}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1585,11 +1597,11 @@ export default function ApartmentDetailPage() {
             <div className="space-y-2">
               <Label>Không gian cha</Label>
               <Select value={spaceForm.parentSpaceId ? String(spaceForm.parentSpaceId) : "__none__"} onValueChange={(value) => setSpaceForm((prev) => ({ ...prev, parentSpaceId: value === "__none__" ? null : Number(value) }))}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue>{spaceForm.parentSpaceId ? spaces.find((space) => space.id === spaceForm.parentSpaceId)?.name : "Không có"}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Không có</SelectItem>
+                  <SelectItem value="__none__" label="Không có">Không có</SelectItem>
                   {spaces.filter((space) => !editingSpace || space.id !== editingSpace.id).map((space) => (
-                    <SelectItem key={space.id} value={String(space.id)}>{space.name}</SelectItem>
+                    <SelectItem key={space.id} value={String(space.id)} label={getSpaceLabel(space)}>{space.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1629,11 +1641,11 @@ export default function ApartmentDetailPage() {
               <div className="space-y-2">
                 <Label>Trạng thái</Label>
                 <Select value={layoutForm.status} onValueChange={(value) => setLayoutForm((prev) => ({ ...prev, status: value as FurnitureLayoutInput["status"] }))}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue>{layoutStatusLabels[layoutForm.status]}</SelectValue></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">Bản nháp</SelectItem>
-                    <SelectItem value="published">Đã công bố</SelectItem>
-                    <SelectItem value="archived">Lưu trữ</SelectItem>
+                    <SelectItem value="draft" label="Bản nháp">Bản nháp</SelectItem>
+                    <SelectItem value="published" label="Đã công bố">Đã công bố</SelectItem>
+                    <SelectItem value="archived" label="Lưu trữ">Lưu trữ</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1660,10 +1672,10 @@ export default function ApartmentDetailPage() {
             <div className="space-y-2">
               <Label>Mẫu nội thất *</Label>
               <Select value={itemForm.catalogId ? String(itemForm.catalogId) : ""} onValueChange={(value) => setItemForm((prev) => ({ ...prev, catalogId: Number(value) }))}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Chọn mẫu nội thất" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Chọn mẫu nội thất">{itemForm.catalogId ? catalog.find((item) => item.id === itemForm.catalogId)?.name : undefined}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {catalog.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
+                    <SelectItem key={item.id} value={String(item.id)} label={getCatalogLabel(item)}>{item.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1672,11 +1684,11 @@ export default function ApartmentDetailPage() {
             <div className="space-y-2">
               <Label>Không gian chứa</Label>
               <Select value={itemForm.spaceId ? String(itemForm.spaceId) : "__none__"} onValueChange={(value) => setItemForm((prev) => ({ ...prev, spaceId: value === "__none__" ? null : Number(value) }))}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue>{itemForm.spaceId ? spaces.find((space) => space.id === itemForm.spaceId)?.name : "Không gắn không gian"}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Không gắn không gian</SelectItem>
+                  <SelectItem value="__none__" label="Không gắn không gian">Không gắn không gian</SelectItem>
                   {spaces.map((space) => (
-                    <SelectItem key={space.id} value={String(space.id)}>{space.name}</SelectItem>
+                    <SelectItem key={space.id} value={String(space.id)} label={getSpaceLabel(space)}>{space.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1735,10 +1747,10 @@ export default function ApartmentDetailPage() {
             <div className="space-y-2">
               <Label>Loại nội thất</Label>
               <Select value={catalogForm.category} onValueChange={(value) => setCatalogForm((prev) => ({ ...prev, category: value as FurnitureCatalogInput["category"] }))}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue>{furnitureCategoryLabels[catalogForm.category]}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {Object.entries(furnitureCategoryLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem key={value} value={value} label={label}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1793,11 +1805,17 @@ export default function ApartmentDetailPage() {
                 disabled={!!editingGrant}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Chọn user cần cấp quyền" />
+                  <SelectValue placeholder="Chọn user cần cấp quyền">
+                    {grantForm.userId
+                      ? (editingGrant ? grantableUsers : availableGrantUsers).find((user) => user.id === grantForm.userId)
+                        ? getGrantUserLabel(((editingGrant ? grantableUsers : availableGrantUsers).find((user) => user.id === grantForm.userId))!)
+                        : undefined
+                      : undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(editingGrant ? grantableUsers : availableGrantUsers).map((user) => (
-                    <SelectItem key={user.id} value={String(user.id)}>
+                    <SelectItem key={user.id} value={String(user.id)} label={getGrantUserLabel(user)}>
                       {user.fullName} (@{user.username})
                     </SelectItem>
                   ))}

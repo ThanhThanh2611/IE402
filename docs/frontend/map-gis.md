@@ -96,6 +96,10 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
 - Click tầng → chuyển sang floor mode, load model 3D riêng của tầng nếu `floors.model3dUrl` có dữ liệu
 - FE vẫn giữ danh sách căn hộ của tầng và hotspot indoor cho `door`, `elevator`, `stairs`
 - Với `Manager`, trang còn có ô `Upload model tầng` để gán trực tiếp model 3D riêng cho tầng đang chọn qua `POST /api/floors/:id/model`
+- Với `Manager`, danh sách tầng hiện cũng đã có:
+  - thêm tầng mới
+  - sửa `floorNumber`, `elevation`, `floorPlanWkt`, `description`
+  - xóa tầng trực tiếp nếu backend cho phép
 
 ### UC08 — Xem căn hộ trong tầng
 - **API**: `GET /api/apartments?floorId=:floorId`
@@ -136,7 +140,9 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
   - `stairs`: cầu thang
 - Với `Manager`, trang chi tiết tòa nhà hiện có thể sửa trực tiếp:
   - tạo hotspot mới
+  - xóa hotspot
   - chọn `node type`
+  - chọn căn hộ liên kết khi hotspot là `door` để tự bind `entryNodeId`
   - `localX`
   - `localY`
   - `localZ`
@@ -146,6 +152,12 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
   - `meshRef`
   - `metadata`
   cho từng hotspot của tầng đang chọn
+- Sau khi tạo hoặc cập nhật hotspot `elevator` / `stairs`, UI còn có thể gợi ý tạo nhanh `navigation_edge` liên tầng nếu phát hiện node cùng loại ở tầng khác chưa được nối
+- Manager cũng đã có khối UI riêng để:
+  - xem danh sách edge liên quan tới tầng đang chọn
+  - tạo edge thủ công
+  - sửa `edgeType`, `distance`, `travelTime`, `isAccessible`
+  - xóa edge trực tiếp trên màn `/buildings/:id`
 - Nếu chưa có `floors.model3dUrl`, FE vẫn có thể vào floor mode bằng scene lưới thử nghiệm để test hotspot và đổi tầng
 
 ### Nút xem 3D tổng quan
@@ -186,3 +198,4 @@ Hiển thị thông tin chi tiết tòa nhà kèm mô hình 3D. Người dùng c
 - FE hiện không render trực tiếp polygon footprint của building detail trong trang 3D; footprint chủ yếu phục vụ map/type model
 - Popup căn hộ trong trang tòa nhà không còn tự gọi `/contracts` và `/tenants`, mà dùng trực tiếp payload tổng hợp từ `/apartments/:id/details`
 - Hướng dẫn thao tác đầy đủ cho luồng model tầng + hotspot local xem thêm tại [floor-model-hotspot-workflow.md](D:\Workspace\IE402\docs\frontend\floor-model-hotspot-workflow.md)
+- Hướng dẫn sử dụng theo góc nhìn người dùng/manager xem thêm tại [building-apartment-3d-2d-guide.md](D:\Workspace\IE402\docs\user-guide\building-apartment-3d-2d-guide.md)

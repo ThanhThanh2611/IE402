@@ -10,6 +10,7 @@ Tài liệu dành cho team Frontend và UI/UX của hệ thống **3D GIS Apartm
 | [pages.md](./pages.md) | Danh sách trang và cấu trúc routing |
 | [map-gis.md](./map-gis.md) | Trang bản đồ GIS và mô hình 3D (UC01-09) |
 | [apartments.md](./apartments.md) | Quản lý căn hộ (UC10-17) |
+| [../user-guide/building-apartment-3d-2d-guide.md](D:\Workspace\IE402\docs\user-guide\building-apartment-3d-2d-guide.md) | Hướng dẫn thao tác chi tiết màn 3D/2D của tòa nhà và căn hộ |
 | [contracts.md](./contracts.md) | Quản lý hợp đồng thuê (UC18-21) |
 | [dashboard.md](./dashboard.md) | Dashboard và thống kê (UC22-25) |
 | [users.md](./users.md) | Quản lý người dùng (UC26-31) |
