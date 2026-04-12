@@ -25,7 +25,9 @@ import {
   Label,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
   Skeleton,
@@ -1674,9 +1676,20 @@ export default function ApartmentDetailPage() {
               <Select value={itemForm.catalogId ? String(itemForm.catalogId) : ""} onValueChange={(value) => setItemForm((prev) => ({ ...prev, catalogId: Number(value) }))}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="Chọn mẫu nội thất">{itemForm.catalogId ? catalog.find((item) => item.id === itemForm.catalogId)?.name : undefined}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  {catalog.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)} label={getCatalogLabel(item)}>{item.name}</SelectItem>
-                  ))}
+                  {Object.entries(furnitureCategoryLabels).map(([catValue, catLabel]) => {
+                    const items = catalog.filter((item) => item.category === catValue);
+                    if (items.length === 0) return null;
+                    return (
+                      <SelectGroup key={catValue}>
+                        <SelectLabel className="font-bold text-primary">{catLabel}</SelectLabel>
+                        {items.map((item) => (
+                          <SelectItem key={item.id} value={String(item.id)} label={getCatalogLabel(item)}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {itemErrors.catalogId && <p className="text-sm text-destructive">{itemErrors.catalogId}</p>}
