@@ -36,13 +36,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
   Textarea,
 } from "@/components/ui";
-import { Apartment3DWorkspace } from "@/components/apartment/Apartment3DWorkspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmptyState, PageErrorState } from "@/components/PageFeedback";
 import { ApiError, api } from "@/lib/api";
@@ -455,7 +450,7 @@ export default function ApartmentDetailPage() {
     void loadAccessGrants();
   }, [isManager, loadAccessGrants]);
 
-  const spaces = useMemo(() => detail?.spaces ?? [], [detail?.spaces]);
+  const spaces = detail?.spaces ?? [];
   const catalog = detail?.furnitureCatalog ?? [];
   const selectedLayout = useMemo(
     () => detail?.layouts.find((layout) => layout.id === selectedLayoutId) ?? null,
@@ -1401,32 +1396,22 @@ export default function ApartmentDetailPage() {
           <CardTitle>Workspace kéo thả nội thất</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Tabs defaultValue="2d" className="w-full">
-            <div className="flex items-center justify-between mb-4">
-              <TabsList>
-                <TabsTrigger value="2d">Mặt bằng 2D</TabsTrigger>
-                <TabsTrigger value="3d">Thiết kế nội thất 3D</TabsTrigger>
-              </TabsList>
-
-              {workspaceSpaces.length > 0 && (
-                <div className="hidden md:flex flex-wrap gap-2">
-                  {workspaceSpaces.map((space) => (
-                    <Badge key={space.id} variant="outline" className="bg-background/80">
-                      {spaceTypeLabels[space.spaceType]}
-                      {" · "}
-                      {space.name}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+          {workspaceSpaces.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {workspaceSpaces.map((space) => (
+                <Badge key={space.id} variant="outline" className="bg-background/80">
+                  {spaceTypeLabels[space.spaceType]}
+                  {" · "}
+                  {space.name}
+                </Badge>
+              ))}
             </div>
-
-            <TabsContent value="2d">
-              <div
-                className="relative h-[480px] overflow-hidden rounded-xl border border-dashed bg-muted/30"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => void handleWorkspaceDrop(event)}
-              >
+          )}
+          <div
+            className="relative h-[360px] overflow-hidden rounded-xl border border-dashed bg-muted/30"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => void handleWorkspaceDrop(event)}
+          >
             <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
             {workspaceSpaces.length > 0 && (
               <svg
@@ -1498,40 +1483,13 @@ export default function ApartmentDetailPage() {
                   </button>
                 );
               })
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                  Chọn một layout để kéo thả nội thất.
-                </div>
-              )}
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                Chọn một layout để kéo thả nội thất.
               </div>
-            </TabsContent>
-
-            <TabsContent value="3d">
-              {selectedLayout ? (
-                <Apartment3DWorkspace
-                  spaces={spaces}
-                  initialItems={selectedLayout.items}
-                  catalog={catalog}
-                  onItemsUpdate={(updatedItems) => {
-                    if (detail) {
-                      setDetail({
-                        ...detail,
-                        layouts: detail.layouts.map((l) =>
-                          l.id === selectedLayout.id ? { ...l, items: updatedItems } : l
-                        ),
-                      });
-                    }
-                  }}
-                />
-              ) : (
-                <div className="h-[480px] flex items-center justify-center border rounded-xl bg-muted/30 text-muted-foreground">
-                  Vui lòng chọn một layout để xem 3D.
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-
-          <p className="mt-4 text-xs text-muted-foreground">
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
             Kéo item từ thư viện nội thất phía dưới vào workspace để thêm mới. Kéo item đang có trong workspace để đổi vị trí. Nếu item rơi vào boundary của một không gian LoD4, hệ thống sẽ tự gắn item vào đúng không gian đó.
           </p>
           {workspaceSpaces.length === 0 && (
