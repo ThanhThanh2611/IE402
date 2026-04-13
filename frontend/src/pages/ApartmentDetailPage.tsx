@@ -66,7 +66,8 @@ import type {
   FurnitureLayout,
   User,
 } from "@/types";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Box, Map as MapIcon } from "lucide-react";
+import { ApartmentScene } from "@/components/apartment/ApartmentScene";
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -384,6 +385,7 @@ export default function ApartmentDetailPage() {
   const [editingGrant, setEditingGrant] = useState<ApartmentAccessGrant | null>(null);
   const [grantForm, setGrantForm] = useState<ApartmentAccessGrantInput>(emptyGrantForm);
   const [grantErrors, setGrantErrors] = useState<Record<string, string>>({});
+  const [workspaceMode, setWorkspaceMode] = useState<"2d" | "3d">("2d");
 
   const [deleteState, setDeleteState] = useState<{
     type: "space" | "layout" | "item" | "catalog" | "grant";
@@ -988,6 +990,7 @@ export default function ApartmentDetailPage() {
     }
   };
 
+
   return (
     <div className="space-y-6">
       {pageError && (
@@ -1394,11 +1397,38 @@ export default function ApartmentDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Workspace kéo thả nội thất</CardTitle>
+          <div className="flex items-center gap-1 rounded-md border p-1">
+            <Button
+              variant={workspaceMode === "2d" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setWorkspaceMode("2d")}
+            >
+              <MapIcon className="mr-1.5 h-3.5 w-3.5" />
+              Sơ đồ 2D
+            </Button>
+            <Button
+              variant={workspaceMode === "3d" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setWorkspaceMode("3d")}
+            >
+              <Box className="mr-1.5 h-3.5 w-3.5" />
+              Mô hình 3D
+            </Button>
+          </div>
         </CardHeader>
+        <CardTitle>Workspace Thiết kế Nội thất (1PN, 1WC)</CardTitle>
         <CardContent className="space-y-3">
-          {workspaceSpaces.length > 0 && (
+          {workspaceMode === "3d" ? (
+            <div className="h-[800px]">
+              <ApartmentScene />
+            </div>
+          ) : (
+            <>
+              {workspaceSpaces.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {workspaceSpaces.map((space) => (
                 <Badge key={space.id} variant="outline" className="bg-background/80">
@@ -1491,6 +1521,8 @@ export default function ApartmentDetailPage() {
               </div>
             )}
           </div>
+          </>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">
             Kéo item từ thư viện nội thất phía dưới vào workspace để thêm mới. Kéo item đang có trong workspace để đổi vị trí. Nếu item rơi vào boundary của một không gian LoD4, hệ thống sẽ tự gắn item vào đúng không gian đó.
           </p>
