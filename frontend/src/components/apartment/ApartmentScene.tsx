@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { 
   OrbitControls, 
@@ -8,7 +8,8 @@ import {
   Environment,
   Html,
   BakeShadows,
-  TransformControls
+  TransformControls,
+  useGLTF
 } from "@react-three/drei";
 import * as THREE from "three";
 import type { FurnitureItem, FurnitureCatalogItem } from "@/types";
@@ -104,6 +105,15 @@ function Wall({ p1, p2, thickness }: WallSegment) {
   );
 }
 
+// --- Sub-components ---
+
+function GLTFModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  // Clone scene để tránh xung đột khi dùng chung một model cho nhiều item
+  const clonedScene = useMemo(() => scene.clone(), [scene]);
+  return <primitive object={clonedScene} />;
+}
+
 // --- Main Layout Component ---
 
 function FurnitureNode({ 
@@ -134,20 +144,41 @@ function FurnitureNode({
         onClick={(e) => { e.stopPropagation(); setSelected(true); }}
         onPointerMissed={(e) => { if (e.type === 'click') setSelected(false); }}
       >
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[w, h, d]} />
-          <meshStandardMaterial 
-            color={selected ? "#3b82f6" : "#64748b"} 
-            emissive={selected ? "#1e3a8a" : "#000000"} 
-            emissiveIntensity={0.2} 
-          />
-        </mesh>
-        <Html position={[0, h / 2 + 0.2, 0]} center zIndexRange={[100, 0]}>
-          <div className="bg-white/90 text-slate-800 px-1 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm pointer-events-none select-none">
-            {item.label || catalogItem?.name || `Item ${item.id}`}
-          </div>
-        </Html>
-      </group>
+          <Suspense fallback={
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[w, h, d]} />
+              <meshStandardMaterial 
+                color={selected ? "#3b82f6" : "#64748b"} 
+                emissive={selected ? "#1e3a8a" : "#000000"} 
+                emissiveIntensity={0.2} 
+              />
+            </mesh>
+          }>
+            {catalogItem?.model3dUrl ? (
+              <group scale={[
+                Number(item.scaleX) || 1, 
+                Number(item.scaleY) || 1, 
+                Number(item.scaleZ) || 1
+              ]}>
+                <GLTFModel url={catalogItem.model3dUrl} />
+              </group>
+            ) : (
+              <mesh castShadow receiveShadow>
+                <boxGeometry args={[w, h, d]} />
+                <meshStandardMaterial 
+                  color={selected ? "#3b82f6" : "#64748b"} 
+                  emissive={selected ? "#1e3a8a" : "#000000"} 
+                  emissiveIntensity={0.2} 
+                />
+              </mesh>
+            )}
+          </Suspense>
+          <Html position={[0, h / 2 + 0.2, 0]} center zIndexRange={[100, 0]}>
+            <div className="bg-white/90 text-slate-800 px-1 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm pointer-events-none select-none">
+              {item.label || catalogItem?.name || `Item ${item.id}`}
+            </div>
+          </Html>
+        </group>
       {selected && (
         <TransformControls
           object={meshRef}
