@@ -25,7 +25,9 @@ import {
   Label,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
   Skeleton,
@@ -64,7 +66,8 @@ import type {
   FurnitureLayout,
   User,
 } from "@/types";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Box, Map as MapIcon } from "lucide-react";
+import { ApartmentScene, APARTMENT_WIDTH, APARTMENT_DEPTH, MOCK_ROOMS, MOCK_WALLS } from "@/components/apartment/ApartmentScene";
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -304,8 +307,8 @@ function isPointInsidePolygon(point: WorkspacePolygonPoint, polygon: WorkspacePo
     const intersects =
       current.y > point.y !== previous.y > point.y &&
       point.x <
-        ((previous.x - current.x) * (point.y - current.y)) / ((previous.y - current.y) || 1e-9) +
-          current.x;
+      ((previous.x - current.x) * (point.y - current.y)) / ((previous.y - current.y) || 1e-9) +
+      current.x;
 
     if (intersects) {
       inside = !inside;
@@ -382,6 +385,7 @@ export default function ApartmentDetailPage() {
   const [editingGrant, setEditingGrant] = useState<ApartmentAccessGrant | null>(null);
   const [grantForm, setGrantForm] = useState<ApartmentAccessGrantInput>(emptyGrantForm);
   const [grantErrors, setGrantErrors] = useState<Record<string, string>>({});
+  const [workspaceMode, setWorkspaceMode] = useState<"2d" | "3d">("2d");
 
   const [deleteState, setDeleteState] = useState<{
     type: "space" | "layout" | "item" | "catalog" | "grant";
@@ -884,8 +888,10 @@ export default function ApartmentDetailPage() {
     if (!raw) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = clamp(Math.round(((event.clientX - rect.left) / rect.width) * 100), 0, 100);
-    const y = clamp(Math.round(((event.clientY - rect.top) / rect.height) * 100), 0, 100);
+    const pctX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+    const pctY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+    const ptX = Number((pctX * APARTMENT_WIDTH).toFixed(2));
+    const ptY = Number((pctY * APARTMENT_DEPTH).toFixed(2));
 
     try {
       const payload = JSON.parse(raw) as
@@ -893,8 +899,8 @@ export default function ApartmentDetailPage() {
         | { type: "item"; itemId: number };
 
       if (payload.type === "catalog") {
-        const nextPosition = `POINT Z (${x} ${y} 0)`;
-        const resolvedSpaceId = resolveDropSpaceId(x, y);
+        const nextPosition = `POINT Z (${ptX} ${ptY} 0)`;
+        const resolvedSpaceId = resolveDropSpaceId(pctX * 100, pctY * 100);
         const createdItem = await api.post<FurnitureItem>(
           `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items`,
           {
@@ -939,8 +945,8 @@ export default function ApartmentDetailPage() {
         const item = selectedLayout.items.find((entry) => entry.id === payload.itemId);
         if (!item) return;
 
-        const nextPosition = `POINT Z (${x} ${y} ${parsePointZ(item.position).z})`;
-        const resolvedSpaceId = resolveDropSpaceId(x, y);
+        const nextPosition = `POINT Z (${ptX} ${ptY} ${parsePointZ(item.position).z})`;
+        const resolvedSpaceId = resolveDropSpaceId(pctX * 100, pctY * 100);
         await api.put(
           `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
           {
@@ -967,10 +973,10 @@ export default function ApartmentDetailPage() {
             items: layout.items.map((entry) =>
               entry.id === item.id
                 ? {
-                    ...entry,
-                    position: nextPosition,
-                    spaceId: resolvedSpaceId,
-                  }
+                  ...entry,
+                  position: nextPosition,
+                  spaceId: resolvedSpaceId,
+                }
                 : entry,
             ),
           }));
@@ -985,6 +991,45 @@ export default function ApartmentDetailPage() {
       toast.error(error instanceof ApiError ? error.message : "Không thể xử lý thao tác kéo thả");
     }
   };
+
+  const handleItemMove3D = async (itemId: number, x: number, z: number, yHover: number) => {
+    if (!selectedLayout) return;
+    const item = selectedLayout.items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    const nextPosition = `POINT Z (${x} ${z} ${yHover})`; // Lưu 3 trục hệ số x y z
+    const pctX = (x / APARTMENT_WIDTH) * 100;
+    const pctZ = (z / APARTMENT_DEPTH) * 100;
+    const resolvedSpaceId = resolveDropSpaceId(pctX, pctZ);
+
+    try {
+      await api.put(
+        `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
+        {
+          catalogId: item.catalogId,
+          position: nextPosition,
+          rotation: item.rotation,
+          scale: item.scale,
+          spaceId: resolvedSpaceId,
+        },
+      );
+
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return replaceLayoutInDetail(prev, selectedLayout.id, (layout) => ({
+          ...layout,
+          items: layout.items.map((it) =>
+            it.id === item.id ? { ...it, position: nextPosition, spaceId: resolvedSpaceId } : it,
+          ),
+        }));
+      });
+      // toast.success("Đã đồng bộ vị trí nội thất!"); 
+    } catch (error) {
+      console.error("Failed to update item position from 3D", error);
+      toast.error("Lỗi khi đồng bộ vị trí thiết bị 3D");
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -1284,9 +1329,8 @@ export default function ApartmentDetailPage() {
               <button
                 key={layout.id}
                 type="button"
-                className={`w-full rounded-lg border p-3 text-left transition ${
-                  selectedLayoutId === layout.id ? "border-primary bg-primary/5" : "hover:border-primary/60"
-                }`}
+                className={`w-full rounded-lg border p-3 text-left transition ${selectedLayoutId === layout.id ? "border-primary bg-primary/5" : "hover:border-primary/60"
+                  }`}
                 onClick={() => setSelectedLayoutId(layout.id)}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1392,103 +1436,192 @@ export default function ApartmentDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Workspace kéo thả nội thất</CardTitle>
+          <div className="flex items-center gap-1 rounded-md border p-1">
+            <Button
+              variant={workspaceMode === "2d" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setWorkspaceMode("2d")}
+            >
+              <MapIcon className="mr-1.5 h-3.5 w-3.5" />
+              Sơ đồ 2D
+            </Button>
+            <Button
+              variant={workspaceMode === "3d" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setWorkspaceMode("3d")}
+            >
+              <Box className="mr-1.5 h-3.5 w-3.5" />
+              Mô hình 3D
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {workspaceSpaces.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {workspaceSpaces.map((space) => (
-                <Badge key={space.id} variant="outline" className="bg-background/80">
-                  {spaceTypeLabels[space.spaceType]}
-                  {" · "}
-                  {space.name}
-                </Badge>
-              ))}
+          {workspaceMode === "3d" ? (
+            <div className="h-[800px]">
+              <ApartmentScene 
+                items={selectedLayout?.items} 
+                catalog={catalog} 
+                onItemMove={handleItemMove3D}
+              />
             </div>
-          )}
-          <div
-            className="relative h-[360px] overflow-hidden rounded-xl border border-dashed bg-muted/30"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => void handleWorkspaceDrop(event)}
-          >
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
-            {workspaceSpaces.length > 0 && (
-              <svg
-                className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                aria-hidden="true"
+          ) : (
+            <>
+              {workspaceSpaces.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {workspaceSpaces.map((space) => (
+                    <Badge key={space.id} variant="outline" className="bg-background/80">
+                      {spaceTypeLabels[space.spaceType]}
+                      {" · "}
+                      {space.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div
+                className="relative mx-auto overflow-hidden rounded-xl border border-dashed bg-muted/30"
+                style={{ 
+                  aspectRatio: `${APARTMENT_WIDTH} / ${APARTMENT_DEPTH}`,
+                  maxHeight: "600px"
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => void handleWorkspaceDrop(event)}
               >
-                {workspaceSpaces.map((space) => {
-                  const polygonPoints = space.points.map((point) => `${point.x},${point.y}`).join(" ");
-                  const polygonStyle =
-                    space.spaceType === "unit"
-                      ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
-                      : space.spaceType === "room"
-                        ? { fill: "rgb(14 165 233 / 0.12)", stroke: "rgb(14 165 233 / 0.55)" }
-                        : { fill: "rgb(245 158 11 / 0.12)", stroke: "rgb(245 158 11 / 0.55)" };
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
+                <svg
+                  className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  {/* Render 3D mapped rooms */}
+                  {MOCK_ROOMS.map((room) => {
+                    const xPct = (room.x / APARTMENT_WIDTH) * 100;
+                    const yPct = (room.z / APARTMENT_DEPTH) * 100;
+                    const wPct = (room.w / APARTMENT_WIDTH) * 100;
+                    const dPct = (room.d / APARTMENT_DEPTH) * 100;
+                    return (
+                      <g key={`mock-room-${room.id}`}>
+                        <rect
+                          x={xPct}
+                          y={yPct}
+                          width={wPct}
+                          height={dPct}
+                          style={{ fill: room.color, opacity: 0.2, stroke: room.color, strokeOpacity: 0.6 }}
+                          strokeWidth={0.5}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        {room.name && (
+                          <text
+                            x={xPct + wPct / 2}
+                            y={yPct + dPct / 2}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{ fill: "rgb(15 23 42 / 0.7)", fontSize: "2.5px", fontWeight: 600 }}
+                          >
+                            {room.name}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
 
-                  return (
-                    <g key={space.id}>
-                      <polygon
-                        points={polygonPoints}
-                        style={polygonStyle}
-                        strokeWidth={0.6}
-                        vectorEffect="non-scaling-stroke"
+                  {/* Render 3D mapped walls */}
+                  {MOCK_WALLS.map((wall, idx) => {
+                    const x1 = (wall.p1[0] / APARTMENT_WIDTH) * 100;
+                    const y1 = (wall.p1[1] / APARTMENT_DEPTH) * 100;
+                    const x2 = (wall.p2[0] / APARTMENT_WIDTH) * 100;
+                    const y2 = (wall.p2[1] / APARTMENT_DEPTH) * 100;
+                    // approximate thickness relative to viewBox scale
+                    const strokeWidthObj = (wall.thickness / APARTMENT_WIDTH) * 100;
+                    return (
+                      <line
+                        key={`mock-wall-${idx}`}
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke="#475569"
+                        strokeWidth={strokeWidthObj}
+                        strokeLinecap="square"
                       />
-                      <text
-                        x={clamp(space.labelPoint.x, 4, 96)}
-                        y={clamp(space.labelPoint.y, 6, 96)}
-                        textAnchor="middle"
-                        style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                    );
+                  })}
+
+                  {/* Render Db bounds if exist */}
+                  {workspaceSpaces.map((space) => {
+                    const polygonPoints = space.points.map((point) => `${(point.x / APARTMENT_WIDTH) * 100},${(point.y / APARTMENT_DEPTH) * 100}`).join(" ");
+                    const polygonStyle =
+                      space.spaceType === "unit"
+                        ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
+                        : space.spaceType === "room"
+                          ? { fill: "rgb(14 165 233 / 0.12)", stroke: "rgb(14 165 233 / 0.55)" }
+                          : { fill: "rgb(245 158 11 / 0.12)", stroke: "rgb(245 158 11 / 0.55)" };
+
+                    return (
+                      <g key={space.id}>
+                        <polygon
+                          points={polygonPoints}
+                          style={polygonStyle}
+                          strokeWidth={0.6}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        <text
+                          x={clamp(space.labelPoint.x, 4, 96)}
+                          y={clamp(space.labelPoint.y, 6, 96)}
+                          textAnchor="middle"
+                          style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                        >
+                          {space.name}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+                {selectedLayout ? (
+                  selectedLayout.items.map((item) => {
+                    const point = parsePointZ(item.position);
+                    const assignedSpace = item.spaceId
+                      ? spaces.find((space) => space.id === item.spaceId) ?? null
+                      : null;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        draggable
+                        onDragStart={(event) =>
+                          event.dataTransfer.setData(
+                            "application/json",
+                            JSON.stringify({ type: "item", itemId: item.id }),
+                          )
+                        }
+                        className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
+                        style={{
+                          left: `${clamp((point.x / APARTMENT_WIDTH) * 100, 0, 100)}%`,
+                          top: `${clamp((point.y / APARTMENT_DEPTH) * 100, 0, 100)}%`,
+                          transform: "translate(-50%, -50%)",
+                        }}
                       >
-                        {space.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
-            {selectedLayout ? (
-              selectedLayout.items.map((item) => {
-                const point = parsePointZ(item.position);
-                const assignedSpace = item.spaceId
-                  ? spaces.find((space) => space.id === item.spaceId) ?? null
-                  : null;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    draggable
-                    onDragStart={(event) =>
-                      event.dataTransfer.setData(
-                        "application/json",
-                        JSON.stringify({ type: "item", itemId: item.id }),
-                      )
-                    }
-                    className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
-                    style={{
-                      left: `${clamp(point.x, 0, 100)}%`,
-                      top: `${clamp(point.y, 0, 100)}%`,
-                      transform: "translate(-50%, -50%)",
-                    }}
-                  >
-                    <span className="block">{item.label || currentCatalogName(item.catalogId)}</span>
-                    {assignedSpace && (
-                      <span className="mt-1 block text-[10px] text-muted-foreground">
-                        {assignedSpace.name}
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                Chọn một layout để kéo thả nội thất.
+                        <span className="block">{item.label || currentCatalogName(item.catalogId)}</span>
+                        {assignedSpace && (
+                          <span className="mt-1 block text-[10px] text-muted-foreground">
+                            {assignedSpace.name}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                    Chọn một layout để kéo thả nội thất.
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">
             Kéo item từ thư viện nội thất phía dưới vào workspace để thêm mới. Kéo item đang có trong workspace để đổi vị trí. Nếu item rơi vào boundary của một không gian LoD4, hệ thống sẽ tự gắn item vào đúng không gian đó.
           </p>
@@ -1524,20 +1657,20 @@ export default function ApartmentDetailPage() {
                   }
                   className="cursor-grab"
                 >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.code}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.code}</p>
+                    </div>
+                    <Badge variant="outline">{furnitureCategoryLabels[item.category]}</Badge>
                   </div>
-                  <Badge variant="outline">{furnitureCategoryLabels[item.category]}</Badge>
-                </div>
-                <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                  <p className="truncate">Model: {item.model3dUrl}</p>
-                  <p>
-                    Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
-                  </p>
-                  <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
-                </div>
+                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                    <p className="truncate">Model: {item.model3dUrl}</p>
+                    <p>
+                      Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
+                    </p>
+                    <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                  </div>
                 </div>
                 {isManager && (
                   <div className="mt-3 flex gap-2">
@@ -1674,9 +1807,20 @@ export default function ApartmentDetailPage() {
               <Select value={itemForm.catalogId ? String(itemForm.catalogId) : ""} onValueChange={(value) => setItemForm((prev) => ({ ...prev, catalogId: Number(value) }))}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="Chọn mẫu nội thất">{itemForm.catalogId ? catalog.find((item) => item.id === itemForm.catalogId)?.name : undefined}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  {catalog.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)} label={getCatalogLabel(item)}>{item.name}</SelectItem>
-                  ))}
+                  {Object.entries(furnitureCategoryLabels).map(([catValue, catLabel]) => {
+                    const items = catalog.filter((item) => item.category === catValue);
+                    if (items.length === 0) return null;
+                    return (
+                      <SelectGroup key={catValue}>
+                        <SelectLabel className="font-bold text-primary">{catLabel}</SelectLabel>
+                        {items.map((item) => (
+                          <SelectItem key={item.id} value={String(item.id)} label={getCatalogLabel(item)}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {itemErrors.catalogId && <p className="text-sm text-destructive">{itemErrors.catalogId}</p>}
