@@ -307,8 +307,8 @@ function isPointInsidePolygon(point: WorkspacePolygonPoint, polygon: WorkspacePo
     const intersects =
       current.y > point.y !== previous.y > point.y &&
       point.x <
-        ((previous.x - current.x) * (point.y - current.y)) / ((previous.y - current.y) || 1e-9) +
-          current.x;
+      ((previous.x - current.x) * (point.y - current.y)) / ((previous.y - current.y) || 1e-9) +
+      current.x;
 
     if (intersects) {
       inside = !inside;
@@ -971,10 +971,10 @@ export default function ApartmentDetailPage() {
             items: layout.items.map((entry) =>
               entry.id === item.id
                 ? {
-                    ...entry,
-                    position: nextPosition,
-                    spaceId: resolvedSpaceId,
-                  }
+                  ...entry,
+                  position: nextPosition,
+                  spaceId: resolvedSpaceId,
+                }
                 : entry,
             ),
           }));
@@ -1289,9 +1289,8 @@ export default function ApartmentDetailPage() {
               <button
                 key={layout.id}
                 type="button"
-                className={`w-full rounded-lg border p-3 text-left transition ${
-                  selectedLayoutId === layout.id ? "border-primary bg-primary/5" : "hover:border-primary/60"
-                }`}
+                className={`w-full rounded-lg border p-3 text-left transition ${selectedLayoutId === layout.id ? "border-primary bg-primary/5" : "hover:border-primary/60"
+                  }`}
                 onClick={() => setSelectedLayoutId(layout.id)}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1420,7 +1419,6 @@ export default function ApartmentDetailPage() {
             </Button>
           </div>
         </CardHeader>
-        <CardTitle>Workspace Thiết kế Nội thất (1PN, 1WC)</CardTitle>
         <CardContent className="space-y-3">
           {workspaceMode === "3d" ? (
             <div className="h-[800px]">
@@ -1429,99 +1427,99 @@ export default function ApartmentDetailPage() {
           ) : (
             <>
               {workspaceSpaces.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {workspaceSpaces.map((space) => (
-                <Badge key={space.id} variant="outline" className="bg-background/80">
-                  {spaceTypeLabels[space.spaceType]}
-                  {" · "}
-                  {space.name}
-                </Badge>
-              ))}
-            </div>
-          )}
-          <div
-            className="relative h-[360px] overflow-hidden rounded-xl border border-dashed bg-muted/30"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => void handleWorkspaceDrop(event)}
-          >
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
-            {workspaceSpaces.length > 0 && (
-              <svg
-                className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                aria-hidden="true"
+                <div className="flex flex-wrap gap-2">
+                  {workspaceSpaces.map((space) => (
+                    <Badge key={space.id} variant="outline" className="bg-background/80">
+                      {spaceTypeLabels[space.spaceType]}
+                      {" · "}
+                      {space.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div
+                className="relative h-[360px] overflow-hidden rounded-xl border border-dashed bg-muted/30"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => void handleWorkspaceDrop(event)}
               >
-                {workspaceSpaces.map((space) => {
-                  const polygonPoints = space.points.map((point) => `${point.x},${point.y}`).join(" ");
-                  const polygonStyle =
-                    space.spaceType === "unit"
-                      ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
-                      : space.spaceType === "room"
-                        ? { fill: "rgb(14 165 233 / 0.12)", stroke: "rgb(14 165 233 / 0.55)" }
-                        : { fill: "rgb(245 158 11 / 0.12)", stroke: "rgb(245 158 11 / 0.55)" };
-
-                  return (
-                    <g key={space.id}>
-                      <polygon
-                        points={polygonPoints}
-                        style={polygonStyle}
-                        strokeWidth={0.6}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      <text
-                        x={clamp(space.labelPoint.x, 4, 96)}
-                        y={clamp(space.labelPoint.y, 6, 96)}
-                        textAnchor="middle"
-                        style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
-                      >
-                        {space.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
-            {selectedLayout ? (
-              selectedLayout.items.map((item) => {
-                const point = parsePointZ(item.position);
-                const assignedSpace = item.spaceId
-                  ? spaces.find((space) => space.id === item.spaceId) ?? null
-                  : null;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    draggable
-                    onDragStart={(event) =>
-                      event.dataTransfer.setData(
-                        "application/json",
-                        JSON.stringify({ type: "item", itemId: item.id }),
-                      )
-                    }
-                    className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
-                    style={{
-                      left: `${clamp(point.x, 0, 100)}%`,
-                      top: `${clamp(point.y, 0, 100)}%`,
-                      transform: "translate(-50%, -50%)",
-                    }}
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
+                {workspaceSpaces.length > 0 && (
+                  <svg
+                    className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
                   >
-                    <span className="block">{item.label || currentCatalogName(item.catalogId)}</span>
-                    {assignedSpace && (
-                      <span className="mt-1 block text-[10px] text-muted-foreground">
-                        {assignedSpace.name}
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                Chọn một layout để kéo thả nội thất.
+                    {workspaceSpaces.map((space) => {
+                      const polygonPoints = space.points.map((point) => `${point.x},${point.y}`).join(" ");
+                      const polygonStyle =
+                        space.spaceType === "unit"
+                          ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
+                          : space.spaceType === "room"
+                            ? { fill: "rgb(14 165 233 / 0.12)", stroke: "rgb(14 165 233 / 0.55)" }
+                            : { fill: "rgb(245 158 11 / 0.12)", stroke: "rgb(245 158 11 / 0.55)" };
+
+                      return (
+                        <g key={space.id}>
+                          <polygon
+                            points={polygonPoints}
+                            style={polygonStyle}
+                            strokeWidth={0.6}
+                            vectorEffect="non-scaling-stroke"
+                          />
+                          <text
+                            x={clamp(space.labelPoint.x, 4, 96)}
+                            y={clamp(space.labelPoint.y, 6, 96)}
+                            textAnchor="middle"
+                            style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                          >
+                            {space.name}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+                {selectedLayout ? (
+                  selectedLayout.items.map((item) => {
+                    const point = parsePointZ(item.position);
+                    const assignedSpace = item.spaceId
+                      ? spaces.find((space) => space.id === item.spaceId) ?? null
+                      : null;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        draggable
+                        onDragStart={(event) =>
+                          event.dataTransfer.setData(
+                            "application/json",
+                            JSON.stringify({ type: "item", itemId: item.id }),
+                          )
+                        }
+                        className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
+                        style={{
+                          left: `${clamp(point.x, 0, 100)}%`,
+                          top: `${clamp(point.y, 0, 100)}%`,
+                          transform: "translate(-50%, -50%)",
+                        }}
+                      >
+                        <span className="block">{item.label || currentCatalogName(item.catalogId)}</span>
+                        {assignedSpace && (
+                          <span className="mt-1 block text-[10px] text-muted-foreground">
+                            {assignedSpace.name}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                    Chọn một layout để kéo thả nội thất.
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          </>
+            </>
           )}
           <p className="mt-2 text-xs text-muted-foreground">
             Kéo item từ thư viện nội thất phía dưới vào workspace để thêm mới. Kéo item đang có trong workspace để đổi vị trí. Nếu item rơi vào boundary của một không gian LoD4, hệ thống sẽ tự gắn item vào đúng không gian đó.
@@ -1558,20 +1556,20 @@ export default function ApartmentDetailPage() {
                   }
                   className="cursor-grab"
                 >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.code}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.code}</p>
+                    </div>
+                    <Badge variant="outline">{furnitureCategoryLabels[item.category]}</Badge>
                   </div>
-                  <Badge variant="outline">{furnitureCategoryLabels[item.category]}</Badge>
-                </div>
-                <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                  <p className="truncate">Model: {item.model3dUrl}</p>
-                  <p>
-                    Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
-                  </p>
-                  <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
-                </div>
+                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                    <p className="truncate">Model: {item.model3dUrl}</p>
+                    <p>
+                      Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
+                    </p>
+                    <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                  </div>
                 </div>
                 {isManager && (
                   <div className="mt-3 flex gap-2">

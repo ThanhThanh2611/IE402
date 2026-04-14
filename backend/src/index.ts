@@ -16,6 +16,7 @@ import statusHistoryRouter from "./routes/statusHistory";
 import usersRouter from "./routes/users";
 import navigationRouter from "./routes/navigation";
 import furnitureCatalogRouter from "./routes/furnitureCatalog";
+import { syncFurnitureCatalog } from "./db/sync-catalog";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,4 +53,8 @@ app.use("/api/furniture-catalog", authenticate, furnitureCatalogRouter);
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
+  // Tự động đồng bộ danh mục nội thất khi khởi động
+  void syncFurnitureCatalog().catch((err) => {
+    console.error("Lỗi khi đồng bộ danh mục nội thất:", err);
+  });
 });

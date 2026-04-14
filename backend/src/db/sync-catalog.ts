@@ -4,47 +4,46 @@ import { db } from "./index";
 import { furnitureCatalog } from "./schema";
 import { eq } from "drizzle-orm";
 
-async function syncCatalog() {
+const categories = [
+  { key: "sofa", patterns: ["sofa", "couch", "lounge"] },
+  { key: "table", patterns: ["table", "desk", "coffee"] },
+  { key: "chair", patterns: ["chair", "stool", "bench", "armchair"] },
+  { key: "bed", patterns: ["bed"] },
+  { key: "cabinet", patterns: ["cabinet", "bookcase", "wardrobe", "dresser", "drawer", "shelf", "stand", "sideboard"] },
+  { key: "appliance", patterns: ["television", "washer", "dryer", "toaster", "fridge", "oven", "microwave", "lamp", "radiator", "speaker", "toaster", "radio"] },
+  { key: "decor", patterns: ["plant", "rug", "painting", "decor", "books", "pillows", "plate", "cup", "trashcan"] },
+];
+
+function getCategory(filename: string): any {
+  const f = filename.toLowerCase();
+  for (const cat of categories) {
+    if (cat.patterns.some(p => f.includes(p))) {
+      return cat.key;
+    }
+  }
+  return "other";
+}
+
+function formatName(filename: string): string {
+  const name = filename.replace(".glb", "");
+  return name
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, str => str.toUpperCase())
+    .trim();
+}
+
+export async function syncFurnitureCatalog() {
   console.log("Starting Furniture Catalog Synchronization...");
 
   const modelsDir = path.join(__dirname, "../../../frontend/public/models");
   
   if (!fs.existsSync(modelsDir)) {
-    console.error(`Directory not found: ${modelsDir}`);
-    process.exit(1);
+    console.warn(`Directory not found: ${modelsDir}. Skipping catalog sync.`);
+    return { added: 0, updated: 0, error: "Directory not found" };
   }
 
   const files = fs.readdirSync(modelsDir).filter(f => f.endsWith(".glb"));
   console.log(`Found ${files.length} models in ${modelsDir}`);
-
-  const categories = [
-    { key: "sofa", patterns: ["sofa", "couch", "lounge"] },
-    { key: "table", patterns: ["table", "desk", "coffee"] },
-    { key: "chair", patterns: ["chair", "stool", "bench", "armchair"] },
-    { key: "bed", patterns: ["bed"] },
-    { key: "cabinet", patterns: ["cabinet", "bookcase", "wardrobe", "dresser", "drawer", "shelf", "stand", "sideboard"] },
-    { key: "appliance", patterns: ["television", "washer", "dryer", "toaster", "fridge", "oven", "microwave", "lamp", "radiator", "speaker", "toaster", "radio"] },
-    { key: "decor", patterns: ["plant", "rug", "painting", "decor", "books", "pillows", "plate", "cup", "trashcan"] },
-  ];
-
-  function getCategory(filename: string): any {
-    const f = filename.toLowerCase();
-    for (const cat of categories) {
-      if (cat.patterns.some(p => f.includes(p))) {
-        return cat.key;
-      }
-    }
-    return "other";
-  }
-
-  function formatName(filename: string): string {
-    // Remove .glb and convert camelCase/PascalCase to Title Case
-    const name = filename.replace(".glb", "");
-    return name
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
-  }
 
   let added = 0;
   let updated = 0;
@@ -87,13 +86,16 @@ async function syncCatalog() {
     }
   }
 
-  console.log(`Sync complete!`);
-  console.log(`Added: ${added}`);
-  console.log(`Updated: ${updated}`);
-  process.exit(0);
+  console.log(`Sync complete! Added: ${added}, Updated: ${updated}`);
+  return { added, updated };
 }
 
-syncCatalog().catch(err => {
-  console.error("Sync failed:", err);
-  process.exit(1);
-});
+// Allow running as a script
+if (require.main === module) {
+  syncFurnitureCatalog()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error("Sync failed:", err);
+      process.exit(1);
+    });
+}
