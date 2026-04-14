@@ -67,7 +67,7 @@ import type {
   User,
 } from "@/types";
 import { Pencil, Plus, Trash2, Box, Map as MapIcon } from "lucide-react";
-import { ApartmentScene } from "@/components/apartment/ApartmentScene";
+import { ApartmentScene, APARTMENT_WIDTH, APARTMENT_DEPTH, MOCK_ROOMS, MOCK_WALLS } from "@/components/apartment/ApartmentScene";
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -888,8 +888,10 @@ export default function ApartmentDetailPage() {
     if (!raw) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = clamp(Math.round(((event.clientX - rect.left) / rect.width) * 100), 0, 100);
-    const y = clamp(Math.round(((event.clientY - rect.top) / rect.height) * 100), 0, 100);
+    const pctX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+    const pctY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+    const ptX = Number((pctX * APARTMENT_WIDTH).toFixed(2));
+    const ptY = Number((pctY * APARTMENT_DEPTH).toFixed(2));
 
     try {
       const payload = JSON.parse(raw) as
@@ -897,8 +899,8 @@ export default function ApartmentDetailPage() {
         | { type: "item"; itemId: number };
 
       if (payload.type === "catalog") {
-        const nextPosition = `POINT Z (${x} ${y} 0)`;
-        const resolvedSpaceId = resolveDropSpaceId(x, y);
+        const nextPosition = `POINT Z (${ptX} ${ptY} 0)`;
+        const resolvedSpaceId = resolveDropSpaceId(pctX * 100, pctY * 100);
         const createdItem = await api.post<FurnitureItem>(
           `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items`,
           {
@@ -943,8 +945,8 @@ export default function ApartmentDetailPage() {
         const item = selectedLayout.items.find((entry) => entry.id === payload.itemId);
         if (!item) return;
 
-        const nextPosition = `POINT Z (${x} ${y} ${parsePointZ(item.position).z})`;
-        const resolvedSpaceId = resolveDropSpaceId(x, y);
+        const nextPosition = `POINT Z (${ptX} ${ptY} ${parsePointZ(item.position).z})`;
+        const resolvedSpaceId = resolveDropSpaceId(pctX * 100, pctY * 100);
         await api.put(
           `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
           {
@@ -1422,7 +1424,7 @@ export default function ApartmentDetailPage() {
         <CardContent className="space-y-3">
           {workspaceMode === "3d" ? (
             <div className="h-[800px]">
-              <ApartmentScene />
+              <ApartmentScene items={selectedLayout?.items} catalog={catalog} />
             </div>
           ) : (
             <>
@@ -1438,48 +1440,105 @@ export default function ApartmentDetailPage() {
                 </div>
               )}
               <div
-                className="relative h-[360px] overflow-hidden rounded-xl border border-dashed bg-muted/30"
+                className="relative mx-auto overflow-hidden rounded-xl border border-dashed bg-muted/30"
+                style={{ 
+                  aspectRatio: `${APARTMENT_WIDTH} / ${APARTMENT_DEPTH}`,
+                  maxHeight: "600px"
+                }}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => void handleWorkspaceDrop(event)}
               >
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
-                {workspaceSpaces.length > 0 && (
-                  <svg
-                    className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    {workspaceSpaces.map((space) => {
-                      const polygonPoints = space.points.map((point) => `${point.x},${point.y}`).join(" ");
-                      const polygonStyle =
-                        space.spaceType === "unit"
-                          ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
-                          : space.spaceType === "room"
-                            ? { fill: "rgb(14 165 233 / 0.12)", stroke: "rgb(14 165 233 / 0.55)" }
-                            : { fill: "rgb(245 158 11 / 0.12)", stroke: "rgb(245 158 11 / 0.55)" };
-
-                      return (
-                        <g key={space.id}>
-                          <polygon
-                            points={polygonPoints}
-                            style={polygonStyle}
-                            strokeWidth={0.6}
-                            vectorEffect="non-scaling-stroke"
-                          />
+                <svg
+                  className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  {/* Render 3D mapped rooms */}
+                  {MOCK_ROOMS.map((room) => {
+                    const xPct = (room.x / APARTMENT_WIDTH) * 100;
+                    const yPct = (room.z / APARTMENT_DEPTH) * 100;
+                    const wPct = (room.w / APARTMENT_WIDTH) * 100;
+                    const dPct = (room.d / APARTMENT_DEPTH) * 100;
+                    return (
+                      <g key={`mock-room-${room.id}`}>
+                        <rect
+                          x={xPct}
+                          y={yPct}
+                          width={wPct}
+                          height={dPct}
+                          style={{ fill: room.color, opacity: 0.2, stroke: room.color, strokeOpacity: 0.6 }}
+                          strokeWidth={0.5}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        {room.name && (
                           <text
-                            x={clamp(space.labelPoint.x, 4, 96)}
-                            y={clamp(space.labelPoint.y, 6, 96)}
+                            x={xPct + wPct / 2}
+                            y={yPct + dPct / 2}
                             textAnchor="middle"
-                            style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                            dominantBaseline="middle"
+                            style={{ fill: "rgb(15 23 42 / 0.7)", fontSize: "2.5px", fontWeight: 600 }}
                           >
-                            {space.name}
+                            {room.name}
                           </text>
-                        </g>
-                      );
-                    })}
-                  </svg>
-                )}
+                        )}
+                      </g>
+                    );
+                  })}
+
+                  {/* Render 3D mapped walls */}
+                  {MOCK_WALLS.map((wall, idx) => {
+                    const x1 = (wall.p1[0] / APARTMENT_WIDTH) * 100;
+                    const y1 = (wall.p1[1] / APARTMENT_DEPTH) * 100;
+                    const x2 = (wall.p2[0] / APARTMENT_WIDTH) * 100;
+                    const y2 = (wall.p2[1] / APARTMENT_DEPTH) * 100;
+                    // approximate thickness relative to viewBox scale
+                    const strokeWidthObj = (wall.thickness / APARTMENT_WIDTH) * 100;
+                    return (
+                      <line
+                        key={`mock-wall-${idx}`}
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke="#475569"
+                        strokeWidth={strokeWidthObj}
+                        strokeLinecap="square"
+                      />
+                    );
+                  })}
+
+                  {/* Render Db bounds if exist */}
+                  {workspaceSpaces.map((space) => {
+                    const polygonPoints = space.points.map((point) => `${(point.x / APARTMENT_WIDTH) * 100},${(point.y / APARTMENT_DEPTH) * 100}`).join(" ");
+                    const polygonStyle =
+                      space.spaceType === "unit"
+                        ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
+                        : space.spaceType === "room"
+                          ? { fill: "rgb(14 165 233 / 0.12)", stroke: "rgb(14 165 233 / 0.55)" }
+                          : { fill: "rgb(245 158 11 / 0.12)", stroke: "rgb(245 158 11 / 0.55)" };
+
+                    return (
+                      <g key={space.id}>
+                        <polygon
+                          points={polygonPoints}
+                          style={polygonStyle}
+                          strokeWidth={0.6}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        <text
+                          x={clamp(space.labelPoint.x, 4, 96)}
+                          y={clamp(space.labelPoint.y, 6, 96)}
+                          textAnchor="middle"
+                          style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                        >
+                          {space.name}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
                 {selectedLayout ? (
                   selectedLayout.items.map((item) => {
                     const point = parsePointZ(item.position);
@@ -1499,8 +1558,8 @@ export default function ApartmentDetailPage() {
                         }
                         className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
                         style={{
-                          left: `${clamp(point.x, 0, 100)}%`,
-                          top: `${clamp(point.y, 0, 100)}%`,
+                          left: `${clamp((point.x / APARTMENT_WIDTH) * 100, 0, 100)}%`,
+                          top: `${clamp((point.y / APARTMENT_DEPTH) * 100, 0, 100)}%`,
                           transform: "translate(-50%, -50%)",
                         }}
                       >
