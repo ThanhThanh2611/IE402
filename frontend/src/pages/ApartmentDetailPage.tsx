@@ -992,6 +992,44 @@ export default function ApartmentDetailPage() {
     }
   };
 
+  const handleItemMove3D = async (itemId: number, x: number, z: number, yHover: number) => {
+    if (!selectedLayout) return;
+    const item = selectedLayout.items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    const nextPosition = `POINT Z (${x} ${z} ${yHover})`; // Lưu 3 trục hệ số x y z
+    const pctX = (x / APARTMENT_WIDTH) * 100;
+    const pctZ = (z / APARTMENT_DEPTH) * 100;
+    const resolvedSpaceId = resolveDropSpaceId(pctX, pctZ);
+
+    try {
+      await api.put(
+        `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
+        {
+          catalogId: item.catalogId,
+          position: nextPosition,
+          rotation: item.rotation,
+          scale: item.scale,
+          spaceId: resolvedSpaceId,
+        },
+      );
+
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return replaceLayoutInDetail(prev, selectedLayout.id, (layout) => ({
+          ...layout,
+          items: layout.items.map((it) =>
+            it.id === item.id ? { ...it, position: nextPosition, spaceId: resolvedSpaceId } : it,
+          ),
+        }));
+      });
+      // toast.success("Đã đồng bộ vị trí nội thất!"); 
+    } catch (error) {
+      console.error("Failed to update item position from 3D", error);
+      toast.error("Lỗi khi đồng bộ vị trí thiết bị 3D");
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -1424,7 +1462,11 @@ export default function ApartmentDetailPage() {
         <CardContent className="space-y-3">
           {workspaceMode === "3d" ? (
             <div className="h-[800px]">
-              <ApartmentScene items={selectedLayout?.items} catalog={catalog} />
+              <ApartmentScene 
+                items={selectedLayout?.items} 
+                catalog={catalog} 
+                onItemMove={handleItemMove3D}
+              />
             </div>
           ) : (
             <>
