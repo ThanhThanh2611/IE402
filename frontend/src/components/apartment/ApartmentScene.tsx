@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { 
   OrbitControls, 
@@ -7,7 +7,8 @@ import {
   Grid, 
   Environment,
   Html,
-  BakeShadows
+  BakeShadows,
+  TransformControls
 } from "@react-three/drei";
 import * as THREE from "three";
 import type { FurnitureItem, FurnitureCatalogItem } from "@/types";
@@ -105,9 +106,72 @@ function Wall({ p1, p2, thickness }: WallSegment) {
 
 // --- Main Layout Component ---
 
+function FurnitureNode({ 
+  item, 
+  catalogItem, 
+  onItemMove 
+}: { 
+  item: FurnitureItem; 
+  catalogItem?: FurnitureCatalogItem; 
+  onItemMove?: (id: number, x: number, z: number, yHover: number) => void 
+}) {
+  const point = parsePointZ(item.position);
+  const w = Number(catalogItem?.defaultWidth) || 0.8;
+  const h = Number(catalogItem?.defaultHeight) || 0.8;
+  const d = Number(catalogItem?.defaultDepth) || 0.8;
+  const posX = clamp(point.x, 0, APARTMENT_WIDTH) + OFFSET_X;
+  const posZ = clamp(point.y, 0, APARTMENT_DEPTH) + OFFSET_Z;
+  const posY = point.z || 0;
+
+  const [selected, setSelected] = useState(false);
+  const meshRef = useRef<THREE.Group>(null!);
+
+  return (
+    <group>
+      <group 
+        ref={meshRef}
+        position={[posX, h / 2 + posY, posZ]}
+        onClick={(e) => { e.stopPropagation(); setSelected(true); }}
+        onPointerMissed={(e) => { if (e.type === 'click') setSelected(false); }}
+      >
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[w, h, d]} />
+          <meshStandardMaterial 
+            color={selected ? "#3b82f6" : "#64748b"} 
+            emissive={selected ? "#1e3a8a" : "#000000"} 
+            emissiveIntensity={0.2} 
+          />
+        </mesh>
+        <Html position={[0, h / 2 + 0.2, 0]} center zIndexRange={[100, 0]}>
+          <div className="bg-white/90 text-slate-800 px-1 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm pointer-events-none select-none">
+            {item.label || catalogItem?.name || `Item ${item.id}`}
+          </div>
+        </Html>
+      </group>
+      {selected && (
+        <TransformControls
+          object={meshRef}
+          mode="translate"
+          onMouseUp={() => {
+            if (meshRef.current && onItemMove) {
+              const newX = meshRef.current.position.x - OFFSET_X;
+              const newZ = meshRef.current.position.z - OFFSET_Z;
+              const newY = meshRef.current.position.y - h / 2;
+              onItemMove(item.id, Number(newX.toFixed(2)), Number(newZ.toFixed(2)), Number(newY.toFixed(2)));
+            }
+          }}
+        />
+      )}
+    </group>
+  );
+}
+
+// --- Main Layout Component ---
+
 export interface ApartmentSceneProps {
   items?: FurnitureItem[];
   catalog?: FurnitureCatalogItem[];
+  onItemMove?: (itemId: number, x: number, z: number, yHover: number) => void;
 }
 
 // --- Master Data ---
@@ -138,7 +202,7 @@ export const MOCK_WALLS: WallSegment[] = [
   { p1: [7.4, 8.5], p2: [8.5, 8.5], thickness: INT_WALL_THICKNESS },
 ];
 
-export function ApartmentScene({ items = [], catalog = [] }: ApartmentSceneProps) {
+export function ApartmentScene({ items = [], catalog = [], onItemMove }: ApartmentSceneProps) {
   return (
     <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden ring-1 ring-slate-800 shadow-2xl">
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
@@ -170,28 +234,14 @@ export function ApartmentScene({ items = [], catalog = [] }: ApartmentSceneProps
           {MOCK_WALLS.map((seg, idx) => <Wall key={idx} {...seg} />)}
           
           {items.map((item) => {
-            const point = parsePointZ(item.position);
             const catalogItem = catalog.find((c) => c.id === item.catalogId);
-            const w = Number(catalogItem?.defaultWidth) || 0.8;
-            const h = Number(catalogItem?.defaultHeight) || 0.8;
-            const d = Number(catalogItem?.defaultDepth) || 0.8;
-            // Tọa độ 2D là (x, y) = (x, z trong 3D). 
-            // Tức là position trong mô hình 3D sẽ là: X = point.x, Y = point.z
-            const posX = clamp(point.x, 0, APARTMENT_WIDTH) + OFFSET_X;
-            const posZ = clamp(point.y, 0, APARTMENT_DEPTH) + OFFSET_Z; // Lưu ý point.y là độ top từ 2D
-
             return (
-              <group key={item.id} position={[posX, h / 2, posZ]}>
-                <mesh castShadow receiveShadow>
-                  <boxGeometry args={[w, h, d]} />
-                  <meshStandardMaterial color="#64748b" />
-                </mesh>
-                <Html position={[0, h / 2 + 0.2, 0]} center zIndexRange={[100, 0]}>
-                  <div className="bg-white/90 text-slate-800 px-1 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm pointer-events-none select-none">
-                    {item.label || catalogItem?.name || `Item ${item.id}`}
-                  </div>
-                </Html>
-              </group>
+              <FurnitureNode 
+                key={item.id} 
+                item={item} 
+                catalogItem={catalogItem} 
+                onItemMove={onItemMove} 
+              />
             );
           })}
         </group>
