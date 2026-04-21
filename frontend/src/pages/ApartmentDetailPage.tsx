@@ -997,7 +997,7 @@ export default function ApartmentDetailPage() {
     const item = selectedLayout.items.find((entry) => entry.id === itemId);
     if (!item) return;
 
-    const nextPosition = `POINT Z (${x} ${z} ${yHover})`; // Lưu 3 trục hệ số x y z
+    const nextPosition = `POINT Z (${x} ${z} ${yHover})`;
     const pctX = (x / APARTMENT_WIDTH) * 100;
     const pctZ = (z / APARTMENT_DEPTH) * 100;
     const resolvedSpaceId = resolveDropSpaceId(pctX, pctZ);
@@ -1008,9 +1008,16 @@ export default function ApartmentDetailPage() {
         {
           catalogId: item.catalogId,
           position: nextPosition,
-          rotation: item.rotation,
-          scale: item.scale,
+          rotationX: item.rotationX,
+          rotationY: item.rotationY,
+          rotationZ: item.rotationZ,
+          scaleX: item.scaleX,
+          scaleY: item.scaleY,
+          scaleZ: item.scaleZ,
           spaceId: resolvedSpaceId,
+          label: item.label,
+          isLocked: item.isLocked,
+          metadata: item.metadata,
         },
       );
 
@@ -1023,10 +1030,50 @@ export default function ApartmentDetailPage() {
           ),
         }));
       });
-      // toast.success("Đã đồng bộ vị trí nội thất!"); 
     } catch (error) {
       console.error("Failed to update item position from 3D", error);
-      toast.error("Lỗi khi đồng bộ vị trí thiết bị 3D");
+      toast.error("Lỗi khi đồng bộ vị trí nội thất 3D");
+    }
+  };
+
+  const handleItemRotate3D = async (itemId: number, rotationY: number) => {
+    if (!selectedLayout) return;
+    const item = selectedLayout.items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    const nextRotationY = String(rotationY);
+
+    try {
+      await api.put(
+        `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
+        {
+          catalogId: item.catalogId,
+          position: item.position,
+          rotationX: item.rotationX,
+          rotationY: nextRotationY,
+          rotationZ: item.rotationZ,
+          scaleX: item.scaleX,
+          scaleY: item.scaleY,
+          scaleZ: item.scaleZ,
+          spaceId: item.spaceId,
+          label: item.label,
+          isLocked: item.isLocked,
+          metadata: item.metadata,
+        },
+      );
+
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return replaceLayoutInDetail(prev, selectedLayout.id, (layout) => ({
+          ...layout,
+          items: layout.items.map((it) =>
+            it.id === item.id ? { ...it, rotationY: nextRotationY } : it,
+          ),
+        }));
+      });
+    } catch (error) {
+      console.error("Failed to update item rotation from 3D", error);
+      toast.error("Lỗi khi đồng bộ góc xoay nội thất 3D");
     }
   };
 
@@ -1466,6 +1513,7 @@ export default function ApartmentDetailPage() {
                 items={selectedLayout?.items} 
                 catalog={catalog} 
                 onItemMove={handleItemMove3D}
+                onItemRotate={handleItemRotate3D}
               />
             </div>
           ) : (

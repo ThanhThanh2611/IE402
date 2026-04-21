@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, Suspense } from "react";
+import React, { useMemo, useState, useRef, Suspense, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { 
   OrbitControls, 
@@ -13,16 +13,6 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 import type { FurnitureItem, FurnitureCatalogItem } from "@/types";
-
-function parsePointZ(value: string): { x: number; y: number; z: number } {
-  const matched = value.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
-  if (!matched) return { x: 0, y: 0, z: 0 };
-  return {
-    x: Number(matched[1]) || 0,
-    y: Number(matched[2]) || 0,
-    z: Number(matched[3]) || 0,
-  };
-}
 
 // --- Constants & Types ---
 const WALL_HEIGHT = 2.8;
@@ -53,11 +43,23 @@ export interface WallSegment {
   thickness: number;
 }
 
-// --- Sub-components ---
+// --- Helpers ---
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
+
+function parsePointZ(value: string): { x: number; y: number; z: number } {
+  const matched = value.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
+  if (!matched) return { x: 0, y: 0, z: 0 };
+  return {
+    x: Number(matched[1]) || 0,
+    y: Number(matched[2]) || 0,
+    z: Number(matched[3]) || 0,
+  };
+}
+
+// --- Room & Wall components ---
 
 function Floor({ x, z, w, d, color, name, label }: RoomData) {
   return (
@@ -86,7 +88,6 @@ function Wall({ p1, p2, thickness }: WallSegment) {
 
   return (
     <group position={[midX, WALL_HEIGHT / 2, midZ]} rotation={[0, -angle, 0]}>
-      {/* Main Wall Body */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[length, WALL_HEIGHT, thickness]} />
         <meshStandardMaterial color="#ffffff" roughness={0.4} />
@@ -105,81 +106,142 @@ function Wall({ p1, p2, thickness }: WallSegment) {
   );
 }
 
-// --- Sub-components ---
+// --- GLTF loader with auto floor-align ---
 
 function GLTFModel({ url }: { url: string }) {
   const { scene } = useGLTF(url);
-  // Clone scene để tránh xung đột khi dùng chung một model cho nhiều item
   const clonedScene = useMemo(() => scene.clone(), [scene]);
-  return <primitive object={clonedScene} />;
+  const groupRef = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    // Dịch toàn bộ model xuống sao cho điểm thấp nhất nằm tại y=0
+    const box = new THREE.Box3().setFromObject(group);
+    group.position.y -= box.min.y;
+  }, [clonedScene]);
+
+  return (
+    <group ref={groupRef}>
+      <primitive object={clonedScene} />
+    </group>
+  );
 }
 
-// --- Main Layout Component ---
+// --- Furniture node with translate + rotate mode ---
+
+type TransformMode = "translate" | "rotate";
 
 function FurnitureNode({ 
   item, 
   catalogItem, 
-  onItemMove 
+  onItemMove,
+  onItemRotate,
 }: { 
   item: FurnitureItem; 
   catalogItem?: FurnitureCatalogItem; 
-  onItemMove?: (id: number, x: number, z: number, yHover: number) => void 
+  onItemMove?: (id: number, x: number, z: number, yHover: number) => void;
+  onItemRotate?: (id: number, rotationY: number) => void;
 }) {
   const point = parsePointZ(item.position);
   const w = Number(catalogItem?.defaultWidth) || 0.8;
   const h = Number(catalogItem?.defaultHeight) || 0.8;
   const d = Number(catalogItem?.defaultDepth) || 0.8;
+
+  // Tọa độ thế giới: x=point.x, z=point.y (DB), y=point.z (độ cao)
   const posX = clamp(point.x, 0, APARTMENT_WIDTH) + OFFSET_X;
   const posZ = clamp(point.y, 0, APARTMENT_DEPTH) + OFFSET_Z;
-  const posY = point.z || 0;
+  const posY = point.z ?? 0; // độ cao thực tế (0 = trên sàn)
+
+  // Xoay Y từ DB (rotationY lưu ở item.rotationY, đơn vị radians)
+  const initRotY = Number(item.rotationY) || 0;
 
   const [selected, setSelected] = useState(false);
+  const [transformMode, setTransformMode] = useState<TransformMode>("translate");
   const meshRef = useRef<THREE.Group>(null!);
 
   return (
     <group>
-      <group 
+      {/* Object group: đặt tại posY thực tế, box geometry tự thêm h/2 */}
+      <group
         ref={meshRef}
-        position={[posX, h / 2 + posY, posZ]}
+        position={[posX, posY, posZ]}
+        rotation={[0, initRotY, 0]}
         onClick={(e) => { e.stopPropagation(); setSelected(true); }}
-        onPointerMissed={(e) => { if (e.type === 'click') setSelected(false); }}
+        onPointerMissed={(e) => { if (e.type === "click") setSelected(false); }}
       >
-          <Suspense fallback={
-            <mesh castShadow receiveShadow>
+        <Suspense
+          fallback={
+            // Box pivot ở tâm → dịch lên h/2 để đáy nằm tại y=0 của group
+            <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
               <boxGeometry args={[w, h, d]} />
-              <meshStandardMaterial 
-                color={selected ? "#3b82f6" : "#64748b"} 
-                emissive={selected ? "#1e3a8a" : "#000000"} 
-                emissiveIntensity={0.2} 
+              <meshStandardMaterial
+                color={selected ? "#3b82f6" : "#64748b"}
+                emissive={selected ? "#1e3a8a" : "#000000"}
+                emissiveIntensity={0.2}
               />
             </mesh>
-          }>
-            {catalogItem?.model3dUrl ? (
-              <group scale={[
-                Number(item.scaleX) || 1, 
-                Number(item.scaleY) || 1, 
-                Number(item.scaleZ) || 1
-              ]}>
-                <GLTFModel url={catalogItem.model3dUrl} />
-              </group>
-            ) : (
-              <mesh castShadow receiveShadow>
-                <boxGeometry args={[w, h, d]} />
-                <meshStandardMaterial 
-                  color={selected ? "#3b82f6" : "#64748b"} 
-                  emissive={selected ? "#1e3a8a" : "#000000"} 
-                  emissiveIntensity={0.2} 
-                />
-              </mesh>
-            )}
-          </Suspense>
-          <Html position={[0, h / 2 + 0.2, 0]} center zIndexRange={[100, 0]}>
-            <div className="bg-white/90 text-slate-800 px-1 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm pointer-events-none select-none">
+          }
+        >
+          {catalogItem?.model3dUrl ? (
+            <group
+              scale={[
+                Number(item.scaleX) || 1,
+                Number(item.scaleY) || 1,
+                Number(item.scaleZ) || 1,
+              ]}
+            >
+              <GLTFModel url={catalogItem.model3dUrl} />
+            </group>
+          ) : (
+            // Placeholder box: đáy tại y=0
+            <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+              <boxGeometry args={[w, h, d]} />
+              <meshStandardMaterial
+                color={selected ? "#3b82f6" : "#64748b"}
+                emissive={selected ? "#1e3a8a" : "#000000"}
+                emissiveIntensity={0.2}
+              />
+            </mesh>
+          )}
+        </Suspense>
+
+        {/* Label + mode-toggle buttons */}
+        <Html position={[0, h + 0.35, 0]} center zIndexRange={[100, 0]}>
+          <div className="flex flex-col items-center gap-1 pointer-events-none select-none">
+            <div className="bg-white/90 text-slate-800 px-1.5 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm">
               {item.label || catalogItem?.name || `Item ${item.id}`}
             </div>
-          </Html>
-        </group>
-      {selected && (
+            {selected && (
+              <div className="flex gap-1 pointer-events-auto">
+                <button
+                  className={`px-2 py-0.5 rounded text-[9px] font-semibold shadow transition-all ${
+                    transformMode === "translate"
+                      ? "bg-blue-500 text-white"
+                      : "bg-white/90 text-slate-600 hover:bg-blue-50"
+                  }`}
+                  onClick={(e) => { e.stopPropagation(); setTransformMode("translate"); }}
+                >
+                  ⬆ Di chuyển
+                </button>
+                <button
+                  className={`px-2 py-0.5 rounded text-[9px] font-semibold shadow transition-all ${
+                    transformMode === "rotate"
+                      ? "bg-emerald-500 text-white"
+                      : "bg-white/90 text-slate-600 hover:bg-emerald-50"
+                  }`}
+                  onClick={(e) => { e.stopPropagation(); setTransformMode("rotate"); }}
+                >
+                  🔄 Xoay
+                </button>
+              </div>
+            )}
+          </div>
+        </Html>
+      </group>
+
+      {/* TransformControls: chế độ di chuyển hoặc xoay */}
+      {selected && transformMode === "translate" && (
         <TransformControls
           object={meshRef}
           mode="translate"
@@ -187,8 +249,29 @@ function FurnitureNode({
             if (meshRef.current && onItemMove) {
               const newX = meshRef.current.position.x - OFFSET_X;
               const newZ = meshRef.current.position.z - OFFSET_Z;
-              const newY = meshRef.current.position.y - h / 2;
-              onItemMove(item.id, Number(newX.toFixed(2)), Number(newZ.toFixed(2)), Number(newY.toFixed(2)));
+              // posY lưu thẳng, không cộng h/2
+              const newY = meshRef.current.position.y;
+              onItemMove(
+                item.id,
+                Number(newX.toFixed(3)),
+                Number(newZ.toFixed(3)),
+                Number(newY.toFixed(3)),
+              );
+            }
+          }}
+        />
+      )}
+      {selected && transformMode === "rotate" && (
+        <TransformControls
+          object={meshRef}
+          mode="rotate"
+          // Chỉ hiện trục Y để xoay trái/phải 360°
+          showX={false}
+          showZ={false}
+          onMouseUp={() => {
+            if (meshRef.current && onItemRotate) {
+              const rotY = meshRef.current.rotation.y;
+              onItemRotate(item.id, Number(rotY.toFixed(4)));
             }
           }}
         />
@@ -197,12 +280,13 @@ function FurnitureNode({
   );
 }
 
-// --- Main Layout Component ---
+// --- Main ApartmentScene ---
 
 export interface ApartmentSceneProps {
   items?: FurnitureItem[];
   catalog?: FurnitureCatalogItem[];
   onItemMove?: (itemId: number, x: number, z: number, yHover: number) => void;
+  onItemRotate?: (itemId: number, rotationY: number) => void;
 }
 
 // --- Master Data ---
@@ -233,16 +317,16 @@ export const MOCK_WALLS: WallSegment[] = [
   { p1: [7.4, 8.5], p2: [8.5, 8.5], thickness: INT_WALL_THICKNESS },
 ];
 
-export function ApartmentScene({ items = [], catalog = [], onItemMove }: ApartmentSceneProps) {
+export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRotate }: ApartmentSceneProps) {
   return (
     <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden ring-1 ring-slate-800 shadow-2xl">
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
         <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={40} />
-        <OrbitControls 
-          makeDefault 
-          enableDamping 
+        {/* Không giới hạn maxPolarAngle → camera xoay tự do 360° */}
+        <OrbitControls
+          makeDefault
+          enableDamping
           dampingFactor={0.05}
-          maxPolarAngle={Math.PI / 2.1} 
         />
         
         <ambientLight intensity={0.5} />
@@ -271,7 +355,8 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove }: Apartme
                 key={item.id} 
                 item={item} 
                 catalogItem={catalogItem} 
-                onItemMove={onItemMove} 
+                onItemMove={onItemMove}
+                onItemRotate={onItemRotate}
               />
             );
           })}
@@ -284,7 +369,11 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove }: Apartme
       <div className="absolute top-6 left-6 z-10 pointer-events-none">
         <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-700/50 shadow-2xl">
           <h2 className="text-sm font-bold text-white mb-1">Căn hộ 3D - IE402</h2>
-          <p className="text-[10px] text-slate-400">Layout: 1PN, 1WC (8.5m x 10.0m)</p>
+          <p className="text-[10px] text-slate-400">Layout: 1PN, 1WC (8.5m × 10.0m)</p>
+          <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+            🖱 Kéo để xoay camera · Scroll để zoom<br/>
+            🪑 Click nội thất → chọn Di chuyển hoặc Xoay
+          </p>
         </div>
       </div>
     </div>
