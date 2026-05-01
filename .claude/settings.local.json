@@ -34,7 +34,8 @@
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  ID={b[\"\"id\"\"]} {b[\"\"name\"\"]}: totalFloors={b[\"\"totalFloors\"\"]}''''\\) for b in data]\")",
       "Bash(curl -s \"http://localhost:3000/api/floors\" -H \"Authorization: Bearer $TOKEN\")",
       "Bash(python3 -c \":*)",
-      "Bash(curl -s \"http://localhost:3000/api/apartments\" -H \"Authorization: Bearer $TOKEN\")"
+      "Bash(curl -s \"http://localhost:3000/api/apartments\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(powershell -c \"\\(Get-Item 'd:\\\\Workspace\\\\IE402\\\\Nhom_2-Checkpoint4.pdf'\\).Length\")"
     ]
   }
 }
