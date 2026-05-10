@@ -14,17 +14,10 @@ import {
 import * as THREE from "three";
 import type { FurnitureItem, FurnitureCatalogItem } from "@/types";
 
-// --- Constants & Types ---
+// --- Types & Constants ---
 const WALL_HEIGHT = 2.8;
-const BASEBOARD_HEIGHT = 0.1;
-const BASEBOARD_THICKNESS = 0.02;
-const EXT_WALL_THICKNESS = 0.2;
-const INT_WALL_THICKNESS = 0.15;
-
-export const APARTMENT_WIDTH = 8.5;
-export const APARTMENT_DEPTH = 10;
-const OFFSET_X = -APARTMENT_WIDTH / 2;
-const OFFSET_Z = -APARTMENT_DEPTH / 2;
+const EXT_WALL_THICKNESS = 0.22;
+const INT_WALL_THICKNESS = 0.11;
 
 export interface RoomData {
   id: string;
@@ -38,38 +31,82 @@ export interface RoomData {
 }
 
 export interface WallSegment {
-  p1: [number, number]; // [x, z]
-  p2: [number, number]; // [x, z]
+  p1: [number, number];
+  p2: [number, number];
   thickness: number;
 }
 
-// --- Helpers ---
+// --- Layout 1PN Definitions (8.5m x 10m) ---
+export const LAYOUT_1PN_ROOMS: RoomData[] = [
+  { id: "wc", name: "WC", x: 0, z: 0, w: 2, d: 3, color: "#94a3b8" },
+  { id: "kitchen", name: "Nhà Bếp", x: 6, z: 0, w: 2.5, d: 3, color: "#fef3c7" },
+  { id: "bedroom", name: "Phòng Ngủ", x: 0, z: 5.5, w: 2.8, d: 4.5, color: "#451a03" },
+  { id: "balcony", name: "Ban Công", x: 2.8, z: 8.5, w: 5.7, d: 1.5, color: "#cbd5e1" },
+  { id: "living", name: "Phòng Khách & Sảnh", x: 2, z: 0, w: 4, d: 3, color: "#f8fafc" }, 
+  { id: "main_hall", name: "", x: 0, z: 3, w: 8.5, d: 2.5, color: "#f8fafc" }, 
+  { id: "living_top", name: "", x: 2.8, z: 5.5, w: 5.7, d: 3, color: "#f8fafc" }, 
+];
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
+export const LAYOUT_1PN_WALLS: WallSegment[] = [
+  { p1: [0, 0], p2: [3.5, 0], thickness: 0.2 },
+  { p1: [5.3, 0], p2: [8.5, 0], thickness: 0.2 },
+  { p1: [0, 10], p2: [8.5, 10], thickness: 0.2 },
+  { p1: [0, 0], p2: [0, 10], thickness: 0.2 },
+  { p1: [8.5, 0], p2: [8.5, 10], thickness: 0.2 },
+  { p1: [2, 0], p2: [2, 1], thickness: 0.15 },
+  { p1: [2, 2], p2: [2, 3], thickness: 0.15 },
+  { p1: [0, 3], p2: [2, 3], thickness: 0.15 },
+  { p1: [0, 5.5], p2: [0.5, 5.5], thickness: 0.15 },
+  { p1: [1.5, 5.5], p2: [2.8, 5.5], thickness: 0.15 },
+  { p1: [2.8, 5.5], p2: [2.8, 8.85], thickness: 0.15 },
+  { p1: [2.8, 9.65], p2: [2.8, 10.0], thickness: 0.15 },
+  { p1: [2.8, 8.5], p2: [3.9, 8.5], thickness: 0.15 },
+  { p1: [7.4, 8.5], p2: [8.5, 8.5], thickness: 0.15 },
+];
 
-function parsePointZ(value: string): { x: number; y: number; z: number } {
-  const matched = value.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
-  if (!matched) return { x: 0, y: 0, z: 0 };
-  return {
-    x: Number(matched[1]) || 0,
-    y: Number(matched[2]) || 0,
-    z: Number(matched[3]) || 0,
-  };
-}
+// --- Layout 2PN Definitions (10.1m x 7.0m) ---
+export const LAYOUT_2PN_ROOMS: RoomData[] = [
+  { id: "br1", name: "Phòng ngủ 1", x: 0.4, z: 0.22, w: 3.25, d: 2.88, color: "#e0e7ff", label: "9.4m2" },
+  { id: "wc1", name: "WC 1", x: 3.76, z: 0.22, w: 1.69, d: 2.88, color: "#dcfce7", label: "Ensuite" },
+  { id: "br2", name: "Phòng ngủ 2", x: 5.56, z: 0.22, w: 4.34, d: 2.88, color: "#e0e7ff", label: "12.5m2" },
+  { id: "hallway", name: "Tiền sảnh", x: 0.4, z: 3.21, w: 2.2, d: 1.6, color: "#f1f5f9", label: "3.7m2" },
+  { id: "wc2", name: "WC 2", x: 0.4, z: 4.92, w: 2.2, d: 1.7, color: "#dcfce7", label: "3.3m2" },
+  { id: "living_combined", name: "Khách, Bếp & Ăn", x: 2.6, z: 3.21, w: 6.28, d: 3.41, color: "#f8fafc", label: "21.4m2" },
+  { id: "loggia", name: "Loggia", x: 8.98, z: 3.21, w: 0.9, d: 3.41, color: "#cbd5e1", label: "3.8m2" },
+];
 
-// --- Room & Wall components ---
+export const LAYOUT_2PN_WALLS: WallSegment[] = [
+  { p1: [0, 0], p2: [10.1, 0], thickness: EXT_WALL_THICKNESS },
+  { p1: [0, 7.0], p2: [10.1, 7.0], thickness: EXT_WALL_THICKNESS },
+  { p1: [0, 0], p2: [0, 3.2], thickness: EXT_WALL_THICKNESS },
+  { p1: [0, 4.8], p2: [0, 7.0], thickness: EXT_WALL_THICKNESS }, 
+  { p1: [10.1, 0], p2: [10.1, 7.0], thickness: EXT_WALL_THICKNESS },
+  { p1: [0, 3.1], p2: [2.5, 3.1], thickness: INT_WALL_THICKNESS },
+  { p1: [3.5, 3.1], p2: [5.5, 3.1], thickness: INT_WALL_THICKNESS },
+  { p1: [6.5, 3.1], p2: [10.1, 3.1], thickness: INT_WALL_THICKNESS },
+  { p1: [3.65, 0], p2: [3.65, 3.1], thickness: INT_WALL_THICKNESS },
+  { p1: [5.45, 0], p2: [5.45, 0.8], thickness: INT_WALL_THICKNESS },
+  { p1: [5.45, 1.8], p2: [5.45, 3.1], thickness: INT_WALL_THICKNESS }, 
+  { p1: [0, 4.8], p2: [2.6, 4.8], thickness: INT_WALL_THICKNESS },
+  { p1: [2.6, 3.1], p2: [2.6, 3.3], thickness: INT_WALL_THICKNESS },
+  { p1: [2.6, 4.8], p2: [2.6, 5.2], thickness: INT_WALL_THICKNESS },
+  { p1: [2.6, 6.2], p2: [2.6, 7.0], thickness: INT_WALL_THICKNESS },
+];
 
-function Floor({ x, z, w, d, color, name, label }: RoomData) {
+// --- Export dimensions ---
+export const APARTMENT_WIDTH = 10.1;
+export const APARTMENT_DEPTH = 10.0; // Max depth for grid safety
+
+// --- Helper Components ---
+function Floor({ x, z, w, d, color, name, label, offsetX, offsetZ }: RoomData & { offsetX: number, offsetZ: number }) {
   return (
-    <group position={[x + w / 2 + OFFSET_X, 0.01, z + d / 2 + OFFSET_Z]}>
+    <group position={[x + w / 2 + offsetX, 0.01, z + d / 2 + offsetZ]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
         <meshStandardMaterial color={color} roughness={0.8} />
       </mesh>
       <Html position={[0, 0.5, 0]} center distanceFactor={10}>
-        <div className="bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap border border-white/20 shadow-xl pointer-events-none select-none">
+        <div className="bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold border border-white/20 shadow-xl pointer-events-none">
           {name} {label ? <span className="opacity-60 ml-1">({label})</span> : ""}
         </div>
       </Html>
@@ -77,305 +114,75 @@ function Floor({ x, z, w, d, color, name, label }: RoomData) {
   );
 }
 
-function Wall({ p1, p2, thickness }: WallSegment) {
+function Wall({ p1, p2, thickness, offsetX, offsetZ }: WallSegment & { offsetX: number, offsetZ: number }) {
   const dx = p2[0] - p1[0];
   const dz = p2[1] - p1[1];
   const length = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dz, dx);
-  
-  const midX = (p1[0] + p2[0]) / 2 + OFFSET_X;
-  const midZ = (p1[1] + p2[1]) / 2 + OFFSET_Z;
+  const midX = (p1[0] + p2[0]) / 2 + offsetX;
+  const midZ = (p1[1] + p2[1]) / 2 + offsetZ;
 
   return (
-    <group position={[midX, WALL_HEIGHT / 2, midZ]} rotation={[0, -angle, 0]}>
+    <group position={[midX, 1.4, midZ]} rotation={[0, -angle, 0]}>
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[length, WALL_HEIGHT, thickness]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.4} />
-      </mesh>
-      
-      {/* Baseboard (Both sides) */}
-      <mesh position={[0, -(WALL_HEIGHT / 2) + BASEBOARD_HEIGHT / 2, thickness / 2 + BASEBOARD_THICKNESS / 2]}>
-        <boxGeometry args={[length, BASEBOARD_HEIGHT, BASEBOARD_THICKNESS]} />
-        <meshStandardMaterial color="#334155" />
-      </mesh>
-      <mesh position={[0, -(WALL_HEIGHT / 2) + BASEBOARD_HEIGHT / 2, -(thickness / 2 + BASEBOARD_THICKNESS / 2)]}>
-        <boxGeometry args={[length, BASEBOARD_HEIGHT, BASEBOARD_THICKNESS]} />
-        <meshStandardMaterial color="#334155" />
+        <boxGeometry args={[length, 2.8, thickness]} />
+        <meshStandardMaterial color="#ffffff" />
       </mesh>
     </group>
   );
 }
 
-// --- GLTF loader with auto floor-align ---
+// --- Main Scene ---
+export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLayout: externalLayout }: any) {
+  const activeLayout = externalLayout || "1PN";
+  
+  const width = activeLayout === "1PN" ? 8.5 : 10.1;
+  const depth = activeLayout === "1PN" ? 10.0 : 7.0;
+  const offsetX = -width / 2;
+  const offsetZ = -depth / 2;
 
-function GLTFModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
-  const clonedScene = useMemo(() => scene.clone(), [scene]);
-  const groupRef = useRef<THREE.Group>(null);
-
-  useEffect(() => {
-    const group = groupRef.current;
-    if (!group) return;
-    // Dịch toàn bộ model xuống sao cho điểm thấp nhất nằm tại y=0
-    const box = new THREE.Box3().setFromObject(group);
-    group.position.y -= box.min.y;
-  }, [clonedScene]);
+  const rooms = useMemo(() => activeLayout === "1PN" ? LAYOUT_1PN_ROOMS : LAYOUT_2PN_ROOMS, [activeLayout]);
+  const walls = useMemo(() => activeLayout === "1PN" ? LAYOUT_1PN_WALLS : LAYOUT_2PN_WALLS, [activeLayout]);
 
   return (
-    <group ref={groupRef}>
-      <primitive object={clonedScene} />
-    </group>
-  );
-}
-
-// --- Furniture node with translate + rotate mode ---
-
-type TransformMode = "translate" | "rotate";
-
-function FurnitureNode({ 
-  item, 
-  catalogItem, 
-  onItemMove,
-  onItemRotate,
-}: { 
-  item: FurnitureItem; 
-  catalogItem?: FurnitureCatalogItem; 
-  onItemMove?: (id: number, x: number, z: number, yHover: number) => void;
-  onItemRotate?: (id: number, rotationY: number) => void;
-}) {
-  const point = parsePointZ(item.position);
-  const w = Number(catalogItem?.defaultWidth) || 0.8;
-  const h = Number(catalogItem?.defaultHeight) || 0.8;
-  const d = Number(catalogItem?.defaultDepth) || 0.8;
-
-  // Tọa độ thế giới: x=point.x, z=point.y (DB), y=point.z (độ cao)
-  const posX = clamp(point.x, 0, APARTMENT_WIDTH) + OFFSET_X;
-  const posZ = clamp(point.y, 0, APARTMENT_DEPTH) + OFFSET_Z;
-  const posY = point.z ?? 0; // độ cao thực tế (0 = trên sàn)
-
-  // Xoay Y từ DB (rotationY lưu ở item.rotationY, đơn vị radians)
-  const initRotY = Number(item.rotationY) || 0;
-
-  const [selected, setSelected] = useState(false);
-  const [transformMode, setTransformMode] = useState<TransformMode>("translate");
-  const meshRef = useRef<THREE.Group>(null!);
-
-  return (
-    <group>
-      {/* Object group: đặt tại posY thực tế, box geometry tự thêm h/2 */}
-      <group
-        ref={meshRef}
-        position={[posX, posY, posZ]}
-        rotation={[0, initRotY, 0]}
-        onClick={(e) => { e.stopPropagation(); setSelected(true); }}
-        onPointerMissed={(e) => { if (e.type === "click") setSelected(false); }}
-      >
-        <Suspense
-          fallback={
-            // Box pivot ở tâm → dịch lên h/2 để đáy nằm tại y=0 của group
-            <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
-              <boxGeometry args={[w, h, d]} />
-              <meshStandardMaterial
-                color={selected ? "#3b82f6" : "#64748b"}
-                emissive={selected ? "#1e3a8a" : "#000000"}
-                emissiveIntensity={0.2}
-              />
-            </mesh>
-          }
-        >
-          {catalogItem?.model3dUrl ? (
-            <group
-              scale={[
-                Number(item.scaleX) || 1,
-                Number(item.scaleY) || 1,
-                Number(item.scaleZ) || 1,
-              ]}
-            >
-              <GLTFModel url={catalogItem.model3dUrl} />
-            </group>
-          ) : (
-            // Placeholder box: đáy tại y=0
-            <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
-              <boxGeometry args={[w, h, d]} />
-              <meshStandardMaterial
-                color={selected ? "#3b82f6" : "#64748b"}
-                emissive={selected ? "#1e3a8a" : "#000000"}
-                emissiveIntensity={0.2}
-              />
-            </mesh>
-          )}
-        </Suspense>
-
-        {/* Label + mode-toggle buttons */}
-        <Html position={[0, h + 0.35, 0]} center zIndexRange={[100, 0]}>
-          <div className="flex flex-col items-center gap-1 pointer-events-none select-none">
-            <div className="bg-white/90 text-slate-800 px-1.5 py-0.5 rounded text-[8px] font-medium whitespace-nowrap shadow-sm">
-              {item.label || catalogItem?.name || `Item ${item.id}`}
-            </div>
-            {selected && (
-              <div className="flex gap-1 pointer-events-auto">
-                <button
-                  className={`px-2 py-0.5 rounded text-[9px] font-semibold shadow transition-all ${
-                    transformMode === "translate"
-                      ? "bg-blue-500 text-white"
-                      : "bg-white/90 text-slate-600 hover:bg-blue-50"
-                  }`}
-                  onClick={(e) => { e.stopPropagation(); setTransformMode("translate"); }}
-                >
-                  ⬆ Di chuyển
-                </button>
-                <button
-                  className={`px-2 py-0.5 rounded text-[9px] font-semibold shadow transition-all ${
-                    transformMode === "rotate"
-                      ? "bg-emerald-500 text-white"
-                      : "bg-white/90 text-slate-600 hover:bg-emerald-50"
-                  }`}
-                  onClick={(e) => { e.stopPropagation(); setTransformMode("rotate"); }}
-                >
-                  🔄 Xoay
-                </button>
-              </div>
-            )}
-          </div>
-        </Html>
-      </group>
-
-      {/* TransformControls: chế độ di chuyển hoặc xoay */}
-      {selected && transformMode === "translate" && (
-        <TransformControls
-          object={meshRef}
-          mode="translate"
-          onMouseUp={() => {
-            if (meshRef.current && onItemMove) {
-              const newX = meshRef.current.position.x - OFFSET_X;
-              const newZ = meshRef.current.position.z - OFFSET_Z;
-              // posY lưu thẳng, không cộng h/2
-              const newY = meshRef.current.position.y;
-              onItemMove(
-                item.id,
-                Number(newX.toFixed(3)),
-                Number(newZ.toFixed(3)),
-                Number(newY.toFixed(3)),
-              );
-            }
-          }}
-        />
-      )}
-      {selected && transformMode === "rotate" && (
-        <TransformControls
-          object={meshRef}
-          mode="rotate"
-          // Chỉ hiện trục Y để xoay trái/phải 360°
-          showX={false}
-          showZ={false}
-          onMouseUp={() => {
-            if (meshRef.current && onItemRotate) {
-              const rotY = meshRef.current.rotation.y;
-              onItemRotate(item.id, Number(rotY.toFixed(4)));
-            }
-          }}
-        />
-      )}
-    </group>
-  );
-}
-
-// --- Main ApartmentScene ---
-
-export interface ApartmentSceneProps {
-  items?: FurnitureItem[];
-  catalog?: FurnitureCatalogItem[];
-  onItemMove?: (itemId: number, x: number, z: number, yHover: number) => void;
-  onItemRotate?: (itemId: number, rotationY: number) => void;
-}
-
-// --- Master Data ---
-export const MOCK_ROOMS: RoomData[] = [
-  { id: "wc", name: "WC", x: 0, z: 0, w: 2, d: 3, color: "#94a3b8", label: "Gạch xám" },
-  { id: "kitchen", name: "Nhà Bếp", x: 6, z: 0, w: 2.5, d: 3, color: "#fef3c7", label: "Gỗ sáng" },
-  { id: "bedroom", name: "Phòng Ngủ", x: 0, z: 5.5, w: 2.8, d: 4.5, color: "#451a03", label: "2.8m x 4.5m" },
-  { id: "balcony", name: "Ban Công", x: 2.8, z: 8.5, w: 5.7, d: 1.5, color: "#cbd5e1" },
-  { id: "living", name: "Phòng Khách & Sảnh", x: 2, z: 0, w: 4, d: 3, color: "#f8fafc" }, 
-  { id: "main_hall", name: "", x: 0, z: 3, w: 8.5, d: 2.5, color: "#f8fafc" }, 
-  { id: "living_top", name: "", x: 2.8, z: 5.5, w: 5.7, d: 3, color: "#f8fafc" }, 
-];
-
-export const MOCK_WALLS: WallSegment[] = [
-  { p1: [0, 0], p2: [3.5, 0], thickness: EXT_WALL_THICKNESS },
-  { p1: [5.3, 0], p2: [8.5, 0], thickness: EXT_WALL_THICKNESS },
-  { p1: [0, 10], p2: [8.5, 10], thickness: EXT_WALL_THICKNESS },
-  { p1: [0, 0], p2: [0, 10], thickness: EXT_WALL_THICKNESS },
-  { p1: [8.5, 0], p2: [8.5, 10], thickness: EXT_WALL_THICKNESS },
-  { p1: [2, 0], p2: [2, 1], thickness: INT_WALL_THICKNESS },
-  { p1: [2, 2], p2: [2, 3], thickness: INT_WALL_THICKNESS },
-  { p1: [0, 3], p2: [2, 3], thickness: INT_WALL_THICKNESS },
-  { p1: [0, 5.5], p2: [0.5, 5.5], thickness: INT_WALL_THICKNESS },
-  { p1: [1.5, 5.5], p2: [2.8, 5.5], thickness: INT_WALL_THICKNESS },
-  { p1: [2.8, 5.5], p2: [2.8, 8.85], thickness: INT_WALL_THICKNESS },
-  { p1: [2.8, 9.65], p2: [2.8, 10.0], thickness: INT_WALL_THICKNESS },
-  { p1: [2.8, 8.5], p2: [3.9, 8.5], thickness: INT_WALL_THICKNESS },
-  { p1: [7.4, 8.5], p2: [8.5, 8.5], thickness: INT_WALL_THICKNESS },
-];
-
-export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRotate }: ApartmentSceneProps) {
-  return (
-    <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden ring-1 ring-slate-800 shadow-2xl">
-      <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
-        <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={40} />
-        {/* Không giới hạn maxPolarAngle → camera xoay tự do 360° */}
-        <OrbitControls
-          makeDefault
-          enableDamping
-          dampingFactor={0.05}
-        />
-        
+    <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden shadow-2xl">
+      <Canvas shadows dpr={[1, 2]}>
+        <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={35} />
+        <OrbitControls makeDefault enableDamping />
         <ambientLight intensity={0.5} />
-        <spotLight position={[15, 20, 15]} angle={0.3} penumbra={1} intensity={2} castShadow 
-          shadow-mapSize={[2048, 2048]} 
-        />
+        <spotLight position={[15, 20, 15]} angle={0.3} intensity={1.5} castShadow />
         <Environment preset="apartment" />
-
-        <Grid 
-          infiniteGrid 
-          fadeDistance={40} 
-          fadeStrength={5} 
-          sectionSize={5} 
-          sectionColor="#2dd4bf" 
-          cellColor="#1e293b" 
-        />
-        
+        <Grid infiniteGrid sectionSize={5} sectionColor="#2dd4bf" cellColor="#1e293b" />
         <group>
-          {MOCK_ROOMS.map((room) => <Floor key={room.id} {...room} />)}
-          {MOCK_WALLS.map((seg, idx) => <Wall key={idx} {...seg} />)}
-          
-          {items.map((item) => {
-            const catalogItem = catalog.find((c) => c.id === item.catalogId);
-            return (
-              <FurnitureNode 
-                key={item.id} 
-                item={item} 
-                catalogItem={catalogItem} 
-                onItemMove={onItemMove}
-                onItemRotate={onItemRotate}
-              />
-            );
+          {rooms.map((room) => <Floor key={room.id} {...room} offsetX={offsetX} offsetZ={offsetZ} />)}
+          {walls.map((seg, idx) => <Wall key={idx} {...seg} offsetX={offsetX} offsetZ={offsetZ} />)}
+          {items.map((item: any) => {
+             const catalogItem = catalog.find((c: any) => c.id === item.catalogId);
+             const matched = item.position.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
+             const px = Number(matched?.[1] || 0);
+             const pz = Number(matched?.[2] || 0);
+             const py = Number(matched?.[3] || 0);
+             const rotY = Number(item.rotationY) || 0;
+             const h = Number(catalogItem?.defaultHeight) || 0.8;
+
+             return (
+               <group key={item.id} position={[px + offsetX, py, pz + offsetZ]} rotation={[0, rotY, 0]}>
+                 <Suspense fallback={<mesh><boxGeometry args={[1,1,1]} /><meshStandardMaterial color="gray" /></mesh>}>
+                    {catalogItem?.model3dUrl ? (
+                      <primitive object={useGLTF(catalogItem.model3dUrl).scene.clone()} />
+                    ) : (
+                      <mesh position={[0, h/2, 0]}><boxGeometry args={[0.8, h, 0.8]} /><meshStandardMaterial color="#64748b" /></mesh>
+                    )}
+                 </Suspense>
+               </group>
+             );
           })}
         </group>
-
-        <ContactShadows position={[0, -0.01, 0]} opacity={0.6} scale={20} blur={2} far={5} />
         <BakeShadows />
       </Canvas>
-
-      <div className="absolute top-6 left-6 z-10 pointer-events-none">
-        <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-700/50 shadow-2xl">
-          <h2 className="text-sm font-bold text-white mb-1">Căn hộ 3D - IE402</h2>
-          <p className="text-[10px] text-slate-400">Layout: 1PN, 1WC (8.5m × 10.0m)</p>
-          <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
-            🖱 Kéo để xoay camera · Scroll để zoom<br/>
-            🪑 Click nội thất → chọn Di chuyển hoặc Xoay
-          </p>
-        </div>
-      </div>
     </div>
   );
 }
+
+export const MOCK_ROOMS = LAYOUT_1PN_ROOMS;
+export const MOCK_WALLS = LAYOUT_1PN_WALLS;

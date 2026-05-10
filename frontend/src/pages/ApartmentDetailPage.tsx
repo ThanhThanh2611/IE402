@@ -67,7 +67,16 @@ import type {
   User,
 } from "@/types";
 import { Pencil, Plus, Trash2, Box, Map as MapIcon } from "lucide-react";
-import { ApartmentScene, APARTMENT_WIDTH, APARTMENT_DEPTH, MOCK_ROOMS, MOCK_WALLS } from "@/components/apartment/ApartmentScene";
+import { 
+  ApartmentScene, 
+  APARTMENT_WIDTH, 
+  APARTMENT_DEPTH, 
+  LAYOUT_1PN_ROOMS, 
+  LAYOUT_1PN_WALLS, 
+  LAYOUT_2PN_ROOMS, 
+  LAYOUT_2PN_WALLS 
+} from "@/components/apartment/ApartmentScene";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -386,6 +395,7 @@ export default function ApartmentDetailPage() {
   const [grantForm, setGrantForm] = useState<ApartmentAccessGrantInput>(emptyGrantForm);
   const [grantErrors, setGrantErrors] = useState<Record<string, string>>({});
   const [workspaceMode, setWorkspaceMode] = useState<"2d" | "3d">("2d");
+  const [activeLayout, setActiveLayout] = useState<"1PN" | "2PN">("1PN");
 
   const [deleteState, setDeleteState] = useState<{
     type: "space" | "layout" | "item" | "catalog" | "grant";
@@ -1483,8 +1493,18 @@ export default function ApartmentDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Workspace kéo thả nội thất</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex flex-col gap-1">
+            <CardTitle>Workspace kéo thả nội thất</CardTitle>
+            <div className="flex items-center gap-2 mt-1">
+              <Tabs value={activeLayout} onValueChange={(v) => setActiveLayout(v as "1PN" | "2PN")}>
+                <TabsList className="bg-muted/50 border h-8">
+                  <TabsTrigger value="1PN" className="text-[10px] px-3">1 PN + 1 WC</TabsTrigger>
+                  <TabsTrigger value="2PN" className="text-[10px] px-3">2 PN + 2 WC</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
           <div className="flex items-center gap-1 rounded-md border p-1">
             <Button
               variant={workspaceMode === "2d" ? "default" : "ghost"}
@@ -1514,6 +1534,7 @@ export default function ApartmentDetailPage() {
                 catalog={catalog} 
                 onItemMove={handleItemMove3D}
                 onItemRotate={handleItemRotate3D}
+                activeLayout={activeLayout}
               />
             </div>
           ) : (
@@ -1546,7 +1567,7 @@ export default function ApartmentDetailPage() {
                   aria-hidden="true"
                 >
                   {/* Render 3D mapped rooms */}
-                  {MOCK_ROOMS.map((room) => {
+                  {(activeLayout === "1PN" ? LAYOUT_1PN_ROOMS : LAYOUT_2PN_ROOMS).map((room) => {
                     const xPct = (room.x / APARTMENT_WIDTH) * 100;
                     const yPct = (room.z / APARTMENT_DEPTH) * 100;
                     const wPct = (room.w / APARTMENT_WIDTH) * 100;
@@ -1578,7 +1599,7 @@ export default function ApartmentDetailPage() {
                   })}
 
                   {/* Render 3D mapped walls */}
-                  {MOCK_WALLS.map((wall, idx) => {
+                  {(activeLayout === "1PN" ? LAYOUT_1PN_WALLS : LAYOUT_2PN_WALLS).map((wall, idx) => {
                     const x1 = (wall.p1[0] / APARTMENT_WIDTH) * 100;
                     const y1 = (wall.p1[1] / APARTMENT_DEPTH) * 100;
                     const x2 = (wall.p2[0] / APARTMENT_WIDTH) * 100;

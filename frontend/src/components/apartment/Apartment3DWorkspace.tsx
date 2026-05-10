@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { 
   OrbitControls, 
@@ -10,14 +10,33 @@ import {
   BakeShadows
 } from "@react-three/drei";
 import * as THREE from "three";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// 1. Data Structure: Layout mục tiêu cho "The Felix"
-const APARTMENT_LAYOUT = [
+// 1. Data Structure: Layouts
+const LAYOUT_1PN = [
   { id: "kitchen", name: "Bếp", x: 0, z: 2.5, width: 6.5, depth: 1.5, color: "#fef3c7" },
   { id: "living_dining", name: "Phòng khách & Ăn", x: 0, z: 1.0, width: 6.5, depth: 1.5, color: "#f8fafc" },
   { id: "living_extra", name: "Sảnh / Lối đi", x: -2.25, z: -0.5, width: 2.0, depth: 1.5, color: "#f8fafc" },
   { id: "wc", name: "WC", x: -2.25, z: -2.25, width: 2.0, depth: 2.0, color: "#dcfce7" },
   { id: "bedroom", name: "Phòng ngủ", x: 1.0, z: -1.5, width: 4.5, depth: 3.5, color: "#e0e7ff" }
+];
+
+const LAYOUT_2PN = [
+  // Cụm bên trái: Lô gia -> Khách -> Ăn -> Bếp
+  { id: "loggia_1", name: "Lô gia 1", x: -2.75, z: 3.5, width: 3.0, depth: 0.5, color: "#cbd5e1" },
+  { id: "living", name: "Phòng khách", x: -2.75, z: 1.5, width: 3.0, depth: 3.5, color: "#f8fafc" },
+  { id: "dining", name: "Phòng Ăn", x: -2.75, z: -1.0, width: 3.0, depth: 1.5, color: "#f8fafc" },
+  { id: "kitchen", name: "Nhà Bếp", x: -2.75, z: -2.75, width: 3.0, depth: 2.0, color: "#fef3c7" },
+  { id: "loggia_2", name: "Lô gia 2", x: -4.5, z: -2.75, width: 0.5, depth: 2.0, color: "#cbd5e1" },
+  
+  // Cụm ở giữa: WC chung & Góc học tập
+  { id: "wc_common", name: "WC Chung", x: 0.75, z: -1.5, width: 1.5, depth: 2.0, color: "#dcfce7" },
+  { id: "study_niche", name: "Góc học tập", x: 0.75, z: 0.5, width: 1.5, depth: 2.0, color: "#f1f5f9" },
+  
+  // Cụm bên phải: Master (WC nội khu) + Phòng ngủ 2
+  { id: "master_bedroom", name: "P.Ngủ Master", x: 2.75, z: 1.75, width: 3.5, depth: 4.0, color: "#e0e7ff" },
+  { id: "wc_master", name: "WC Master", x: 3.75, z: -0.75, width: 1.5, depth: 1.0, color: "#dcfce7" }, // Ensuite
+  { id: "bedroom_2", name: "Phòng ngủ 2", x: 2.75, z: -2.5, width: 3.5, depth: 2.5, color: "#e0e7ff" },
 ];
 
 const WALL_HEIGHT = 2.8;
@@ -76,6 +95,12 @@ function Room({ name, x, z, width, depth, color }: RoomProps) {
 }
 
 export function Apartment3DWorkspace() {
+  const [activeLayout, setActiveLayout] = useState<"1PN" | "2PN">("1PN");
+  
+  const layoutData = useMemo(() => {
+    return activeLayout === "1PN" ? LAYOUT_1PN : LAYOUT_2PN;
+  }, [activeLayout]);
+
   return (
     <div className="relative w-full h-full bg-slate-950 rounded-2xl overflow-hidden ring-1 ring-slate-800 shadow-2xl">
       <Canvas shadows dpr={[1, 2]}>
@@ -111,7 +136,7 @@ export function Apartment3DWorkspace() {
         />
         
         <group position={[0, 0, 0]}>
-          {APARTMENT_LAYOUT.map((room) => (
+          {layoutData.map((room) => (
             <Room key={room.id} {...room} />
           ))}
         </group>
@@ -132,8 +157,18 @@ export function Apartment3DWorkspace() {
             <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
             <h3 className="text-sm font-bold text-slate-100 tracking-tight">3D Editor: Apartment Shell</h3>
           </div>
+          
+          <div className="mb-4">
+            <Tabs defaultValue="1PN" onValueChange={(v) => setActiveLayout(v as "1PN" | "2PN")}>
+              <TabsList className="grid w-full grid-cols-2 bg-slate-800/50 border border-slate-700">
+                <TabsTrigger value="1PN" className="text-xs data-[state=active]:bg-teal-500 data-[state=active]:text-slate-950">1 PN + 1 WC</TabsTrigger>
+                <TabsTrigger value="2PN" className="text-xs data-[state=active]:bg-teal-500 data-[state=active]:text-slate-950">2 PN + 2 WC</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
           <p className="text-xs text-slate-400 leading-relaxed mb-4">
-            Thiết kế theo layout Căn hộ PN + 1 WC. Toàn bộ tường cao 2.8m.
+            Thiết kế theo layout Căn hộ {activeLayout === "1PN" ? "1 PN + 1 WC" : "2 PN + 2 WC"}. Toàn bộ tường cao 2.8m.
           </p>
           
           <div className="flex flex-col gap-2">
