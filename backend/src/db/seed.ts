@@ -435,7 +435,7 @@ async function seed() {
   console.log(`Inserted ${insertedFurnitureCatalog.length} furniture catalog items`);
 
   // 4f. Apartment spaces + sample layouts/items cho một số căn hộ
-  const sampleApartments = insertedApartments.slice(0, 6);
+  const sampleApartments = insertedApartments.slice(0, 10); // Lấy 10 căn mẫu
   const insertedSpaces: Array<{
     id: number;
     apartmentId: number;
@@ -448,44 +448,59 @@ async function seed() {
       .insert(apartmentSpaces)
       .values({
         apartmentId: apartment.id,
-        name: `Không gian căn ${apartment.code}`,
+        name: `Căn hộ ${apartment.code}`,
         spaceType: "unit",
         lodLevel: "lod4",
-        metadata: { apartmentCode: apartment.code },
+        metadata: { apartmentCode: apartment.code, totalArea: apartment.area },
       })
       .returning();
 
-    const livingRoom = await db
-      .insert(apartmentSpaces)
-      .values({
-        apartmentId: apartment.id,
-        parentSpaceId: unit[0].id,
-        name: "Phòng khách",
-        spaceType: "room",
-        roomType: "living_room",
-        lodLevel: "lod4",
-        metadata: { width: 40, depth: 35 },
-      })
-      .returning();
-
-    const bedroom = await db
-      .insert(apartmentSpaces)
-      .values({
-        apartmentId: apartment.id,
-        parentSpaceId: unit[0].id,
-        name: "Phòng ngủ",
-        spaceType: "room",
-        roomType: "bedroom",
-        lodLevel: "lod4",
-        metadata: { width: 30, depth: 30 },
-      })
-      .returning();
-
-    insertedSpaces.push(
-      { id: unit[0].id, apartmentId: apartment.id, parentSpaceId: null, name: unit[0].name },
-      { id: livingRoom[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: livingRoom[0].name },
-      { id: bedroom[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: bedroom[0].name },
-    );
+    if (apartment.numBedrooms === 1) {
+      // Layout 1PN Mẫu
+      const spaces = [
+        { name: "Phòng khách & Sảnh", type: "living_room", area: 25 },
+        { name: "Phòng ngủ", type: "bedroom", area: 12.5 },
+        { name: "Nhà bếp", type: "kitchen", area: 7.5 },
+        { name: "WC", type: "bathroom", area: 4.5 },
+        { name: "Ban công", type: "balcony", area: 3.5 },
+      ];
+      for (const s of spaces) {
+        const res = await db.insert(apartmentSpaces).values({
+          apartmentId: apartment.id,
+          parentSpaceId: unit[0].id,
+          name: s.name,
+          spaceType: "room",
+          roomType: s.type as any,
+          lodLevel: "lod4",
+          metadata: { area: s.area },
+        }).returning();
+        insertedSpaces.push({ id: res[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: res[0].name });
+      }
+    } else {
+      // Layout 2PN Mẫu (Theo Hình 5)
+      const spaces = [
+        { name: "Phòng khách, Bếp & Ăn", type: "living_room", area: 21.4 },
+        { name: "Phòng ngủ 1", type: "bedroom", area: 9.4 },
+        { name: "Phòng ngủ 2", type: "bedroom", area: 12.5 },
+        { name: "WC 1 (Ensuite)", type: "bathroom", area: 4.5 },
+        { name: "WC 2 (Chung)", type: "bathroom", area: 3.3 },
+        { name: "Tiền sảnh", type: "corridor", area: 3.7 },
+        { name: "Loggia", type: "balcony", area: 3.8 },
+      ];
+      for (const s of spaces) {
+        const res = await db.insert(apartmentSpaces).values({
+          apartmentId: apartment.id,
+          parentSpaceId: unit[0].id,
+          name: s.name,
+          spaceType: "room",
+          roomType: s.type as any,
+          lodLevel: "lod4",
+          metadata: { area: s.area },
+        }).returning();
+        insertedSpaces.push({ id: res[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: res[0].name });
+      }
+    }
+    insertedSpaces.push({ id: unit[0].id, apartmentId: apartment.id, parentSpaceId: null, name: unit[0].name });
   }
   console.log(`Inserted ${insertedSpaces.length} apartment spaces`);
 
