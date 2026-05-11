@@ -434,6 +434,17 @@ export default function ApartmentDetailPage() {
     void loadDetail();
   }, [loadDetail]);
 
+  useEffect(() => {
+    if (detail?.apartment?.area) {
+      const area = parseFloat(detail.apartment.area);
+      if (area < 55) {
+        setActiveLayout("1PN");
+      } else {
+        setActiveLayout("2PN");
+      }
+    }
+  }, [detail?.apartment?.id, detail?.apartment?.area]);
+
   const loadAccessGrants = useCallback(async () => {
     if (!isManager || Number.isNaN(resolvedApartmentId)) return;
 
@@ -1501,12 +1512,9 @@ export default function ApartmentDetailPage() {
           <div className="flex flex-col gap-1">
             <CardTitle>Workspace kéo thả nội thất</CardTitle>
             <div className="flex items-center gap-2 mt-1">
-              <Tabs value={activeLayout} onValueChange={(v) => setActiveLayout(v as "1PN" | "2PN")}>
-                <TabsList className="bg-muted/50 border h-8">
-                  <TabsTrigger value="1PN" className="text-[10px] px-3">1 PN + 1 WC</TabsTrigger>
-                  <TabsTrigger value="2PN" className="text-[10px] px-3">2 PN + 2 WC</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
+                {activeLayout === "1PN" ? "1 PN + 1 WC (Open Plan)" : "2 PN + 2 WC (Original)"}
+              </Badge>
             </div>
           </div>
           <div className="flex items-center gap-1 rounded-md border p-1">

@@ -95,4 +95,5 @@
 - [x] FE: Cho bind hotspot `door` với căn hộ, thêm xóa hotspot và tự gỡ `entryNodeId` an toàn
 - [x] FE: Thêm UI CRUD edge topology thủ công trên trang chi tiết tòa nhà
 - [x] FE: Thêm UI CRUD tầng ngay trong trang chi tiết tòa nhà
+- [x] FE: Tự động chọn layout 1PN/2PN theo diện tích căn hộ (< 55m2 vs >= 55m2)
 - [x] Docs: Viết hướng dẫn chi tiết cho màn 3D/2D tòa nhà và trang chi tiết căn hộ
