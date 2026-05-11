@@ -61,7 +61,6 @@ export const LAYOUT_1PN_WALLS: WallSegment[] = [
 ];
 
 // --- Layout 2PN Definitions (10.1m x 7.0m ≈ 70m2) ---
-// KHÔI PHỤC HOÀN TOÀN NHƯ CŨ THEO YÊU CẦU
 export const LAYOUT_2PN_ROOMS: RoomData[] = [
   { id: "br1", name: "Phòng ngủ 1", x: 0.4, z: 0.22, w: 3.25, d: 2.88, color: "#e0e7ff", label: "9.4m2" },
   { id: "wc1", name: "WC 1", x: 3.76, z: 0.22, w: 1.69, d: 2.88, color: "#dcfce7", label: "Ensuite" },
@@ -97,7 +96,7 @@ export const APARTMENT_DEPTH = 10.0;
 // --- Helper Components ---
 function Floor({ x, z, w, d, color, name, label, offsetX, offsetZ }: RoomData & { offsetX: number, offsetZ: number }) {
   return (
-    <group position={[x + w / 2 + offsetX, 0.01, z + d / 2 + offsetZ]}>
+    <group position={[x + w / 2 + offsetX, 0.012, z + d / 2 + offsetZ]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
         <meshStandardMaterial color={color} roughness={0.8} />
@@ -153,6 +152,12 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLay
         <Environment preset="apartment" />
         <Grid infiniteGrid sectionSize={5} sectionColor="#2dd4bf" cellColor="#1e293b" />
         <group>
+          {/* Base Floor Mesh to fill gaps */}
+          <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[width, depth]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.9} />
+          </mesh>
+
           {rooms.map((room) => <Floor key={room.id} {...room} offsetX={offsetX} offsetZ={offsetZ} />)}
           {walls.map((seg, idx) => <Wall key={idx} {...seg} offsetX={offsetX} offsetZ={offsetZ} />)}
           {items.map((item: any) => {
