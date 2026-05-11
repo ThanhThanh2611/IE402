@@ -69,8 +69,6 @@ import type {
 import { Pencil, Plus, Trash2, Box, Map as MapIcon } from "lucide-react";
 import { 
   ApartmentScene, 
-  APARTMENT_WIDTH, 
-  APARTMENT_DEPTH, 
   LAYOUT_1PN_ROOMS, 
   LAYOUT_1PN_WALLS, 
   LAYOUT_2PN_ROOMS, 
