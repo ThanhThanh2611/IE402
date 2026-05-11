@@ -499,6 +499,10 @@ export default function ApartmentDetailPage() {
         .sort((left, right) => right.area - left.area),
     [spaces],
   );
+
+  const currentWidth = activeLayout === "1PN" ? 6.0 : 10.1;
+  const currentDepth = activeLayout === "1PN" ? 6.7 : 7.0;
+
   const availableGrantUsers = useMemo(
     () =>
       editingGrant
@@ -1553,25 +1557,28 @@ export default function ApartmentDetailPage() {
               <div
                 className="relative mx-auto overflow-hidden rounded-xl border border-dashed bg-muted/30"
                 style={{ 
-                  aspectRatio: `${APARTMENT_WIDTH} / ${APARTMENT_DEPTH}`,
-                  maxHeight: "600px"
+                  aspectRatio: `${currentWidth} / ${currentDepth}`,
+                  maxHeight: "600px",
+                  width: "100%",
+                  maxWidth: `${currentWidth * 60}px` // Scale factor for nice display
                 }}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => void handleWorkspaceDrop(event)}
               >
+                {/* Grid container - limited to the apartment box */}
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
                 <svg
                   className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-                  viewBox="0 0 100 100"
+                  viewBox={`0 0 ${currentWidth} ${currentDepth}`}
                   preserveAspectRatio="none"
                   aria-hidden="true"
                 >
                   {/* Render 3D mapped rooms */}
                   {(activeLayout === "1PN" ? LAYOUT_1PN_ROOMS : LAYOUT_2PN_ROOMS).map((room) => {
-                    const xPct = (room.x / APARTMENT_WIDTH) * 100;
-                    const yPct = (room.z / APARTMENT_DEPTH) * 100;
-                    const wPct = (room.w / APARTMENT_WIDTH) * 100;
-                    const dPct = (room.d / APARTMENT_DEPTH) * 100;
+                    const xPct = room.x;
+                    const yPct = room.z;
+                    const wPct = room.w;
+                    const dPct = room.d;
                     return (
                       <g key={`mock-room-${room.id}`}>
                         <rect
@@ -1589,7 +1596,7 @@ export default function ApartmentDetailPage() {
                             y={yPct + dPct / 2}
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            style={{ fill: "rgb(15 23 42 / 0.7)", fontSize: "2.5px", fontWeight: 600 }}
+                            style={{ fill: "rgb(15 23 42 / 0.7)", fontSize: "0.35px", fontWeight: 600 }}
                           >
                             {room.name}
                           </text>
@@ -1600,12 +1607,12 @@ export default function ApartmentDetailPage() {
 
                   {/* Render 3D mapped walls */}
                   {(activeLayout === "1PN" ? LAYOUT_1PN_WALLS : LAYOUT_2PN_WALLS).map((wall, idx) => {
-                    const x1 = (wall.p1[0] / APARTMENT_WIDTH) * 100;
-                    const y1 = (wall.p1[1] / APARTMENT_DEPTH) * 100;
-                    const x2 = (wall.p2[0] / APARTMENT_WIDTH) * 100;
-                    const y2 = (wall.p2[1] / APARTMENT_DEPTH) * 100;
-                    // approximate thickness relative to viewBox scale
-                    const strokeWidthObj = (wall.thickness / APARTMENT_WIDTH) * 100;
+                    const x1 = wall.p1[0];
+                    const y1 = wall.p1[1];
+                    const x2 = wall.p2[0];
+                    const y2 = wall.p2[1];
+                    // thickness directly in meters
+                    const strokeWidthObj = wall.thickness;
                     return (
                       <line
                         key={`mock-wall-${idx}`}
@@ -1622,7 +1629,8 @@ export default function ApartmentDetailPage() {
 
                   {/* Render Db bounds if exist */}
                   {workspaceSpaces.map((space) => {
-                    const polygonPoints = space.points.map((point) => `${(point.x / APARTMENT_WIDTH) * 100},${(point.y / APARTMENT_DEPTH) * 100}`).join(" ");
+                    // Convert % back to meters for the new viewBox
+                    const polygonPoints = space.points.map((point) => `${(point.x / 100) * currentWidth},${(point.y / 100) * currentDepth}`).join(" ");
                     const polygonStyle =
                       space.spaceType === "unit"
                         ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
@@ -1639,10 +1647,10 @@ export default function ApartmentDetailPage() {
                           vectorEffect="non-scaling-stroke"
                         />
                         <text
-                          x={clamp(space.labelPoint.x, 4, 96)}
-                          y={clamp(space.labelPoint.y, 6, 96)}
+                          x={clamp((space.labelPoint.x / 100) * currentWidth, 0.4, currentWidth - 0.4)}
+                          y={clamp((space.labelPoint.y / 100) * currentDepth, 0.6, currentDepth - 0.6)}
                           textAnchor="middle"
-                          style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                          style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "0.3px", fontWeight: 600 }}
                         >
                           {space.name}
                         </text>
@@ -1669,8 +1677,8 @@ export default function ApartmentDetailPage() {
                         }
                         className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
                         style={{
-                          left: `${clamp((point.x / APARTMENT_WIDTH) * 100, 0, 100)}%`,
-                          top: `${clamp((point.y / APARTMENT_DEPTH) * 100, 0, 100)}%`,
+                          left: `${clamp((point.x / currentWidth) * 100, 0, 100)}%`,
+                          top: `${clamp((point.y / currentDepth) * 100, 0, 100)}%`,
                           transform: "translate(-50%, -50%)",
                         }}
                       >

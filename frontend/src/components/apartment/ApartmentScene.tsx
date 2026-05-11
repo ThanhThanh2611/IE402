@@ -36,35 +36,32 @@ export interface WallSegment {
   thickness: number;
 }
 
-// --- Layout 1PN Definitions (8.5m x 10m) ---
+// --- Layout 1PN Definitions (6.0m x 6.7m ≈ 40m2) ---
 export const LAYOUT_1PN_ROOMS: RoomData[] = [
-  { id: "wc", name: "WC", x: 0, z: 0, w: 2, d: 3, color: "#94a3b8" },
-  { id: "kitchen", name: "Nhà Bếp", x: 6, z: 0, w: 2.5, d: 3, color: "#fef3c7" },
-  { id: "bedroom", name: "Phòng Ngủ", x: 0, z: 5.5, w: 2.8, d: 4.5, color: "#451a03" },
-  { id: "balcony", name: "Ban Công", x: 2.8, z: 8.5, w: 5.7, d: 1.5, color: "#cbd5e1" },
-  { id: "living", name: "Phòng Khách & Sảnh", x: 2, z: 0, w: 4, d: 3, color: "#f8fafc" }, 
-  { id: "main_hall", name: "", x: 0, z: 3, w: 8.5, d: 2.5, color: "#f8fafc" }, 
-  { id: "living_top", name: "", x: 2.8, z: 5.5, w: 5.7, d: 3, color: "#f8fafc" }, 
+  { id: "wc", name: "WC", x: 0, z: 0, w: 2.0, d: 2.5, color: "#dcfce7" },
+  { id: "kitchen", name: "Nhà Bếp", x: 4.0, z: 0.1, w: 2.0, d: 2.2, color: "#fef3c7" },
+  { id: "living_hall", name: "Phòng Khách & Sảnh", x: 2.0, z: 0, w: 2.0, d: 3.5, color: "#f8fafc" },
+  { id: "bedroom", name: "Phòng Ngủ", x: 0, z: 3.5, w: 3.0, d: 3.2, color: "#e0e7ff" },
+  { id: "balcony", name: "Ban Công", x: 3.0, z: 5.5, w: 3.0, d: 1.2, color: "#cbd5e1" }, 
+  { id: "living_main", name: "", x: 3.0, z: 2.2, w: 3.0, d: 4.5, color: "#f8fafc" }, 
 ];
 
 export const LAYOUT_1PN_WALLS: WallSegment[] = [
-  { p1: [0, 0], p2: [3.5, 0], thickness: 0.2 },
-  { p1: [5.3, 0], p2: [8.5, 0], thickness: 0.2 },
-  { p1: [0, 10], p2: [8.5, 10], thickness: 0.2 },
-  { p1: [0, 0], p2: [0, 10], thickness: 0.2 },
-  { p1: [8.5, 0], p2: [8.5, 10], thickness: 0.2 },
-  { p1: [2, 0], p2: [2, 1], thickness: 0.15 },
-  { p1: [2, 2], p2: [2, 3], thickness: 0.15 },
-  { p1: [0, 3], p2: [2, 3], thickness: 0.15 },
-  { p1: [0, 5.5], p2: [0.5, 5.5], thickness: 0.15 },
-  { p1: [1.5, 5.5], p2: [2.8, 5.5], thickness: 0.15 },
-  { p1: [2.8, 5.5], p2: [2.8, 8.85], thickness: 0.15 },
-  { p1: [2.8, 9.65], p2: [2.8, 10.0], thickness: 0.15 },
-  { p1: [2.8, 8.5], p2: [3.9, 8.5], thickness: 0.15 },
-  { p1: [7.4, 8.5], p2: [8.5, 8.5], thickness: 0.15 },
+  { p1: [0, 0], p2: [3.0, 0], thickness: EXT_WALL_THICKNESS },
+  { p1: [4.0, 0], p2: [6.0, 0], thickness: EXT_WALL_THICKNESS }, 
+  { p1: [0, 6.7], p2: [6.0, 6.7], thickness: EXT_WALL_THICKNESS },
+  { p1: [0, 0], p2: [0, 6.7], thickness: EXT_WALL_THICKNESS },
+  { p1: [6.0, 0], p2: [6.0, 6.7], thickness: EXT_WALL_THICKNESS },
+  { p1: [2.0, 0], p2: [2.0, 0.5], thickness: INT_WALL_THICKNESS },
+  { p1: [2.0, 1.5], p2: [2.0, 2.5], thickness: INT_WALL_THICKNESS },
+  { p1: [0, 2.5], p2: [2.0, 2.5], thickness: INT_WALL_THICKNESS },
+  { p1: [0, 3.5], p2: [0.5, 3.5], thickness: INT_WALL_THICKNESS },
+  { p1: [1.5, 3.5], p2: [3.0, 3.5], thickness: INT_WALL_THICKNESS },
+  { p1: [3.0, 3.5], p2: [3.0, 6.7], thickness: INT_WALL_THICKNESS },
 ];
 
-// --- Layout 2PN Definitions (10.1m x 7.0m) ---
+// --- Layout 2PN Definitions (10.1m x 7.0m ≈ 70m2) ---
+// KHÔI PHỤC HOÀN TOÀN NHƯ CŨ THEO YÊU CẦU
 export const LAYOUT_2PN_ROOMS: RoomData[] = [
   { id: "br1", name: "Phòng ngủ 1", x: 0.4, z: 0.22, w: 3.25, d: 2.88, color: "#e0e7ff", label: "9.4m2" },
   { id: "wc1", name: "WC 1", x: 3.76, z: 0.22, w: 1.69, d: 2.88, color: "#dcfce7", label: "Ensuite" },
@@ -93,9 +90,9 @@ export const LAYOUT_2PN_WALLS: WallSegment[] = [
   { p1: [2.6, 6.2], p2: [2.6, 7.0], thickness: INT_WALL_THICKNESS },
 ];
 
-// --- Export dimensions ---
+// --- Export constants for reference ---
 export const APARTMENT_WIDTH = 10.1;
-export const APARTMENT_DEPTH = 10.0; // Max depth for grid safety
+export const APARTMENT_DEPTH = 10.0;
 
 // --- Helper Components ---
 function Floor({ x, z, w, d, color, name, label, offsetX, offsetZ }: RoomData & { offsetX: number, offsetZ: number }) {
@@ -105,11 +102,13 @@ function Floor({ x, z, w, d, color, name, label, offsetX, offsetZ }: RoomData & 
         <planeGeometry args={[w, d]} />
         <meshStandardMaterial color={color} roughness={0.8} />
       </mesh>
-      <Html position={[0, 0.5, 0]} center distanceFactor={10}>
-        <div className="bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold border border-white/20 shadow-xl pointer-events-none">
-          {name} {label ? <span className="opacity-60 ml-1">({label})</span> : ""}
-        </div>
-      </Html>
+      {name && (
+        <Html position={[0, 0.5, 0]} center distanceFactor={10}>
+          <div className="bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold border border-white/20 shadow-xl pointer-events-none whitespace-nowrap">
+            {name} {label ? <span className="opacity-60 ml-1">({label})</span> : ""}
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -136,8 +135,8 @@ function Wall({ p1, p2, thickness, offsetX, offsetZ }: WallSegment & { offsetX: 
 export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLayout: externalLayout }: any) {
   const activeLayout = externalLayout || "1PN";
   
-  const width = activeLayout === "1PN" ? 8.5 : 10.1;
-  const depth = activeLayout === "1PN" ? 10.0 : 7.0;
+  const width = activeLayout === "1PN" ? 6.0 : 10.1;
+  const depth = activeLayout === "1PN" ? 6.7 : 7.0;
   const offsetX = -width / 2;
   const offsetZ = -depth / 2;
 
@@ -147,7 +146,7 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLay
   return (
     <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden shadow-2xl">
       <Canvas shadows dpr={[1, 2]}>
-        <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={35} />
+        <PerspectiveCamera makeDefault position={[10, 10, 10]} fov={35} />
         <OrbitControls makeDefault enableDamping />
         <ambientLight intensity={0.5} />
         <spotLight position={[15, 20, 15]} angle={0.3} intensity={1.5} castShadow />

@@ -458,11 +458,11 @@ async function seed() {
     if (apartment.numBedrooms === 1) {
       // Layout 1PN Mẫu
       const spaces = [
-        { name: "Phòng khách & Sảnh", type: "living_room", area: 25 },
-        { name: "Phòng ngủ", type: "bedroom", area: 12.5 },
-        { name: "Nhà bếp", type: "kitchen", area: 7.5 },
-        { name: "WC", type: "bathroom", area: 4.5 },
-        { name: "Ban công", type: "balcony", area: 3.5 },
+        { name: "WC", type: "bathroom", area: 4.4 },
+        { name: "Phòng Khách & Sảnh", type: "living_room", area: 10.4 },
+        { name: "Nhà Bếp", type: "kitchen", area: 4.4 },
+        { name: "Phòng Ngủ", type: "bedroom", area: 12.6 },
+        { name: "Ban Công", type: "balcony", area: 8.4 },
       ];
       for (const s of spaces) {
         const res = await db.insert(apartmentSpaces).values({
@@ -647,8 +647,17 @@ async function seed() {
 
   insertedLayouts.forEach((layout) => {
     const apartmentSpaceRows = insertedSpaces.filter((space) => space.apartmentId === layout.apartmentId);
-    const livingRoom = apartmentSpaceRows.find((space) => space.name === "Phòng khách");
-    const bedroom = apartmentSpaceRows.find((space) => space.name === "Phòng ngủ");
+    const livingRoom = apartmentSpaceRows.find((space) => 
+      space.name === "Phòng khách" || 
+      space.name === "Phòng Khách & Sảnh" || 
+      space.name === "Khách, Bếp & Ăn"
+    );
+    const bedroom = apartmentSpaceRows.find((space) => 
+      space.name === "Phòng ngủ" || 
+      space.name === "Phòng Ngủ" ||
+      space.name === "Phòng ngủ 1" ||
+      space.name === "Phòng ngủ 2"
+    );
 
     if (livingRoom) {
       furnitureItemValues.push(
@@ -721,11 +730,16 @@ async function seed() {
     }
   });
 
-  const insertedFurnitureItems = await db
-    .insert(furnitureItems)
-    .values(furnitureItemValues)
-    .returning();
-  console.log(`Inserted ${insertedFurnitureItems.length} furniture items`);
+  let insertedFurnitureItems: any[] = [];
+  if (furnitureItemValues.length > 0) {
+    insertedFurnitureItems = await db
+      .insert(furnitureItems)
+      .values(furnitureItemValues)
+      .returning();
+    console.log(`Inserted ${insertedFurnitureItems.length} furniture items`);
+  } else {
+    console.log("No furniture items to insert.");
+  }
 
   console.log("\nSeed completed successfully!");
   console.log(`Summary:
