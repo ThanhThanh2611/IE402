@@ -915,8 +915,8 @@ export default function ApartmentDetailPage() {
     const rect = event.currentTarget.getBoundingClientRect();
     const pctX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
     const pctY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
-    const ptX = Number((pctX * APARTMENT_WIDTH).toFixed(2));
-    const ptY = Number((pctY * APARTMENT_DEPTH).toFixed(2));
+    const ptX = Number((pctX * currentWidth).toFixed(2));
+    const ptY = Number((pctY * currentDepth).toFixed(2));
 
     try {
       const payload = JSON.parse(raw) as

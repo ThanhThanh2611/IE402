@@ -130,9 +130,146 @@ function Wall({ p1, p2, thickness, offsetX, offsetZ }: WallSegment & { offsetX: 
   );
 }
 
+function FurnitureNode({ 
+  item, 
+  catalogItem, 
+  offsetX, 
+  offsetZ, 
+  onItemMove, 
+  onItemRotate,
+  selected,
+  onSelect
+}: any) {
+  const meshRef = useRef<THREE.Group>(null);
+  const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
+  const [liveRotationY, setLiveRotationY] = useState<number>(Number(item.rotationY) || 0);
+
+  const matched = item.position.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
+  const px = Number(matched?.[1] || 0);
+  const pz = Number(matched?.[2] || 0);
+  const py = Number(matched?.[3] || 0);
+  const rotY = Number(item.rotationY) || 0;
+  const h = Number(catalogItem?.defaultHeight) || 0.8;
+  const w = Number(catalogItem?.defaultWidth) || 0.8;
+  const d = Number(catalogItem?.defaultDepth) || 0.8;
+
+  const degrees = useMemo(() => {
+    let deg = (liveRotationY * 180) / Math.PI;
+    deg = deg % 360;
+    if (deg < 0) deg += 360;
+    // Làm tròn về bội số của 15 để hiển thị 0, 15, 30...
+    return Math.round(deg / 15) * 15;
+  }, [liveRotationY]);
+
+  return (
+    <group>
+      <group 
+        ref={meshRef} 
+        position={[px + offsetX, py, pz + offsetZ]} 
+        rotation={[0, rotY, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(item.id);
+        }}
+      >
+        <Suspense fallback={<mesh><boxGeometry args={[w, h, d]} /><meshStandardMaterial color="gray" /></mesh>}>
+          {catalogItem?.model3dUrl ? (
+            <group>
+              <primitive object={useGLTF(catalogItem.model3dUrl).scene.clone()} />
+            </group>
+          ) : (
+            <mesh position={[0, h/2, 0]} castShadow receiveShadow>
+              <boxGeometry args={[w, h, d]} />
+              <meshStandardMaterial 
+                color={selected ? "#3b82f6" : "#cbd5e1"} 
+                emissive={selected ? "#3b82f6" : "#000000"}
+                emissiveIntensity={selected ? 0.2 : 0}
+              />
+            </mesh>
+          )}
+        </Suspense>
+
+        <Html position={[0, h + 0.4, 0]} center distanceFactor={10}>
+          <div className="flex flex-col items-center gap-1.5 pointer-events-none select-none">
+            <div className={`px-2.5 py-1 rounded-md text-[9px] font-bold shadow-lg whitespace-nowrap transition-all flex items-center gap-2 ${
+              selected ? "bg-blue-600 text-white scale-110 ring-2 ring-white/50" : "bg-slate-800/80 text-slate-200 backdrop-blur-sm"
+            }`}>
+              <span>{item.label || catalogItem?.name || "Nội thất"}</span>
+              {selected && transformMode === "rotate" && (
+                <span className="bg-white/20 px-1 rounded font-mono">{degrees}°</span>
+              )}
+            </div>
+            {selected && (
+              <div className="flex gap-1.5 pointer-events-auto mt-0.5">
+                <button 
+                  className={`px-3 py-1 rounded-md text-[9px] font-extrabold shadow-md transition-all active:scale-95 ${
+                    transformMode === "translate" 
+                      ? "bg-blue-600 text-white ring-2 ring-blue-300" 
+                      : "bg-white/90 text-slate-600 hover:bg-white"
+                  }`}
+                  onClick={(e) => { e.stopPropagation(); setTransformMode("translate"); }}
+                >
+                  DỜI
+                </button>
+                <button 
+                  className={`px-3 py-1 rounded-md text-[9px] font-extrabold shadow-md transition-all active:scale-95 ${
+                    transformMode === "rotate" 
+                      ? "bg-blue-600 text-white ring-2 ring-blue-300" 
+                      : "bg-white/90 text-slate-600 hover:bg-white"
+                  }`}
+                  onClick={(e) => { e.stopPropagation(); setTransformMode("rotate"); }}
+                >
+                  XOAY
+                </button>
+              </div>
+            )}
+          </div>
+        </Html>
+      </group>
+
+      {selected && (
+        <TransformControls 
+          object={meshRef.current as any} 
+          mode={transformMode}
+          showX={transformMode === "translate"}
+          showZ={transformMode === "translate"}
+          showY={transformMode === "rotate"}
+          rotationSnap={Math.PI / 12}
+          onChange={() => {
+            if (meshRef.current && transformMode === "rotate") {
+              setLiveRotationY(meshRef.current.rotation.y);
+            }
+          }}
+          onMouseUp={() => {
+            if (!meshRef.current) return;
+            const newPos = meshRef.current.position;
+            const newRot = meshRef.current.rotation;
+            
+            if (transformMode === "translate" && onItemMove) {
+              onItemMove(
+                item.id, 
+                Number((newPos.x - offsetX).toFixed(2)), 
+                Number((newPos.z - offsetZ).toFixed(2)), 
+                Number(newPos.y.toFixed(2))
+              );
+            } else if (transformMode === "rotate" && onItemRotate) {
+              // Ép góc quay về bội số của 15 độ (Math.PI / 12)
+              const snap = Math.PI / 12;
+              const snappedRotY = Math.round(newRot.y / snap) * snap;
+              onItemRotate(item.id, Number(snappedRotY.toFixed(3)));
+              setLiveRotationY(snappedRotY);
+            }
+          }}
+        />
+      )}
+    </group>
+  );
+}
+
 // --- Main Scene ---
-export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLayout: externalLayout }: any) {
+export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRotate, activeLayout: externalLayout }: any) {
   const activeLayout = externalLayout || "1PN";
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   
   const width = activeLayout === "1PN" ? 6.0 : 10.1;
   const depth = activeLayout === "1PN" ? 6.7 : 7.0;
@@ -144,7 +281,7 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLay
 
   return (
     <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden shadow-2xl">
-      <Canvas shadows dpr={[1, 2]}>
+      <Canvas shadows dpr={[1, 2]} onPointerMissed={() => setSelectedItemId(null)}>
         <PerspectiveCamera makeDefault position={[10, 10, 10]} fov={35} />
         <OrbitControls makeDefault enableDamping />
         <ambientLight intensity={0.5} />
@@ -160,26 +297,22 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, activeLay
 
           {rooms.map((room) => <Floor key={room.id} {...room} offsetX={offsetX} offsetZ={offsetZ} />)}
           {walls.map((seg, idx) => <Wall key={idx} {...seg} offsetX={offsetX} offsetZ={offsetZ} />)}
+          
           {items.map((item: any) => {
-             const catalogItem = catalog.find((c: any) => c.id === item.catalogId);
-             const matched = item.position.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
-             const px = Number(matched?.[1] || 0);
-             const pz = Number(matched?.[2] || 0);
-             const py = Number(matched?.[3] || 0);
-             const rotY = Number(item.rotationY) || 0;
-             const h = Number(catalogItem?.defaultHeight) || 0.8;
-
-             return (
-               <group key={item.id} position={[px + offsetX, py, pz + offsetZ]} rotation={[0, rotY, 0]}>
-                 <Suspense fallback={<mesh><boxGeometry args={[1,1,1]} /><meshStandardMaterial color="gray" /></mesh>}>
-                    {catalogItem?.model3dUrl ? (
-                      <primitive object={useGLTF(catalogItem.model3dUrl).scene.clone()} />
-                    ) : (
-                      <mesh position={[0, h/2, 0]}><boxGeometry args={[0.8, h, 0.8]} /><meshStandardMaterial color="#64748b" /></mesh>
-                    )}
-                 </Suspense>
-               </group>
-             );
+            const catalogItem = catalog.find((c: any) => c.id === item.catalogId);
+            return (
+              <FurnitureNode 
+                key={item.id}
+                item={item}
+                catalogItem={catalogItem}
+                offsetX={offsetX}
+                offsetZ={offsetZ}
+                onItemMove={onItemMove}
+                onItemRotate={onItemRotate}
+                selected={selectedItemId === item.id}
+                onSelect={setSelectedItemId}
+              />
+            );
           })}
         </group>
         <BakeShadows />
