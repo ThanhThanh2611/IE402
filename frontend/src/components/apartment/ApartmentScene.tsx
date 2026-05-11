@@ -78,35 +78,53 @@ export const LAYOUT_1PN_WALLS: WallSegment[] = [
   { p1: [3.0, 5.5], p2: [6.0, 5.5], thickness: INT_WALL_THICKNESS, openings: [{ id: "living_balcony_door", type: "sliding_door", pos: 0.5, width: 2.0 }] },
 ];
 
-// --- Layout 2PN LoD3 (10.1m x 7.0m) ---
+// --- Layout 2PN LoD3 (10.1m x 7.0m ≈ 70m2) ---
 export const LAYOUT_2PN_ROOMS: RoomData[] = [
   { id: "br1", name: "Phòng ngủ 1", x: 0.4, z: 0.22, w: 3.25, d: 2.88, color: "#e0e7ff", floorType: "wood" },
   { id: "wc1", name: "WC 1", x: 3.76, z: 0.22, w: 1.69, d: 2.88, color: "#dcfce7", floorType: "tile" },
   { id: "br2", name: "Phòng ngủ 2", x: 5.56, z: 0.22, w: 4.34, d: 2.88, color: "#e0e7ff", floorType: "wood" },
-  { id: "hallway", name: "Tiền sảnh", x: 0.4, z: 3.21, w: 2.2, d: 1.6, color: "#f1f5f9", floorType: "tile" },
+  { id: "hallway", name: "Tiền sảnh", x: 0.4, z: 3.1, w: 2.2, d: 1.82, color: "#f1f5f9", floorType: "wood" },
   { id: "wc2", name: "WC 2", x: 0.4, z: 4.92, w: 2.2, d: 1.7, color: "#dcfce7", floorType: "tile" },
-  { id: "living_combined", name: "Khách, Bếp & Ăn", x: 2.6, z: 3.21, w: 6.28, d: 3.41, color: "#f8fafc", floorType: "wood" },
+  { id: "living_combined", name: "Khách, Bếp & Ăn", x: 2.6, z: 3.1, w: 6.38, d: 3.9, color: "#f8fafc", floorType: "wood" },
   { id: "loggia", name: "Loggia", x: 8.98, z: 3.21, w: 0.9, d: 3.41, color: "#cbd5e1", floorType: "concrete" },
 ];
 
 export const LAYOUT_2PN_WALLS: WallSegment[] = [
-  { p1: [0, 0], p2: [10.1, 0], thickness: EXT_WALL_THICKNESS, openings: [{ id: "main_door_2", type: "door", pos: 5.0, width: 1.2 }] },
-  { p1: [0, 7.0], p2: [8.98, 7.0], thickness: EXT_WALL_THICKNESS, openings: [{ id: "win_1", type: "window", pos: 2.0, width: 1.5 }, { id: "win_2", type: "window", pos: 6.0, width: 1.5 }] },
-  { p1: [8.98, 7.0], p2: [10.1, 7.0], thickness: 0.05, type: "railing" }, // Lan can loggia
-  { p1: [0, 0], p2: [0, 7.0], thickness: EXT_WALL_THICKNESS },
-  { p1: [10.1, 0], p2: [10.1, 7.0], thickness: EXT_WALL_THICKNESS },
-  { p1: [3.65, 0], p2: [3.65, 3.1], thickness: INT_WALL_THICKNESS, openings: [{ id: "wc1_door", type: "door", pos: 2.0, width: 0.8 }] },
-  { p1: [5.45, 0], p2: [5.45, 3.1], thickness: INT_WALL_THICKNESS, openings: [{ id: "br2_door", pos: 2.0, width: 0.9, type: "door" }] },
-  { p1: [0, 3.1], p2: [10.1, 3.1], thickness: INT_WALL_THICKNESS, openings: [{ id: "br1_door", pos: 1.5, width: 0.9, type: "door" }] },
-  { p1: [0, 4.8], p2: [2.6, 4.8], thickness: INT_WALL_THICKNESS, openings: [{ id: "wc2_door", pos: 1.2, width: 0.8, type: "door" }] },
+  // Tường bao ngoài
+  { p1: [0, 0], p2: [10.1, 0], thickness: EXT_WALL_THICKNESS, openings: [
+    { id: "br1_win", type: "window", pos: 1.0, width: 1.5 },
+    { id: "br2_win", type: "window", pos: 7.0, width: 1.5 }
+  ]},
+  { p1: [0, 7.0], p2: [8.98, 7.0], thickness: EXT_WALL_THICKNESS },
+  { p1: [8.98, 7.0], p2: [10.1, 7.0], thickness: 0.05, type: "railing" },
+  { p1: [0, 0], p2: [0, 3.2], thickness: EXT_WALL_THICKNESS },
+  { p1: [0, 3.2], p2: [0, 4.8], thickness: EXT_WALL_THICKNESS, openings: [{ id: "main_door_2", type: "door", pos: 0.3, width: 1.0 }] },
+  { p1: [0, 4.8], p2: [0, 7.0], thickness: EXT_WALL_THICKNESS },
+  { p1: [10.1, 0], p2: [10.1, 3.2], thickness: EXT_WALL_THICKNESS },
+  { p1: [10.1, 3.2], p2: [10.1, 7.0], thickness: 0.05, type: "railing" },
+  
+  // Tường nội thất
+  { p1: [3.65, 0], p2: [3.65, 3.1], thickness: INT_WALL_THICKNESS }, 
+  { p1: [5.45, 0], p2: [5.45, 3.1], thickness: INT_WALL_THICKNESS, openings: [{ id: "wc1_door", type: "door", pos: 1.2, width: 0.8 }] },
+  { p1: [0, 3.1], p2: [10.1, 3.1], thickness: INT_WALL_THICKNESS, openings: [
+    { id: "br1_door", type: "door", pos: 2.8, width: 0.9 },
+    { id: "br2_door", type: "door", pos: 5.8, width: 0.9 }
+  ]},
+  { p1: [0, 4.8], p2: [2.6, 4.8], thickness: INT_WALL_THICKNESS },
+  // Tường ngăn giữa WC2 và Phòng khách (Đã xóa hẳn phần tường cửa vào tiền sảnh)
+  { p1: [2.6, 4.8], p2: [2.6, 7.0], thickness: INT_WALL_THICKNESS, openings: [
+    { id: "wc2_door", type: "door", pos: 0.8, width: 0.8 } 
+  ]},
+  // Cửa kính kéo ra Loggia
+  { p1: [8.98, 3.1], p2: [8.98, 7.0], thickness: INT_WALL_THICKNESS, openings: [{ id: "loggia_door", type: "sliding_door", pos: 1.0, width: 2.0 }] },
 ];
 
 // --- Helper Components ---
 
 function Floor({ x, z, w, d, color, name, label, offsetX, offsetZ, floorType }: RoomData & { offsetX: number, offsetZ: number }) {
   const texture = useMemo(() => {
-    if (floorType === "wood") return "#d4a373";
-    if (floorType === "tile") return "#e9edc9";
+    if (floorType === "wood") return "#c19a6b"; // Gỗ sồi tự nhiên
+    if (floorType === "tile") return "#f8f9fa"; // Gạch trắng xám sang trọng
     return color;
   }, [floorType, color]);
 
@@ -436,13 +454,35 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRot
         <Grid infiniteGrid sectionSize={5} sectionColor="#2dd4bf" cellColor="#1e293b" />
         
         <group>
-          {/* Base Floor (LoD3: Realistic material) */}
-          <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[width + 1, depth + 1]} />
-            <meshStandardMaterial color="#1e293b" roughness={0.9} />
+          {/* Base Floor (LoD3: Unified Floor for the whole apartment) */}
+          <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[width, depth]} />
+            <meshStandardMaterial color="#c19a6b" roughness={0.7} metalness={0.1} />
           </mesh>
 
-          {rooms.map((room) => <Floor key={room.id} {...room} offsetX={offsetX} offsetZ={offsetZ} />)}
+          {/* Render Room Labels only (Floor meshes are now unified above) */}
+          {rooms.map((room) => (
+            <group key={room.id} position={[room.x + room.w / 2 + offsetX, 0.02, room.z + room.d / 2 + offsetZ]}>
+               {/* WC or Special Tiles could still be overlaid if needed, but keeping it simple as requested */}
+               {(room.id.includes("wc") || room.id === "loggia") && (
+                 <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+                   <planeGeometry args={[room.w - 0.02, room.d - 0.02]} />
+                   <meshStandardMaterial 
+                     color={room.id === "loggia" ? "#cbd5e1" : "#f8f9fa"} 
+                     roughness={0.6} 
+                   />
+                 </mesh>
+               )}
+               {room.name && (
+                <Html position={[0, 0.1, 0]} center distanceFactor={10}>
+                  <div className="bg-black/40 backdrop-blur-sm text-white px-2 py-0.5 rounded text-[8px] font-bold pointer-events-none whitespace-nowrap">
+                    {room.name}
+                  </div>
+                </Html>
+              )}
+            </group>
+          ))}
+          
           {walls.map((seg, idx) => <Wall key={idx} {...seg} offsetX={offsetX} offsetZ={offsetZ} />)}
           
           {showCeiling && (
