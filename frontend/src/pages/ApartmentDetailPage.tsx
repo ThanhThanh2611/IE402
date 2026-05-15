@@ -401,6 +401,31 @@ export default function ApartmentDetailPage() {
     id: number;
   } | null>(null);
 
+  const [templates, setTemplates] = useState<Array<any>>([]);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [selectedTemplateForApply, setSelectedTemplateForApply] = useState<number | null>(null);
+  const [templateNameForApply, setTemplateNameForApply] = useState("");
+
+  const [createTemplateDialogOpen, setCreateTemplateDialogOpen] = useState(false);
+  const [createTemplateForm, setCreateTemplateForm] = useState({ name: "", description: "" });
+
+  const loadTemplates = useCallback(async () => {
+    if (!detail?.building?.id) return;
+
+    try {
+      const result = await api.get<any[]>(
+        `/furniture-layout-templates/building/${detail.building.id}`
+      );
+      setTemplates(result);
+    } catch (error) {
+      console.error("Lỗi tải templates:", error);
+    }
+  }, [detail?.building?.id]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
+
   const loadDetail = useCallback(async () => {
     if (Number.isNaN(resolvedApartmentId)) {
       toast.error("ID căn hộ không hợp lệ");
@@ -691,6 +716,74 @@ export default function ApartmentDetailPage() {
       await loadDetail();
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Không thể lưu layout");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!detail || !selectedTemplateForApply || !templateNameForApply.trim()) {
+      toast.error("Vui lòng chọn template và nhập tên layout");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.post(
+        `/furniture-layout-templates/${selectedTemplateForApply}/apply`,
+        {
+          apartmentId: detail.apartment.id,
+          layoutName: templateNameForApply.trim(),
+        }
+      );
+      toast.success("Áp dụng template thành công");
+      setTemplateDialogOpen(false);
+      setSelectedTemplateForApply(null);
+      setTemplateNameForApply("");
+      await loadDetail();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Không thể áp dụng template");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateTemplateFromLayout = () => {
+    if (!detail || !selectedLayout) {
+      toast.error("Vui lòng chọn layout");
+      return;
+    }
+
+    setCreateTemplateForm({
+      name: `Template từ "${selectedLayout.name}"`,
+      description: `Khuôn mẫu dựa trên layout "${selectedLayout.name}" v${selectedLayout.version}`,
+    });
+    setCreateTemplateDialogOpen(true);
+  };
+
+  const handleSaveTemplateFromLayout = async () => {
+    if (!detail || !selectedLayout || !createTemplateForm.name.trim()) {
+      toast.error("Vui lòng nhập tên template");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.post(
+        `/furniture-layout-templates`,
+        {
+          buildingId: detail.building?.id,
+          name: createTemplateForm.name.trim(),
+          description: createTemplateForm.description?.trim() || null,
+          sourceLayoutId: selectedLayout.id,
+        }
+      );
+      toast.success("Tạo template thành công");
+      setCreateTemplateDialogOpen(false);
+      setCreateTemplateForm({ name: "", description: "" });
+      await loadTemplates();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Không thể tạo template");
     } finally {
       setSaving(false);
     }
@@ -1419,10 +1512,18 @@ export default function ApartmentDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Layouts nội thất</CardTitle>
-            <Button onClick={openCreateLayout}>
-              <Plus className="mr-2 h-4 w-4" />
-              Tạo layout
-            </Button>
+            <div className="flex gap-2">
+              {templates.length > 0 && (
+                <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Từ template
+                </Button>
+              )}
+              <Button onClick={openCreateLayout}>
+                <Plus className="mr-2 h-4 w-4" />
+                Tạo layout
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {detail.layouts.map((layout) => (
@@ -1438,7 +1539,20 @@ export default function ApartmentDetailPage() {
                   <Badge variant="outline">{layoutStatusLabels[layout.status]}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">Version {layout.version}</p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedLayoutId(layout.id);
+                      handleCreateTemplateFromLayout();
+                    }}
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Lưu thành template
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -1927,6 +2041,80 @@ export default function ApartmentDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSpaceDialogOpen(false)}>Hủy</Button>
             <Button onClick={() => void handleSaveSpace()} disabled={saving}>{saving ? "Đang lưu..." : "Lưu"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Áp dụng template layout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Chọn template *</Label>
+              {templates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Không có template nào cho tòa nhà này</p>
+              ) : (
+                <Select value={selectedTemplateForApply ? String(selectedTemplateForApply) : ""} onValueChange={(value) => setSelectedTemplateForApply(Number(value))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Chọn template">{selectedTemplateForApply ? templates.find((t) => t.id === selectedTemplateForApply)?.name : undefined}</SelectValue></SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={String(template.id)}>
+                        {template.name} {template.description && `- ${template.description}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Tên layout mới *</Label>
+              <Input
+                placeholder="e.g. Layout v2"
+                value={templateNameForApply}
+                onChange={(e) => setTemplateNameForApply(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>Hủy</Button>
+            <Button onClick={() => void handleApplyTemplate()} disabled={saving || templates.length === 0}>
+              {saving ? "Đang áp dụng..." : "Áp dụng"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createTemplateDialogOpen} onOpenChange={setCreateTemplateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tạo template từ layout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tên template *</Label>
+              <Input
+                placeholder="e.g. Layout nội thất chuẩn 1PN"
+                value={createTemplateForm.name}
+                onChange={(e) => setCreateTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Mô tả (tùy chọn)</Label>
+              <Textarea
+                placeholder="Mô tả chi tiết về template này..."
+                rows={3}
+                value={createTemplateForm.description}
+                onChange={(e) => setCreateTemplateForm((prev) => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTemplateDialogOpen(false)}>Hủy</Button>
+            <Button onClick={() => void handleSaveTemplateFromLayout()} disabled={saving || !createTemplateForm.name.trim()}>
+              {saving ? "Đang tạo..." : "Tạo template"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

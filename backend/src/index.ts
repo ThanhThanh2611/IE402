@@ -16,6 +16,7 @@ import statusHistoryRouter from "./routes/statusHistory";
 import usersRouter from "./routes/users";
 import navigationRouter from "./routes/navigation";
 import furnitureCatalogRouter from "./routes/furnitureCatalog";
+import furnitureLayoutTemplatesRouter from "./routes/furnitureLayoutTemplates";
 import { syncFurnitureCatalog } from "./db/sync-catalog";
 
 const app = express();
@@ -50,6 +51,7 @@ app.use("/api/status-history", authenticate, requireManager, statusHistoryRouter
 app.use("/api/users", authenticate, requireManager, usersRouter);
 app.use("/api/navigation", authenticate, navigationRouter);
 app.use("/api/furniture-catalog", authenticate, furnitureCatalogRouter);
+app.use("/api/furniture-layout-templates", authenticate, requireManager, furnitureLayoutTemplatesRouter);
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
