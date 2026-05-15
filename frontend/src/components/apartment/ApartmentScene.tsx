@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { 
   OrbitControls, 
@@ -202,53 +202,59 @@ export const MOCK_WALLS: WallSegment[] = [
   { p1: [7.4, 8.5], p2: [8.5, 8.5], thickness: INT_WALL_THICKNESS },
 ];
 
-export function ApartmentScene({ items = [], catalog = [], onItemMove }: ApartmentSceneProps) {
+function ApartmentSceneContent({ items = [], catalog = [], onItemMove }: ApartmentSceneProps) {
+  return (
+    <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
+      <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={40} />
+      <OrbitControls
+        makeDefault
+        enableDamping
+        dampingFactor={0.05}
+        maxPolarAngle={Math.PI / 2.1}
+      />
+
+      <ambientLight intensity={0.5} />
+      <spotLight position={[15, 20, 15]} angle={0.3} penumbra={1} intensity={2} castShadow
+        shadow-mapSize={[2048, 2048]}
+      />
+      <Environment preset="apartment" />
+
+      <Grid
+        infiniteGrid
+        fadeDistance={40}
+        fadeStrength={5}
+        sectionSize={5}
+        sectionColor="#2dd4bf"
+        cellColor="#1e293b"
+      />
+
+      <group>
+        {MOCK_ROOMS.map((room) => <Floor key={room.id} {...room} />)}
+        {MOCK_WALLS.map((seg, idx) => <Wall key={idx} {...seg} />)}
+
+        {items.map((item) => {
+          const catalogItem = catalog.find((c) => c.id === item.catalogId);
+          return (
+            <FurnitureNode
+              key={item.id}
+              item={item}
+              catalogItem={catalogItem}
+              onItemMove={onItemMove}
+            />
+          );
+        })}
+      </group>
+
+      <ContactShadows position={[0, -0.01, 0]} opacity={0.6} scale={20} blur={2} far={5} />
+      <BakeShadows />
+    </Canvas>
+  );
+}
+
+export const ApartmentScene = React.memo(function ApartmentScene({ items = [], catalog = [], onItemMove }: ApartmentSceneProps) {
   return (
     <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden ring-1 ring-slate-800 shadow-2xl">
-      <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
-        <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={40} />
-        <OrbitControls 
-          makeDefault 
-          enableDamping 
-          dampingFactor={0.05}
-          maxPolarAngle={Math.PI / 2.1} 
-        />
-        
-        <ambientLight intensity={0.5} />
-        <spotLight position={[15, 20, 15]} angle={0.3} penumbra={1} intensity={2} castShadow 
-          shadow-mapSize={[2048, 2048]} 
-        />
-        <Environment preset="apartment" />
-
-        <Grid 
-          infiniteGrid 
-          fadeDistance={40} 
-          fadeStrength={5} 
-          sectionSize={5} 
-          sectionColor="#2dd4bf" 
-          cellColor="#1e293b" 
-        />
-        
-        <group>
-          {MOCK_ROOMS.map((room) => <Floor key={room.id} {...room} />)}
-          {MOCK_WALLS.map((seg, idx) => <Wall key={idx} {...seg} />)}
-          
-          {items.map((item) => {
-            const catalogItem = catalog.find((c) => c.id === item.catalogId);
-            return (
-              <FurnitureNode 
-                key={item.id} 
-                item={item} 
-                catalogItem={catalogItem} 
-                onItemMove={onItemMove} 
-              />
-            );
-          })}
-        </group>
-
-        <ContactShadows position={[0, -0.01, 0]} opacity={0.6} scale={20} blur={2} far={5} />
-        <BakeShadows />
-      </Canvas>
+      <ApartmentSceneContent items={items} catalog={catalog} onItemMove={onItemMove} />
 
       <div className="absolute top-6 left-6 z-10 pointer-events-none">
         <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-700/50 shadow-2xl">
@@ -258,4 +264,4 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove }: Apartme
       </div>
     </div>
   );
-}
+});

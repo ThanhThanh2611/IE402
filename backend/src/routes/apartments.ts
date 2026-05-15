@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+import { Request, Response, Router, NextFunction } from "express";
 import {
   and,
   asc,
@@ -24,8 +24,69 @@ import {
   tenants,
   users,
 } from "../db/schema";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = Router();
+
+const MAX_APARTMENT_MODEL_UPLOAD_MB = 100;
+
+const apartmentModelStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = "uploads/models";
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const apartmentId = req.params.id;
+    const ext = path.extname(file.originalname);
+    cb(null, `apartment-${apartmentId}-${Date.now()}${ext}`);
+  },
+});
+
+const apartmentFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedExts = [".glb", ".gltf"];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedExts.includes(ext)) {
+    cb(null, true);
+    return;
+  }
+
+  cb(new Error("Hệ thống chỉ chấp nhận định dạng mô hình 3D: .glb hoặc .gltf"));
+};
+
+const apartmentModelUpload = multer({
+  storage: apartmentModelStorage,
+  fileFilter: apartmentFileFilter,
+  limits: { fileSize: MAX_APARTMENT_MODEL_UPLOAD_MB * 1024 * 1024 },
+});
+
+function uploadApartmentModel(req: Request, res: Response, next: NextFunction) {
+  apartmentModelUpload.single("file")(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({
+        error: `File mô hình căn hộ quá lớn. Giới hạn hiện tại là ${MAX_APARTMENT_MODEL_UPLOAD_MB}MB.`,
+      });
+      return;
+    }
+
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    res.status(500).json({ error: "Không thể xử lý file upload căn hộ." });
+  });
+}
 
 function parsePointZ(value: string) {
   const matched = value.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
@@ -600,6 +661,54 @@ router.put("/:id/spaces/:spaceId", async (req, res) => {
   }
 });
 
+// POST /api/apartments/:id/spaces/:spaceId/model - Upload mô hình 3D cho không gian
+router.post("/:id/spaces/:spaceId/model", uploadApartmentModel, async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!requireManagerForApartmentAdmin(req, res)) return;
+
+    const apartmentId = Number(req.params.id);
+    const spaceId = Number(req.params.spaceId);
+
+    if (!req.file) {
+      res.status(400).json({ error: "Vui lòng chọn file .glb hoặc .gltf" });
+      return;
+    }
+
+    const existingSpace = await db
+      .select()
+      .from(apartmentSpaces)
+      .where(
+        and(
+          eq(apartmentSpaces.id, spaceId),
+          eq(apartmentSpaces.apartmentId, apartmentId)
+        )
+      );
+
+    if (existingSpace.length === 0) {
+      res.status(404).json({ error: "Không tìm thấy không gian căn hộ" });
+      return;
+    }
+
+    const model3dUrl = `/uploads/models/${req.file.filename}`;
+
+    const result = await db
+      .update(apartmentSpaces)
+      .set({
+        model3dUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(apartmentSpaces.id, spaceId))
+      .returning();
+
+    res.json({
+      message: "Upload mô hình 3D cho không gian thành công!",
+      data: result[0],
+    });
+  } catch {
+    res.status(500).json({ error: "Lỗi khi upload mô hình không gian" });
+  }
+});
+
 // DELETE /api/apartments/:id/spaces/:spaceId - Xóa không gian indoor
 router.delete("/:id/spaces/:spaceId", async (req, res) => {
   try {
@@ -866,6 +975,51 @@ router.delete("/:id/layouts/:layoutId/items/:itemId", async (req, res) => {
     res.json({ message: "Đã xóa item nội thất" });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi xóa item nội thất" });
+  }
+});
+
+// POST /api/apartments/:id/indoor-model - Upload mô hình nội thất căn hộ
+router.post("/:id/indoor-model", uploadApartmentModel, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const apartmentId = Number(req.params.id);
+    if (Number.isNaN(apartmentId)) {
+      res.status(400).json({ error: "ID căn hộ không hợp lệ" });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: "Vui lòng chọn file .glb hoặc .gltf" });
+      return;
+    }
+
+    const apartment = await getApartmentOrNull(apartmentId);
+    if (!apartment) {
+      res.status(404).json({ error: "Không tìm thấy căn hộ" });
+      return;
+    }
+
+    const indoorModelUrl = `/uploads/models/${req.file.filename}`;
+
+    const result = await db
+      .update(apartments)
+      .set({
+        indoorModelUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(apartments.id, apartmentId))
+      .returning();
+
+    if (result.length === 0) {
+      res.status(404).json({ error: "Không tìm thấy căn hộ" });
+      return;
+    }
+
+    res.json({
+      message: "Upload mô hình nội thất căn hộ thành công!",
+      data: result[0],
+    });
+  } catch {
+    res.status(500).json({ error: "Lỗi khi upload mô hình nội thất căn hộ" });
   }
 });
 

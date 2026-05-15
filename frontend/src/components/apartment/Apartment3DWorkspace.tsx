@@ -1,15 +1,14 @@
-import { useRef, useMemo } from "react";
+import { useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { 
-  OrbitControls, 
-  PerspectiveCamera, 
-  ContactShadows, 
-  Grid, 
+import {
+  OrbitControls,
+  PerspectiveCamera,
+  ContactShadows,
+  Grid,
   Environment,
   Html,
   BakeShadows
 } from "@react-three/drei";
-import * as THREE from "three";
 
 // 1. Data Structure: Layout mục tiêu cho "The Felix"
 const APARTMENT_LAYOUT = [
