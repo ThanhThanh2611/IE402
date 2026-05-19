@@ -1,10 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import * as THREE from "three";
-import { TransformControls, Html } from "@react-three/drei";
+import { TransformControls } from "@react-three/drei";
 import { parseWktToShape } from "@/lib/three-utils";
-import { exportToGLB } from "@/lib/gltf-exporter";
-import { Button } from "@/components/ui";
-import { Download, Maximize } from "lucide-react";
 
 interface RoomMeshBuilderProps {
   boundary?: string | null;

@@ -1,10 +1,10 @@
 import { useRef, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { 
-  OrbitControls, 
-  PerspectiveCamera, 
-  ContactShadows, 
-  Grid, 
+import {
+  OrbitControls,
+  PerspectiveCamera,
+  ContactShadows,
+  Grid,
   Environment,
   Html,
   BakeShadows

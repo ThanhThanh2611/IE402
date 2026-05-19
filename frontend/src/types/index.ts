@@ -349,6 +349,24 @@ export interface FurnitureLayout {
   items: FurnitureItem[];
 }
 
+export interface FurnitureLayoutTemplate {
+  id: number;
+  buildingId: number;
+  name: string;
+  description: string | null;
+  isPublished: boolean;
+  sourceLayoutId: number | null;
+  createdById: number | null;
+  updatedById: number | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: {
+    id: number;
+    fullName: string;
+    username: string;
+  };
+}
+
 export interface ApartmentDetailResponse {
   apartment: Apartment;
   floor: Floor | null;

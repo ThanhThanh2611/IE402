@@ -66,7 +66,7 @@ import type {
   FurnitureLayout,
   User,
 } from "@/types";
-import { Pencil, Plus, Trash2, Box, Map as MapIcon } from "lucide-react";
+import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye } from "lucide-react";
 import { 
   ApartmentScene, 
   LAYOUT_1PN_ROOMS, 
@@ -75,6 +75,7 @@ import {
   LAYOUT_2PN_WALLS 
 } from "@/components/apartment/ApartmentScene";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FurnitureModelPreview } from "@/components/apartment/FurnitureModelPreview";
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -394,11 +395,44 @@ export default function ApartmentDetailPage() {
   const [grantErrors, setGrantErrors] = useState<Record<string, string>>({});
   const [workspaceMode, setWorkspaceMode] = useState<"2d" | "3d">("2d");
   const [activeLayout, setActiveLayout] = useState<"1PN" | "2PN">("1PN");
+  const [modelUploadDialogOpen, setModelUploadDialogOpen] = useState(false);
+  const [uploadingModelType, setUploadingModelType] = useState<"apartment" | "space" | "catalog" | null>(null);
+  const [uploadingModelTarget, setUploadingModelTarget] = useState<number | null>(null);
+  const [modelFile, setModelFile] = useState<File | null>(null);
+  const [isUploadingModel, setIsUploadingModel] = useState(false);
+  const [catalogCurrentPage, setCatalogCurrentPage] = useState(1);
+  const catalogItemsPerPage = 9;
+  const [previewModelId, setPreviewModelId] = useState<number | null>(null);
 
   const [deleteState, setDeleteState] = useState<{
     type: "space" | "layout" | "item" | "catalog" | "grant";
     id: number;
   } | null>(null);
+
+  const [templates, setTemplates] = useState<Array<any>>([]);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [selectedTemplateForApply, setSelectedTemplateForApply] = useState<number | null>(null);
+  const [templateNameForApply, setTemplateNameForApply] = useState("");
+
+  const [createTemplateDialogOpen, setCreateTemplateDialogOpen] = useState(false);
+  const [createTemplateForm, setCreateTemplateForm] = useState({ name: "", description: "" });
+
+  const loadTemplates = useCallback(async () => {
+    if (!detail?.building?.id) return;
+
+    try {
+      const result = await api.get<any[]>(
+        `/furniture-layout-templates/building/${detail.building.id}`
+      );
+      setTemplates(result);
+    } catch (error) {
+      console.error("Lỗi tải templates:", error);
+    }
+  }, [detail?.building?.id]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
 
   const loadDetail = useCallback(async () => {
     if (Number.isNaN(resolvedApartmentId)) {
@@ -710,6 +744,74 @@ export default function ApartmentDetailPage() {
     }
   };
 
+  const handleApplyTemplate = async () => {
+    if (!detail || !selectedTemplateForApply || !templateNameForApply.trim()) {
+      toast.error("Vui lòng chọn template và nhập tên layout");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.post(
+        `/furniture-layout-templates/${selectedTemplateForApply}/apply`,
+        {
+          apartmentId: detail.apartment.id,
+          layoutName: templateNameForApply.trim(),
+        }
+      );
+      toast.success("Áp dụng template thành công");
+      setTemplateDialogOpen(false);
+      setSelectedTemplateForApply(null);
+      setTemplateNameForApply("");
+      await loadDetail();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Không thể áp dụng template");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateTemplateFromLayout = () => {
+    if (!detail || !selectedLayout) {
+      toast.error("Vui lòng chọn layout");
+      return;
+    }
+
+    setCreateTemplateForm({
+      name: `Template từ "${selectedLayout.name}"`,
+      description: `Khuôn mẫu dựa trên layout "${selectedLayout.name}" v${selectedLayout.version}`,
+    });
+    setCreateTemplateDialogOpen(true);
+  };
+
+  const handleSaveTemplateFromLayout = async () => {
+    if (!detail || !selectedLayout || !createTemplateForm.name.trim()) {
+      toast.error("Vui lòng nhập tên template");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.post(
+        `/furniture-layout-templates`,
+        {
+          buildingId: detail.building?.id,
+          name: createTemplateForm.name.trim(),
+          description: createTemplateForm.description?.trim() || null,
+          sourceLayoutId: selectedLayout.id,
+        }
+      );
+      toast.success("Tạo template thành công");
+      setCreateTemplateDialogOpen(false);
+      setCreateTemplateForm({ name: "", description: "" });
+      await loadTemplates();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Không thể tạo template");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveItem = async () => {
     if (!detail || !selectedLayout) return;
 
@@ -870,6 +972,41 @@ export default function ApartmentDetailPage() {
     }
   };
 
+  const handleUploadModel = async () => {
+    if (!detail || !modelFile || !uploadingModelType || uploadingModelTarget === null) {
+      toast.error("Chưa chọn file hoặc loại model cần upload");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", modelFile);
+
+    try {
+      setIsUploadingModel(true);
+      let endpoint = "";
+
+      if (uploadingModelType === "apartment") {
+        endpoint = `/apartments/${uploadingModelTarget}/indoor-model`;
+      } else if (uploadingModelType === "space") {
+        endpoint = `/apartments/${detail.apartment.id}/spaces/${uploadingModelTarget}/model`;
+      } else if (uploadingModelType === "catalog") {
+        endpoint = `/furniture-catalog/${uploadingModelTarget}/model`;
+      }
+
+      await api.postFormData(endpoint, formData);
+      toast.success("Upload mô hình 3D thành công!");
+      setModelUploadDialogOpen(false);
+      setModelFile(null);
+      setUploadingModelType(null);
+      setUploadingModelTarget(null);
+      await loadDetail();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Lỗi khi upload mô hình 3D");
+    } finally {
+      setIsUploadingModel(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -1021,8 +1158,8 @@ export default function ApartmentDetailPage() {
     if (!item) return;
 
     const nextPosition = `POINT Z (${x} ${z} ${yHover})`;
-    const pctX = (x / APARTMENT_WIDTH) * 100;
-    const pctZ = (z / APARTMENT_DEPTH) * 100;
+    const pctX = (x / currentWidth) * 100;
+    const pctZ = (z / currentDepth) * 100;
     const resolvedSpaceId = resolveDropSpaceId(pctX, pctZ);
 
     try {
@@ -1214,6 +1351,37 @@ export default function ApartmentDetailPage() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Mô hình nội thất căn hộ (Indoor Model)</CardTitle>
+          {isManager && (
+            <Button
+              onClick={() => {
+                setUploadingModelType("apartment");
+                setUploadingModelTarget(detail.apartment.id);
+                setModelUploadDialogOpen(true);
+              }}
+              size="sm"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload mô hình
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {detail.apartment.indoorModelUrl ? (
+            <>
+              <p className="text-sm text-muted-foreground">Mô hình hiện tại:</p>
+              <div className="rounded-lg bg-muted/50 p-3 font-mono text-sm break-all">
+                {detail.apartment.indoorModelUrl}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Chưa có mô hình nội thất. {isManager ? "Hãy upload để bắt đầu." : ""}</p>
+          )}
+        </CardContent>
+      </Card>
+
       {isManager && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -1330,10 +1498,12 @@ export default function ApartmentDetailPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Không gian LoD4</CardTitle>
             {isManager && (
-              <Button onClick={openCreateSpace}>
-                <Plus className="mr-2 h-4 w-4" />
-                Thêm không gian
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={openCreateSpace} size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Thêm không gian
+                </Button>
+              </div>
             )}
           </CardHeader>
           <CardContent>
@@ -1345,6 +1515,7 @@ export default function ApartmentDetailPage() {
                     <TableHead>Loại</TableHead>
                     <TableHead>Room type</TableHead>
                     <TableHead>Cha</TableHead>
+                    {isManager && <TableHead>Model 3D</TableHead>}
                     {isManager && <TableHead className="text-right">Hành động</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -1359,6 +1530,21 @@ export default function ApartmentDetailPage() {
                           ? spaces.find((item) => item.id === space.parentSpaceId)?.name ?? `#${space.parentSpaceId}`
                           : "-"}
                       </TableCell>
+                      {isManager && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setUploadingModelType("space");
+                              setUploadingModelTarget(space.id);
+                              setModelUploadDialogOpen(true);
+                            }}
+                          >
+                            <Upload className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                       {isManager && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -1389,10 +1575,18 @@ export default function ApartmentDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Layouts nội thất</CardTitle>
-            <Button onClick={openCreateLayout}>
-              <Plus className="mr-2 h-4 w-4" />
-              Tạo layout
-            </Button>
+            <div className="flex gap-2">
+              {templates.length > 0 && (
+                <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Từ template
+                </Button>
+              )}
+              <Button onClick={openCreateLayout}>
+                <Plus className="mr-2 h-4 w-4" />
+                Tạo layout
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {detail.layouts.map((layout) => (
@@ -1408,7 +1602,20 @@ export default function ApartmentDetailPage() {
                   <Badge variant="outline">{layoutStatusLabels[layout.status]}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">Version {layout.version}</p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedLayoutId(layout.id);
+                      handleCreateTemplateFromLayout();
+                    }}
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Lưu thành template
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -1718,7 +1925,10 @@ export default function ApartmentDetailPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Thư viện nội thất</CardTitle>
+          <div>
+            <CardTitle>Thư viện nội thất</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Tổng {catalog.length} mẫu</p>
+          </div>
           {isManager && (
             <Button onClick={openCreateCatalog}>
               <Plus className="mr-2 h-4 w-4" />
@@ -1726,9 +1936,12 @@ export default function ApartmentDetailPage() {
             </Button>
           )}
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {catalog.map((item) => (
+        <CardContent className="space-y-6">
+          {catalog.length > 0 && (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {catalog
+                .slice((catalogCurrentPage - 1) * catalogItemsPerPage, catalogCurrentPage * catalogItemsPerPage)
+                .map((item) => (
               <div key={item.id} className="rounded-lg border p-4">
                 <div
                   draggable={!!selectedLayout}
@@ -1756,7 +1969,29 @@ export default function ApartmentDetailPage() {
                   </div>
                 </div>
                 {isManager && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.model3dUrl && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewModelId(item.id)}
+                      >
+                        <Eye className="mr-1 h-4 w-4" />
+                        Xem 3D
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setUploadingModelType("catalog");
+                        setUploadingModelTarget(item.id);
+                        setModelUploadDialogOpen(true);
+                      }}
+                    >
+                      <Upload className="mr-1 h-4 w-4" />
+                      {item.model3dUrl ? "Thay" : "Upload"}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
                       <Pencil className="mr-1 h-4 w-4" />
                       Sửa
@@ -1768,11 +2003,55 @@ export default function ApartmentDetailPage() {
                   </div>
                 )}
               </div>
-            ))}
-            {catalog.length === 0 && (
-              <p className="text-sm text-muted-foreground">Chưa có dữ liệu thư viện nội thất.</p>
-            )}
-          </div>
+                ))}
+            </div>
+          )}
+          {catalog.length === 0 && (
+            <p className="text-sm text-muted-foreground">Chưa có dữ liệu thư viện nội thất.</p>
+          )}
+
+          {catalog.length > catalogItemsPerPage && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                Trang {catalogCurrentPage} / {Math.ceil(catalog.length / catalogItemsPerPage)}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCatalogCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={catalogCurrentPage === 1}
+                >
+                  Trước
+                </Button>
+                {Array.from({ length: Math.ceil(catalog.length / catalogItemsPerPage) }).map((_, idx) => {
+                  const pageNum = idx + 1;
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={catalogCurrentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCatalogCurrentPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCatalogCurrentPage((p) =>
+                      Math.min(Math.ceil(catalog.length / catalogItemsPerPage), p + 1)
+                    )
+                  }
+                  disabled={catalogCurrentPage === Math.ceil(catalog.length / catalogItemsPerPage)}
+                >
+                  Sau
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1838,6 +2117,80 @@ export default function ApartmentDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSpaceDialogOpen(false)}>Hủy</Button>
             <Button onClick={() => void handleSaveSpace()} disabled={saving}>{saving ? "Đang lưu..." : "Lưu"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Áp dụng template layout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Chọn template *</Label>
+              {templates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Không có template nào cho tòa nhà này</p>
+              ) : (
+                <Select value={selectedTemplateForApply ? String(selectedTemplateForApply) : ""} onValueChange={(value) => setSelectedTemplateForApply(Number(value))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Chọn template">{selectedTemplateForApply ? templates.find((t) => t.id === selectedTemplateForApply)?.name : undefined}</SelectValue></SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={String(template.id)}>
+                        {template.name} {template.description && `- ${template.description}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Tên layout mới *</Label>
+              <Input
+                placeholder="e.g. Layout v2"
+                value={templateNameForApply}
+                onChange={(e) => setTemplateNameForApply(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>Hủy</Button>
+            <Button onClick={() => void handleApplyTemplate()} disabled={saving || templates.length === 0}>
+              {saving ? "Đang áp dụng..." : "Áp dụng"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createTemplateDialogOpen} onOpenChange={setCreateTemplateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tạo template từ layout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tên template *</Label>
+              <Input
+                placeholder="e.g. Layout nội thất chuẩn 1PN"
+                value={createTemplateForm.name}
+                onChange={(e) => setCreateTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Mô tả (tùy chọn)</Label>
+              <Textarea
+                placeholder="Mô tả chi tiết về template này..."
+                rows={3}
+                value={createTemplateForm.description}
+                onChange={(e) => setCreateTemplateForm((prev) => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTemplateDialogOpen(false)}>Hủy</Button>
+            <Button onClick={() => void handleSaveTemplateFromLayout()} disabled={saving || !createTemplateForm.name.trim()}>
+              {saving ? "Đang tạo..." : "Tạo template"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2100,6 +2453,73 @@ export default function ApartmentDetailPage() {
             <Button variant="outline" onClick={() => setGrantDialogOpen(false)}>Hủy</Button>
             <Button onClick={() => void handleSaveGrant()} disabled={saving}>
               {saving ? "Đang lưu..." : "Lưu grant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewModelId !== null} onOpenChange={(open) => !open && setPreviewModelId(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Xem trước mô hình 3D - {catalog.find((item) => item.id === previewModelId)?.name}</DialogTitle>
+          </DialogHeader>
+          {catalog.find((item) => item.id === previewModelId)?.model3dUrl && (
+            <FurnitureModelPreview
+              modelUrl={catalog.find((item) => item.id === previewModelId)?.model3dUrl || ""}
+              modelName={catalog.find((item) => item.id === previewModelId)?.name || ""}
+            />
+          )}
+          <DialogFooter>
+            <Button onClick={() => setPreviewModelId(null)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modelUploadDialogOpen} onOpenChange={setModelUploadDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload Mô hình 3D</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Chọn file (.glb hoặc .gltf)</Label>
+              <Input
+                type="file"
+                accept=".glb,.gltf"
+                onChange={(e) => setModelFile(e.target.files?.[0] ?? null)}
+              />
+              {modelFile && (
+                <p className="text-sm text-muted-foreground">
+                  Tập tin: <span className="font-medium">{modelFile.name}</span> ({(modelFile.size / 1024 / 1024).toFixed(2)}MB)
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">
+                ⚠️ <strong>Giới hạn kích thước:</strong>
+                <br />• Apartments: 100MB
+                <br />• Spaces: 100MB
+                <br />• Furniture: 50MB
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setModelUploadDialogOpen(false);
+                setModelFile(null);
+                setUploadingModelType(null);
+                setUploadingModelTarget(null);
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={() => void handleUploadModel()}
+              disabled={isUploadingModel || !modelFile}
+            >
+              {isUploadingModel ? "Đang upload..." : "Upload"}
             </Button>
           </DialogFooter>
         </DialogContent>

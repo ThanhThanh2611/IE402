@@ -40,6 +40,11 @@ Table navigation_nodes {
   node_type node_type [not null, note: 'Loại node: door, elevator, stairs, junction']
   label varchar [note: 'Nhãn mô tả node']
   location geometry(PointZ,4326) [not null, note: 'Tọa độ 3D - z xác định tầng']
+  local_x decimal [note: 'Tọa độ X cục bộ trong hệ tọa độ tòa nhà']
+  local_y decimal [note: 'Tọa độ Y cục bộ trong hệ tọa độ tòa nhà']
+  local_z decimal [note: 'Tọa độ Z cục bộ trong hệ tọa độ tòa nhà']
+  mesh_ref varchar [note: 'Tham chiếu mesh trong model 3D']
+  metadata json [note: 'Thuộc tính mở rộng cho node']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
 }
@@ -158,6 +163,19 @@ Table users {
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
   deleted_at timestamp [note: 'Xóa mềm']
+}
+
+Table auth_sessions {
+  id integer [pk, increment]
+  user_id integer [not null, ref: > users.id]
+  refresh_token_hash varchar [not null, unique, note: 'Hash của refresh token, dùng cho rotation/revoke']
+  expires_at timestamp [not null, note: 'Thời điểm hết hạn của refresh token']
+  revoked_at timestamp [note: 'Thời điểm thu hồi token (logout, security event)']
+  last_used_at timestamp [note: 'Lần cuối token được sử dụng để rotate']
+  user_agent text [note: 'User agent của thiết bị đăng nhập']
+  ip_address varchar [note: 'Địa chỉ IP của thiết bị đăng nhập']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
 }
 
 Table apartment_spaces {

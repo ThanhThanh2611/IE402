@@ -356,7 +356,7 @@ function FurnitureNode({
           <div className="flex flex-col items-center gap-1.5 pointer-events-none select-none">
             <div className={`px-2.5 py-1 rounded-md text-[9px] font-bold shadow-lg whitespace-nowrap transition-all flex items-center gap-2 ${
               selected ? "bg-blue-600 text-white scale-110 ring-2 ring-white/50" : "bg-slate-800/80 text-slate-200 backdrop-blur-sm"
-            }`}>
+             }`}>
               <span>{item.label || catalogItem?.name || "Nội thất"}</span>
               {selected && transformMode === "rotate" && (
                 <span className="bg-white/20 px-1 rounded font-mono">{degrees}°</span>

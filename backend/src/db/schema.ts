@@ -335,6 +335,22 @@ export const furnitureLayouts = pgTable("furniture_layouts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Furniture Layout Templates — khuôn mẫu bố cục dùng cho nhiều căn hộ cùng loại
+export const furnitureLayoutTemplates = pgTable("furniture_layout_templates", {
+  id: serial("id").primaryKey(),
+  buildingId: integer("building_id")
+    .notNull()
+    .references(() => buildings.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isPublished: boolean("is_published").notNull().default(false),
+  sourceLayoutId: integer("source_layout_id"), // Không FK - chỉ lưu reference để track nguồn
+  createdById: integer("created_by_id").references(() => users.id),
+  updatedById: integer("updated_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Furniture Items — từng instance nội thất được đặt trong layout
 export const furnitureItems = pgTable("furniture_items", {
   id: serial("id").primaryKey(),
