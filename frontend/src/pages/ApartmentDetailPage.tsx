@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense, type DragEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -66,9 +66,8 @@ import type {
   FurnitureLayout,
   User,
 } from "@/types";
-import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye } from "lucide-react";
+import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye, Info, AlertTriangle } from "lucide-react";
 import { 
-  ApartmentScene, 
   LAYOUT_1PN_ROOMS, 
   LAYOUT_1PN_WALLS, 
   LAYOUT_2PN_ROOMS, 
@@ -76,6 +75,11 @@ import {
 } from "@/components/apartment/ApartmentScene";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FurnitureModelPreview } from "@/components/apartment/FurnitureModelPreview";
+
+// Lazy load ApartmentScene để tránh Three.js block trang lần đầu
+const ApartmentScene = lazy(() =>
+  import("@/components/apartment/ApartmentScene").then((m) => ({ default: m.ApartmentScene }))
+);
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -446,6 +450,24 @@ export default function ApartmentDetailPage() {
       const result = await api.get<ApartmentDetailResponse>(
         `/apartments/${resolvedApartmentId}/details`,
       );
+
+      if (result.layouts.length === 0) {
+        try {
+          const newLayout = await api.post<FurnitureLayout>(
+            `/apartments/${resolvedApartmentId}/layouts`,
+            {
+              name: "Layout của tôi",
+              status: "draft",
+              version: 1,
+            }
+          );
+          const layoutWithItems = { ...newLayout, items: [] };
+          result.layouts = [layoutWithItems];
+        } catch (createError) {
+          console.error("Lỗi tự động tạo layout:", createError);
+        }
+      }
+
       setDetail(result);
       setSelectedLayoutId((current) => {
         if (current && result.layouts.some((layout) => layout.id === current)) {
@@ -1717,8 +1739,8 @@ export default function ApartmentDetailPage() {
           <div className="flex flex-col gap-1">
             <CardTitle>Workspace kéo thả nội thất</CardTitle>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
-                {activeLayout === "1PN" ? "1 PN + 1 WC (Open Plan)" : "2 PN + 2 WC (Original)"}
+              <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                {activeLayout === "1PN" ? "Căn hộ 1 PN + 1 WC" : "Căn hộ 2 PN + 2 WC"}
               </Badge>
             </div>
           </div>
@@ -1744,8 +1766,14 @@ export default function ApartmentDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {workspaceMode === "3d" ? (
-            <div className="h-[800px]">
+          {/* 3D Workspace — luôn mounted, ẩn bằng CSS để tránh WebGL context bị reset */}
+          <div className={workspaceMode === "3d" ? "h-[800px]" : "hidden"}>
+            <Suspense fallback={
+              <div className="h-[800px] flex flex-col items-center justify-center gap-3 text-muted-foreground rounded-xl border border-dashed bg-muted/20">
+                <Box className="h-8 w-8 animate-pulse" />
+                <p className="text-sm">Đang tải mô hình 3D...</p>
+              </div>
+            }>
               <ApartmentScene 
                 items={selectedLayout?.items} 
                 catalog={catalog} 
@@ -1753,8 +1781,11 @@ export default function ApartmentDetailPage() {
                 onItemRotate={handleItemRotate3D}
                 activeLayout={activeLayout}
               />
-            </div>
-          ) : (
+            </Suspense>
+          </div>
+
+          {/* 2D Workspace */}
+          <div className={workspaceMode === "2d" ? "" : "hidden"}>
             <>
               {workspaceSpaces.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -1799,11 +1830,9 @@ export default function ApartmentDetailPage() {
                           y={yPct}
                           width={wPct}
                           height={dPct}
-                          style={{ fill: room.color, opacity: 0.2, stroke: room.color, strokeOpacity: 0.6 }}
-                          strokeWidth={0.5}
-                          vectorEffect="non-scaling-stroke"
+                          style={{ fill: room.color, opacity: 0.15 }}
                         />
-                        {room.name && (
+                        {room.name && workspaceSpaces.length === 0 && (
                           <text
                             x={xPct + wPct / 2}
                             y={yPct + dPct / 2}
@@ -1911,15 +1940,19 @@ export default function ApartmentDetailPage() {
                 )}
               </div>
             </>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            Kéo item từ thư viện nội thất phía dưới vào workspace để thêm mới. Kéo item đang có trong workspace để đổi vị trí. Nếu item rơi vào boundary của một không gian LoD4, hệ thống sẽ tự gắn item vào đúng không gian đó.
-          </p>
-          {workspaceSpaces.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Workspace đang chưa có sơ đồ phòng vì chưa có `boundary` hợp lệ ở các không gian LoD4.
-            </p>
-          )}
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">
+              <Info className="h-4 w-4 text-primary shrink-0" />
+              <span>Kéo thả nội thất từ thư viện vào sơ đồ để sắp đặt. Hệ thống sẽ tự động liên kết vào phòng tương ứng.</span>
+            </div>
+            {workspaceSpaces.length === 0 && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>Căn hộ này chưa được thiết lập sơ đồ phòng.</span>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

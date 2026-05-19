@@ -53,11 +53,11 @@ export interface WallSegment {
 // --- Layout 1PN LoD3 (6.0m x 6.7m) ---
 export const LAYOUT_1PN_ROOMS: RoomData[] = [
   { id: "wc", name: "WC", x: 0, z: 0, w: 2.0, d: 2.5, color: "#dcfce7", floorType: "tile" },
-  { id: "kitchen", name: "Nhà Bếp", x: 4.0, z: 0.1, w: 2.0, d: 2.2, color: "#fef3c7", floorType: "tile" },
-  { id: "living_hall", name: "Phòng Khách & Sảnh", x: 2.0, z: 0, w: 2.0, d: 3.5, color: "#f8fafc", floorType: "wood" },
+  { id: "kitchen", name: "", x: 4.0, z: 0.1, w: 2.0, d: 2.2, color: "#fef3c7", floorType: "tile" },
+  { id: "living_hall", name: "", x: 2.0, z: 0, w: 2.0, d: 3.5, color: "#f8fafc", floorType: "wood" },
   { id: "bedroom", name: "Phòng Ngủ", x: 0, z: 3.5, w: 3.0, d: 3.2, color: "#e0e7ff", floorType: "wood" },
   { id: "balcony", name: "Ban Công", x: 3.0, z: 5.5, w: 3.0, d: 1.2, color: "#cbd5e1", floorType: "concrete" }, 
-  { id: "living_main", name: "", x: 3.0, z: 2.2, w: 3.0, d: 4.5, color: "#f8fafc", floorType: "wood" }, 
+  { id: "living_main", name: "Phòng khách, Bếp & Ăn", x: 3.0, z: 2.2, w: 3.0, d: 4.5, color: "#f8fafc", floorType: "wood" }, 
 ];
 
 export const LAYOUT_1PN_WALLS: WallSegment[] = [
@@ -83,10 +83,10 @@ export const LAYOUT_2PN_ROOMS: RoomData[] = [
   { id: "br1", name: "Phòng ngủ 1", x: 0.4, z: 0.22, w: 3.25, d: 2.88, color: "#e0e7ff", floorType: "wood" },
   { id: "wc1", name: "WC 1", x: 3.76, z: 0.22, w: 1.69, d: 2.88, color: "#dcfce7", floorType: "tile" },
   { id: "br2", name: "Phòng ngủ 2", x: 5.56, z: 0.22, w: 4.34, d: 2.88, color: "#e0e7ff", floorType: "wood" },
-  { id: "hallway", name: "Tiền sảnh", x: 0.4, z: 3.1, w: 2.2, d: 1.82, color: "#f1f5f9", floorType: "wood" },
-  { id: "wc2", name: "WC 2", x: 0.4, z: 4.92, w: 2.2, d: 1.7, color: "#dcfce7", floorType: "tile" },
-  { id: "living_combined", name: "Khách, Bếp & Ăn", x: 2.6, z: 3.1, w: 6.38, d: 3.9, color: "#f8fafc", floorType: "wood" },
-  { id: "loggia", name: "Loggia", x: 8.98, z: 3.21, w: 0.9, d: 3.41, color: "#cbd5e1", floorType: "concrete" },
+  { id: "hallway", name: "", x: 0.4, z: 3.1, w: 2.2, d: 1.82, color: "#f1f5f9", floorType: "wood" },
+  { id: "wc2", name: "WC 2", x: 0.4, z: 4.92, w: 2.2, d: 2.08, color: "#dcfce7", floorType: "tile" },
+  { id: "living_combined", name: "Phòng khách, Bếp & Ăn", x: 2.6, z: 3.1, w: 6.38, d: 3.9, color: "#f8fafc", floorType: "wood" },
+  { id: "loggia", name: "Loggia", x: 8.98, z: 3.21, w: 0.9, d: 3.79, color: "#cbd5e1", floorType: "concrete" },
 ];
 
 export const LAYOUT_2PN_WALLS: WallSegment[] = [
@@ -294,6 +294,12 @@ function Wall({ p1, p2, thickness, offsetX, offsetZ, openings = [], type = "wall
   );
 }
 
+// Component riêng để dùng useGLTF hợp lệ (không vi phạm Rules of Hooks)
+function GltfModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  return <primitive object={scene.clone()} />;
+}
+
 function FurnitureNode({ 
   item, 
   catalogItem, 
@@ -337,9 +343,7 @@ function FurnitureNode({
       >
         <Suspense fallback={<mesh><boxGeometry args={[w, h, d]} /><meshStandardMaterial color="gray" /></mesh>}>
           {catalogItem?.model3dUrl ? (
-            <group>
-              <primitive object={useGLTF(catalogItem.model3dUrl).scene.clone()} />
-            </group>
+            <GltfModel url={catalogItem.model3dUrl} />
           ) : (
             <mesh position={[0, h/2, 0]} castShadow receiveShadow>
               <boxGeometry args={[w, h, d]} />
