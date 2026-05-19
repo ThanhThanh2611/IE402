@@ -458,11 +458,10 @@ async function seed() {
     if (apartment.numBedrooms === 1) {
       // Layout 1PN Mẫu
       const spaces = [
-        { name: "WC", type: "bathroom", area: 4.4 },
-        { name: "Phòng Khách & Sảnh", type: "living_room", area: 10.4 },
-        { name: "Nhà Bếp", type: "kitchen", area: 4.4 },
-        { name: "Phòng Ngủ", type: "bedroom", area: 12.6 },
-        { name: "Ban Công", type: "balcony", area: 8.4 },
+        { name: "WC", type: "bathroom", area: 4.4, boundary: "POLYGON Z ((0 0 0, 33.33 0 0, 33.33 37.31 0, 0 37.31 0, 0 0 0))" },
+        { name: "Phòng khách, Bếp & Ăn", type: "living_room", area: 21.0, boundary: "POLYGON Z ((33.33 0 0, 100 0 0, 100 82.09 0, 50 82.09 0, 50 52.24 0, 0 52.24 0, 0 37.31 0, 33.33 37.31 0, 33.33 0 0))" },
+        { name: "Phòng Ngủ", type: "bedroom", area: 12.6, boundary: "POLYGON Z ((0 52.24 0, 50 52.24 0, 50 100 0, 0 100 0, 0 52.24 0))" },
+        { name: "Ban Công", type: "balcony", area: 8.4, boundary: "POLYGON Z ((50 82.09 0, 100 82.09 0, 100 100 0, 50 100 0, 50 82.09 0))" },
       ];
       for (const s of spaces) {
         const res = await db.insert(apartmentSpaces).values({
@@ -472,6 +471,7 @@ async function seed() {
           spaceType: "room",
           roomType: s.type as any,
           lodLevel: "lod4",
+          boundary: s.boundary ? sql`ST_GeomFromText(${s.boundary}, 4326)` : null,
           metadata: { area: s.area },
         }).returning();
         insertedSpaces.push({ id: res[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: res[0].name });
@@ -479,13 +479,12 @@ async function seed() {
     } else {
       // Layout 2PN Mẫu (Theo Hình 5)
       const spaces = [
-        { name: "Phòng khách, Bếp & Ăn", type: "living_room", area: 21.4 },
-        { name: "Phòng ngủ 1", type: "bedroom", area: 9.4 },
-        { name: "Phòng ngủ 2", type: "bedroom", area: 12.5 },
-        { name: "WC 1 (Ensuite)", type: "bathroom", area: 4.5 },
-        { name: "WC 2 (Chung)", type: "bathroom", area: 3.3 },
-        { name: "Tiền sảnh", type: "corridor", area: 3.7 },
-        { name: "Loggia", type: "balcony", area: 3.8 },
+        { name: "Phòng khách, Bếp & Ăn", type: "living_room", area: 25.1, boundary: "POLYGON Z ((3.96 44.29 0, 88.91 44.29 0, 88.91 100 0, 25.74 100 0, 25.74 70.29 0, 3.96 70.29 0, 3.96 44.29 0))" },
+        { name: "Phòng ngủ 1", type: "bedroom", area: 9.4, boundary: "POLYGON Z ((3.96 3.14 0, 36.14 3.14 0, 36.14 44.29 0, 3.96 44.29 0, 3.96 3.14 0))" },
+        { name: "Phòng ngủ 2", type: "bedroom", area: 12.5, boundary: "POLYGON Z ((55.05 3.14 0, 98.02 3.14 0, 98.02 44.29 0, 55.05 44.29 0, 55.05 3.14 0))" },
+        { name: "WC 1 (Ensuite)", type: "bathroom", area: 4.5, boundary: "POLYGON Z ((37.23 3.14 0, 53.96 3.14 0, 53.96 44.29 0, 37.23 44.29 0, 37.23 3.14 0))" },
+        { name: "WC 2 (Chung)", type: "bathroom", area: 4.0, boundary: "POLYGON Z ((3.96 70.29 0, 25.74 70.29 0, 25.74 100 0, 3.96 100 0, 3.96 70.29 0))" },
+        { name: "Loggia", type: "balcony", area: 3.4, boundary: "POLYGON Z ((88.91 45.86 0, 97.82 45.86 0, 97.82 100 0, 88.91 100 0, 88.91 45.86 0))" },
       ];
       for (const s of spaces) {
         const res = await db.insert(apartmentSpaces).values({
@@ -495,6 +494,7 @@ async function seed() {
           spaceType: "room",
           roomType: s.type as any,
           lodLevel: "lod4",
+          boundary: s.boundary ? sql`ST_GeomFromText(${s.boundary}, 4326)` : null,
           metadata: { area: s.area },
         }).returning();
         insertedSpaces.push({ id: res[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: res[0].name });
