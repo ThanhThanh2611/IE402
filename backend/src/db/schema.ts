@@ -326,6 +326,7 @@ export const furnitureLayouts = pgTable("furniture_layouts", {
   apartmentId: integer("apartment_id")
     .notNull()
     .references(() => apartments.id),
+  userId: integer("user_id").references(() => users.id),
   name: varchar("name", { length: 255 }).notNull(),
   status: furnitureLayoutStatusEnum("status").notNull().default("draft"),
   version: integer("version").notNull().default(1),

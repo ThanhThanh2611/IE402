@@ -214,7 +214,17 @@ async function getApartmentDetailData(
   const layouts = await db
     .select()
     .from(furnitureLayouts)
-    .where(eq(furnitureLayouts.apartmentId, apartmentId))
+    .where(
+      and(
+        eq(furnitureLayouts.apartmentId, apartmentId),
+        viewer.id
+          ? or(
+              eq(furnitureLayouts.userId, viewer.id),
+              isNull(furnitureLayouts.userId)
+            )
+          : isNull(furnitureLayouts.userId)
+      )
+    )
     .orderBy(desc(furnitureLayouts.updatedAt), desc(furnitureLayouts.id));
 
   const items =
@@ -762,6 +772,7 @@ router.post("/:id/layouts", async (req, res) => {
       .values({
         ...req.body,
         apartmentId,
+        userId: req.user?.role === "manager" ? (req.body.userId !== undefined ? req.body.userId : null) : req.user?.id,
         createdById: req.user?.id ?? null,
         updatedById: req.user?.id ?? null,
         updatedAt: new Date(),
@@ -780,6 +791,24 @@ router.put("/:id/layouts/:layoutId", async (req, res) => {
     const apartmentId = Number(req.params.id);
     const layoutId = Number(req.params.layoutId);
 
+    const existingLayout = await db
+      .select()
+      .from(furnitureLayouts)
+      .where(
+        and(
+          eq(furnitureLayouts.id, layoutId),
+          eq(furnitureLayouts.apartmentId, apartmentId)
+        )
+      );
+
+    if (existingLayout.length === 0) {
+      return res.status(404).json({ error: "Không tìm thấy layout nội thất" });
+    }
+
+    if (req.user?.role !== "manager" && existingLayout[0].userId !== req.user?.id) {
+      return res.status(403).json({ error: "Bạn không có quyền chỉnh sửa layout này" });
+    }
+
     const result = await db
       .update(furnitureLayouts)
       .set({
@@ -788,17 +817,8 @@ router.put("/:id/layouts/:layoutId", async (req, res) => {
         updatedById: req.user?.id ?? null,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(furnitureLayouts.id, layoutId),
-          eq(furnitureLayouts.apartmentId, apartmentId)
-        )
-      )
+      .where(eq(furnitureLayouts.id, layoutId))
       .returning();
-
-    if (result.length === 0) {
-      return res.status(404).json({ error: "Không tìm thấy layout nội thất" });
-    }
 
     res.json(result[0]);
   } catch (error) {
@@ -824,6 +844,10 @@ router.delete("/:id/layouts/:layoutId", async (req, res) => {
 
     if (existingLayout.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy layout nội thất" });
+    }
+
+    if (req.user?.role !== "manager" && existingLayout[0].userId !== req.user?.id) {
+      return res.status(403).json({ error: "Bạn không có quyền xóa layout này" });
     }
 
     await db.delete(furnitureItems).where(eq(furnitureItems.layoutId, layoutId));
@@ -853,6 +877,10 @@ router.post("/:id/layouts/:layoutId/items", async (req, res) => {
 
     if (existingLayout.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy layout nội thất" });
+    }
+
+    if (req.user?.role !== "manager" && existingLayout[0].userId !== req.user?.id) {
+      return res.status(403).json({ error: "Bạn không có quyền sửa đổi items của layout này" });
     }
 
     const placementError = await validateFurniturePlacement(layoutId, req.body.position);
@@ -895,6 +923,10 @@ router.put("/:id/layouts/:layoutId/items/:itemId", async (req, res) => {
 
     if (existingLayout.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy layout nội thất" });
+    }
+
+    if (req.user?.role !== "manager" && existingLayout[0].userId !== req.user?.id) {
+      return res.status(403).json({ error: "Bạn không có quyền sửa đổi items của layout này" });
     }
 
     const placementError = await validateFurniturePlacement(
@@ -951,6 +983,10 @@ router.delete("/:id/layouts/:layoutId/items/:itemId", async (req, res) => {
 
     if (existingLayout.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy layout nội thất" });
+    }
+
+    if (req.user?.role !== "manager" && existingLayout[0].userId !== req.user?.id) {
+      return res.status(403).json({ error: "Bạn không có quyền sửa đổi items của layout này" });
     }
 
     const result = await db
