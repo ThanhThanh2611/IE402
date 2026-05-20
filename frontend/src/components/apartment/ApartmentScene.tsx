@@ -436,7 +436,6 @@ function FurnitureNode({
 export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRotate, activeLayout: externalLayout }: any) {
   const activeLayout = externalLayout || "1PN";
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-  const [showCeiling, setShowCeiling] = useState(false);
   
   const width = activeLayout === "1PN" ? 6.0 : 10.1;
   const depth = activeLayout === "1PN" ? 6.7 : 7.0;
@@ -477,25 +476,11 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRot
                    />
                  </mesh>
                )}
-               {room.name && (
-                <Html position={[0, 0.1, 0]} center distanceFactor={10}>
-                  <div className="bg-black/40 backdrop-blur-sm text-white px-2 py-0.5 rounded text-[8px] font-bold pointer-events-none whitespace-nowrap">
-                    {room.name}
-                  </div>
-                </Html>
-              )}
             </group>
           ))}
           
           {walls.map((seg, idx) => <Wall key={idx} {...seg} offsetX={offsetX} offsetZ={offsetZ} />)}
           
-          {showCeiling && (
-            <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
-              <planeGeometry args={[width, depth]} />
-              <meshStandardMaterial color="#ffffff" transparent opacity={0.5} />
-            </mesh>
-          )}
-
           {items.map((item: any) => {
             const catalogItem = catalog.find((c: any) => c.id === item.catalogId);
             return (
@@ -516,15 +501,7 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRot
         <BakeShadows />
       </Canvas>
 
-      {/* Control Overlay */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
-        <button 
-          onClick={() => setShowCeiling(!showCeiling)}
-          className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-[10px] font-bold border border-white/20 shadow-xl transition-all"
-        >
-          {showCeiling ? "ẨN TRẦN NHÀ" : "HIỆN TRẦN NHÀ"}
-        </button>
-      </div>
+
     </div>
   );
 }

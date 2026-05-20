@@ -30,7 +30,7 @@ export function FurnitureModelPreview({ modelUrl, modelName }: FurnitureModelPre
           camera-controls
           style={{
             width: "100%",
-            height: "500px",
+            height: "350px",
             display: "block",
           }}
         />

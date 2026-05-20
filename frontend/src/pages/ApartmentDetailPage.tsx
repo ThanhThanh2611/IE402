@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, lazy, Suspense, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense, useRef, type DragEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -359,7 +359,7 @@ function replaceLayoutInDetail(
 
 export default function ApartmentDetailPage() {
   const navigate = useNavigate();
-  const { isManager } = useAuth();
+  const { isManager, user: currentUser } = useAuth();
   const { id, apartmentId } = useParams();
   const buildingId = Number(id);
   const resolvedApartmentId = Number(apartmentId);
@@ -413,13 +413,21 @@ export default function ApartmentDetailPage() {
     id: number;
   } | null>(null);
 
+  // Biến lấy id user hiện tại để kiểm tra quyền sở hữu layout
+  const currentUserId = currentUser?.id;
+
+  // Kiểm tra user có quyền chỉnh sửa layout không (là chủ hoặc manager)
+  const canEditLayout = (layoutUserId: number | null) =>
+    isManager || layoutUserId === currentUserId;
+
+  // States cho chức năng template (chỉ dành cho Manager)
   const [templates, setTemplates] = useState<Array<any>>([]);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplateForApply, setSelectedTemplateForApply] = useState<number | null>(null);
   const [templateNameForApply, setTemplateNameForApply] = useState("");
-
   const [createTemplateDialogOpen, setCreateTemplateDialogOpen] = useState(false);
   const [createTemplateForm, setCreateTemplateForm] = useState({ name: "", description: "" });
+  const hasDeletedLayoutRef = useRef(false);
 
   const loadTemplates = useCallback(async () => {
     if (!detail?.building?.id) return;
@@ -434,9 +442,6 @@ export default function ApartmentDetailPage() {
     }
   }, [detail?.building?.id]);
 
-  useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
 
   const loadDetail = useCallback(async () => {
     if (Number.isNaN(resolvedApartmentId)) {
@@ -451,7 +456,14 @@ export default function ApartmentDetailPage() {
         `/apartments/${resolvedApartmentId}/details`,
       );
 
-      if (result.layouts.length === 0) {
+      // Kiểm tra xem user đã có layout riêng (userId === currentUser.id) chưa
+      // Nếu chưa (kể cả khi đã có layout global userId=null), tạo layout mới cho user
+      const userId = currentUser?.id;
+      const hasOwnLayout = userId
+        ? result.layouts.some((layout) => layout.userId === userId)
+        : result.layouts.some((layout) => layout.userId === null);
+
+      if (!hasOwnLayout && !hasDeletedLayoutRef.current) {
         try {
           const newLayout = await api.post<FurnitureLayout>(
             `/apartments/${resolvedApartmentId}/layouts`,
@@ -462,7 +474,8 @@ export default function ApartmentDetailPage() {
             }
           );
           const layoutWithItems = { ...newLayout, items: [] };
-          result.layouts = [layoutWithItems];
+          // Thêm layout mới vào đầu danh sách và ưu tiên chọn
+          result.layouts = [layoutWithItems, ...result.layouts];
         } catch (createError) {
           console.error("Lỗi tự động tạo layout:", createError);
         }
@@ -473,7 +486,11 @@ export default function ApartmentDetailPage() {
         if (current && result.layouts.some((layout) => layout.id === current)) {
           return current;
         }
-        return result.layouts[0]?.id ?? null;
+        // Ưu tiên chọn layout của user hiện tại (userId khớp)
+        const ownLayout = currentUser?.id
+          ? result.layouts.find((layout) => layout.userId === currentUser.id)
+          : null;
+        return ownLayout?.id ?? result.layouts[0]?.id ?? null;
       });
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Không thể tải chi tiết căn hộ";
@@ -482,7 +499,7 @@ export default function ApartmentDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [resolvedApartmentId]);
+  }, [resolvedApartmentId, currentUser]);
 
   useEffect(() => {
     void loadDetail();
@@ -826,7 +843,7 @@ export default function ApartmentDetailPage() {
       toast.success("Tạo template thành công");
       setCreateTemplateDialogOpen(false);
       setCreateTemplateForm({ name: "", description: "" });
-      await loadTemplates();
+      await Promise.all([loadTemplates(), loadDetail()]);
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Không thể tạo template");
     } finally {
@@ -891,6 +908,7 @@ export default function ApartmentDetailPage() {
       }
       if (deleteState.type === "layout") {
         await api.delete(`/apartments/${detail.apartment.id}/layouts/${deleteState.id}`);
+        hasDeletedLayoutRef.current = true;
       }
       if (deleteState.type === "item" && selectedLayout) {
         await api.delete(
@@ -1515,7 +1533,7 @@ export default function ApartmentDetailPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.8fr_1fr]">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Không gian LoD4</CardTitle>
@@ -1529,67 +1547,53 @@ export default function ApartmentDetailPage() {
             )}
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tên</TableHead>
-                    <TableHead>Loại</TableHead>
-                    <TableHead>Room type</TableHead>
-                    <TableHead>Cha</TableHead>
-                    {isManager && <TableHead>Model 3D</TableHead>}
-                    {isManager && <TableHead className="text-right">Hành động</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {spaces.map((space) => (
-                    <TableRow key={space.id}>
-                      <TableCell className="font-medium">{space.name}</TableCell>
-                      <TableCell>{spaceTypeLabels[space.spaceType]}</TableCell>
-                      <TableCell>{space.roomType ? roomTypeLabels[space.roomType] : "-"}</TableCell>
-                      <TableCell>
-                        {space.parentSpaceId
+            <div className="space-y-4">
+              {spaces.map((space) => (
+                <div key={space.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border p-4 bg-muted/20">
+                  <div className="space-y-1">
+                    <div className="font-semibold">{space.name}</div>
+                    <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                      <span>Loại: {spaceTypeLabels[space.spaceType]}</span>
+                      <span>
+                        Room: {space.roomType ? roomTypeLabels[space.roomType] : "-"}
+                      </span>
+                      <span>
+                        Cha: {space.parentSpaceId
                           ? spaces.find((item) => item.id === space.parentSpaceId)?.name ?? `#${space.parentSpaceId}`
                           : "-"}
-                      </TableCell>
-                      {isManager && (
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setUploadingModelType("space");
-                              setUploadingModelTarget(space.id);
-                              setModelUploadDialogOpen(true);
-                            }}
-                          >
-                            <Upload className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
-                      {isManager && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditSpace(space)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "space", id: space.id })}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                  {spaces.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={isManager ? 5 : 4} className="py-8 text-center text-muted-foreground">
-                        Chưa có dữ liệu không gian indoor.
-                      </TableCell>
-                    </TableRow>
+                      </span>
+                    </div>
+                  </div>
+                  {isManager && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setUploadingModelType("space");
+                          setUploadingModelTarget(space.id);
+                          setModelUploadDialogOpen(true);
+                        }}
+                        title="Upload Model 3D"
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        Model
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openEditSpace(space)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "space", id: space.id })}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   )}
-                </TableBody>
-              </Table>
+                </div>
+              ))}
+              {spaces.length === 0 && (
+                <div className="py-8 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                  Chưa có dữ liệu không gian indoor.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1598,12 +1602,6 @@ export default function ApartmentDetailPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Layouts nội thất</CardTitle>
             <div className="flex gap-2">
-              {templates.length > 0 && (
-                <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Từ template
-                </Button>
-              )}
               <Button onClick={openCreateLayout}>
                 <Plus className="mr-2 h-4 w-4" />
                 Tạo layout
@@ -1625,43 +1623,85 @@ export default function ApartmentDetailPage() {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">Version {layout.version}</p>
                 <div className="mt-3 flex gap-2 flex-wrap">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSelectedLayoutId(layout.id);
-                      handleCreateTemplateFromLayout();
-                    }}
-                  >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Lưu thành template
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openEditLayout(layout);
-                    }}
-                  >
-                    <Pencil className="mr-1 h-4 w-4" />
-                    Sửa
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setDeleteState({ type: "layout", id: layout.id });
-                    }}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                    Xóa
-                  </Button>
+                  {/* Nút Template (Lưu/Hủy) - cho phép mọi người */}
+                  {(() => {
+                    const isPublished = layout.status === "published";
+                    const relatedTemplate = templates.find((t) => t.sourceLayoutId === layout.id);
+
+                    if (isPublished && relatedTemplate) {
+                      // Nút Hủy công bố
+                      return (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={async (event) => {
+                            event.stopPropagation();
+                            if (!window.confirm("Bạn có chắc chắn muốn hủy công bố template này? Các thay đổi sẽ không thể hoàn tác.")) return;
+                            try {
+                              await api.delete(`/furniture-layout-templates/${relatedTemplate.id}`);
+                              toast.success("Đã hủy công bố template");
+                              await Promise.all([loadDetail(), loadTemplates()]);
+                            } catch (error: any) {
+                              toast.error(error.message || "Lỗi khi hủy công bố template");
+                            }
+                          }}
+                        >
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          Hủy công bố
+                        </Button>
+                      );
+                    } else {
+                      // Nút Lưu thành template
+                      return (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedLayoutId(layout.id);
+                            handleCreateTemplateFromLayout();
+                          }}
+                        >
+                          <Plus className="mr-1 h-4 w-4" />
+                          Lưu thành template
+                        </Button>
+                      );
+                    }
+                  })()}
+                  {canEditLayout(layout.userId) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (layout.status === "published") {
+                          const confirmEdit = window.confirm("Layout này đang được công bố làm mẫu (template). Các chỉnh sửa của bạn sẽ ảnh hưởng trực tiếp đến template chung. Bạn có chắc chắn muốn sửa không?");
+                          if (!confirmEdit) return;
+                        }
+                        openEditLayout(layout);
+                      }}
+                    >
+                      <Pencil className="mr-1 h-4 w-4" />
+                      Sửa
+                    </Button>
+                  )}
+                  {canEditLayout(layout.userId) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteState({ type: "layout", id: layout.id });
+                      }}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4 text-destructive" />
+                      Xóa
+                    </Button>
+                  )}
                 </div>
               </button>
             ))}
@@ -1787,17 +1827,7 @@ export default function ApartmentDetailPage() {
           {/* 2D Workspace */}
           <div className={workspaceMode === "2d" ? "" : "hidden"}>
             <>
-              {workspaceSpaces.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {workspaceSpaces.map((space) => (
-                    <Badge key={space.id} variant="outline" className="bg-background/80">
-                      {spaceTypeLabels[space.spaceType]}
-                      {" · "}
-                      {space.name}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+
               <div
                 className="relative mx-auto overflow-hidden rounded-xl border border-dashed bg-muted/30"
                 style={{ 
@@ -1984,57 +2014,75 @@ export default function ApartmentDetailPage() {
                       JSON.stringify({ type: "catalog", catalogId: item.id }),
                     )
                   }
-                  className="cursor-grab"
+                  className="cursor-grab flex gap-4"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.code}</p>
-                    </div>
-                    <Badge variant="outline">{furnitureCategoryLabels[item.category]}</Badge>
+                  <div className="w-20 h-20 bg-muted/20 rounded-md shrink-0 flex items-center justify-center border overflow-hidden relative pointer-events-none">
+                    {item.model3dUrl ? (
+                      /* @ts-ignore */
+                      <model-viewer
+                        src={item.model3dUrl}
+                        alt={item.name}
+                        style={{ width: "100%", height: "100%" }}
+                        interaction-prompt="none"
+                        camera-controls="false"
+                      />
+                    ) : (
+                      <Box className="w-8 h-8 text-muted-foreground" />
+                    )}
                   </div>
-                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                    <p className="truncate">Model: {item.model3dUrl}</p>
-                    <p>
-                      Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
-                    </p>
-                    <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.code}</p>
+                      </div>
+                      <Badge variant="outline" className="shrink-0">{furnitureCategoryLabels[item.category]}</Badge>
+                    </div>
+                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                      <p className="truncate">Model: {item.model3dUrl}</p>
+                      <p>
+                        Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
+                      </p>
+                      <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                    </div>
                   </div>
                 </div>
-                {isManager && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.model3dUrl && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPreviewModelId(item.id)}
-                      >
-                        <Eye className="mr-1 h-4 w-4" />
-                        Xem 3D
-                      </Button>
-                    )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {item.model3dUrl && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setUploadingModelType("catalog");
-                        setUploadingModelTarget(item.id);
-                        setModelUploadDialogOpen(true);
-                      }}
+                      onClick={() => setPreviewModelId(item.id)}
                     >
-                      <Upload className="mr-1 h-4 w-4" />
-                      {item.model3dUrl ? "Thay" : "Upload"}
+                      <Eye className="mr-1 h-4 w-4" />
+                      Xem 3D
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
-                      <Pencil className="mr-1 h-4 w-4" />
-                      Sửa
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "catalog", id: item.id })}>
-                      <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                      Xóa
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  {isManager && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setUploadingModelType("catalog");
+                          setUploadingModelTarget(item.id);
+                          setModelUploadDialogOpen(true);
+                        }}
+                      >
+                        <Upload className="mr-1 h-4 w-4" />
+                        {item.model3dUrl ? "Thay" : "Upload"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
+                        <Pencil className="mr-1 h-4 w-4" />
+                        Sửa
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "catalog", id: item.id })}>
+                        <Trash2 className="mr-1 h-4 w-4 text-destructive" />
+                        Xóa
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
                 ))}
             </div>
