@@ -106,16 +106,26 @@ router.post("/", async (req, res) => {
   try {
     if (!requireManagerAction(req, res)) return;
 
+    const { apartmentId, tenantId, startDate, endDate, monthlyRent, deposit, note } = req.body;
     const contract = await db
       .insert(rentalContracts)
-      .values(req.body)
+      .values({
+        apartmentId,
+        tenantId,
+        startDate,
+        endDate,
+        monthlyRent,
+        deposit: deposit || null,
+        note: note || null,
+        createdById: req.user?.id,
+      })
       .returning();
 
-    // Cập nhật trạng thái căn hộ thành "rented"
+    // Cập nhật trạng thái căn hộ và giá thuê
     await db
       .update(apartments)
-      .set({ status: "rented", updatedAt: new Date() })
-      .where(eq(apartments.id, req.body.apartmentId));
+      .set({ status: "rented", rentalPrice: monthlyRent, updatedAt: new Date() })
+      .where(eq(apartments.id, apartmentId));
 
     res.status(201).json(contract[0]);
   } catch (error) {
@@ -128,19 +138,56 @@ router.put("/:id", async (req, res) => {
   try {
     if (!requireManagerAction(req, res)) return;
 
-    const result = await db
-      .update(rentalContracts)
-      .set({ ...req.body, updatedAt: new Date() })
-      .where(
-        and(
-          eq(rentalContracts.id, Number(req.params.id)),
-          isNull(rentalContracts.deletedAt)
-        )
-      )
-      .returning();
-    if (result.length === 0) {
+    const contractId = Number(req.params.id);
+
+    // Lấy hợp đồng hiện tại để so sánh thay đổi
+    const existing = await db
+      .select()
+      .from(rentalContracts)
+      .where(and(eq(rentalContracts.id, contractId), isNull(rentalContracts.deletedAt)));
+
+    if (existing.length === 0) {
       return res.status(404).json({ error: "Không tìm thấy hợp đồng" });
     }
+
+    const old = existing[0];
+    const { apartmentId, tenantId, startDate, endDate, monthlyRent, deposit, note, status } = req.body;
+
+    const result = await db
+      .update(rentalContracts)
+      .set({
+        apartmentId,
+        tenantId,
+        startDate,
+        endDate,
+        monthlyRent,
+        deposit: deposit || null,
+        note: note || null,
+        status,
+        updatedAt: new Date(),
+        updatedById: req.user?.id,
+      })
+      .where(and(eq(rentalContracts.id, contractId), isNull(rentalContracts.deletedAt)))
+      .returning();
+
+    // Nếu đổi căn hộ: hoàn trạng thái căn hộ cũ, cập nhật căn hộ mới
+    if (apartmentId && apartmentId !== old.apartmentId) {
+      await db
+        .update(apartments)
+        .set({ status: "available", updatedAt: new Date() })
+        .where(eq(apartments.id, old.apartmentId));
+      await db
+        .update(apartments)
+        .set({ status: "rented", rentalPrice: monthlyRent, updatedAt: new Date() })
+        .where(eq(apartments.id, apartmentId));
+    } else if (monthlyRent && monthlyRent !== old.monthlyRent) {
+      // Chỉ đổi tiền thuê: đồng bộ rentalPrice của căn hộ
+      await db
+        .update(apartments)
+        .set({ rentalPrice: monthlyRent, updatedAt: new Date() })
+        .where(eq(apartments.id, old.apartmentId));
+    }
+
     res.json(result[0]);
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi cập nhật hợp đồng" });

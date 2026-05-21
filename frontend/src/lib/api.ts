@@ -112,10 +112,9 @@ async function request<T>(
     headers,
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && !endpoint.startsWith("/auth/login")) {
     const shouldTryRefresh =
       canRetry &&
-      !endpoint.startsWith("/auth/login") &&
       !endpoint.startsWith("/auth/refresh") &&
       !endpoint.startsWith("/auth/logout");
 

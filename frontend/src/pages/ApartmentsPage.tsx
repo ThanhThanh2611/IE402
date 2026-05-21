@@ -78,6 +78,7 @@ export default function ApartmentsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<{ id: number; status: string } | null>(null);
 
   // Filters
   const [filterBuildingId, setFilterBuildingId] = useState<string>("");
@@ -200,6 +201,18 @@ export default function ApartmentsPage() {
     }
   };
 
+  const handleStatusChangeRequest = (id: number, newStatus: string) => {
+    const apt = apartments.find((a) => a.id === id);
+    if (!apt || apt.status === newStatus) return;
+    setPendingStatus({ id, status: newStatus });
+  };
+
+  const confirmStatusChange = async () => {
+    if (!pendingStatus) return;
+    await handleStatusChange(pendingStatus.id, pendingStatus.status);
+    setPendingStatus(null);
+  };
+
   return (
     <div className="space-y-6">
       {pageError && (
@@ -290,7 +303,7 @@ export default function ApartmentsPage() {
                     <TableCell className="text-center">{apt.numBedrooms ?? "-"}</TableCell>
                     <TableCell className="text-right">{formatVND(apt.rentalPrice)}</TableCell>
                     <TableCell className="text-center">
-                      <Select value={apt.status} onValueChange={(v) => v && handleStatusChange(apt.id, v)}>
+                      <Select value={apt.status} onValueChange={(v) => v && handleStatusChangeRequest(apt.id, v)}>
                         <SelectTrigger className="w-[140px] mx-auto border-none shadow-none justify-center gap-2">
                           <Badge className={statusColors[apt.status]}>{statusLabels[apt.status]}</Badge>
                         </SelectTrigger>
@@ -415,13 +428,46 @@ export default function ApartmentsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc muốn xóa căn hộ này? Hành động này không thể hoàn tác.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {apartments.find((a) => a.id === deleteId)?.status === "rented" && (
+                  <p className="font-medium text-destructive">
+                    Căn hộ này đang trong trạng thái "Đã thuê". Thông tin hợp đồng và người thuê vẫn được giữ nguyên sau khi xóa.
+                  </p>
+                )}
+                <p>Bạn có chắc muốn xóa căn hộ này? Hành động này không thể hoàn tác.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Hủy</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>Xóa</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Status Change Confirm */}
+      <AlertDialog open={!!pendingStatus} onOpenChange={(open) => !open && setPendingStatus(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận đổi trạng thái</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {pendingStatus && apartments.find((a) => a.id === pendingStatus.id)?.status === "rented" && (
+                  <p className="font-medium text-amber-600 dark:text-amber-400">
+                    Căn hộ này đang có hợp đồng thuê. Hãy đảm bảo hợp đồng đã kết thúc trước khi đổi trạng thái.
+                  </p>
+                )}
+                <p>
+                  Bạn có chắc muốn đổi trạng thái sang "
+                  {pendingStatus ? statusLabels[pendingStatus.status as keyof typeof statusLabels] : ""}"?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmStatusChange()}>Xác nhận</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

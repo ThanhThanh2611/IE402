@@ -134,10 +134,29 @@ export default function ContractsPage() {
     setSaving(true);
     try {
       if (editId) {
+        const oldContract = contracts.find((c) => c.id === editId);
         const updatedContract = await api.put<RentalContract>(`/contracts/${editId}`, validation.data);
         setContracts((current) =>
           current.map((contract) => (contract.id === editId ? updatedContract : contract)),
         );
+        // Đồng bộ local apartments state
+        if (oldContract && validation.data.apartmentId !== oldContract.apartmentId) {
+          setApartments((current) =>
+            current.map((apt) => {
+              if (apt.id === oldContract.apartmentId) return { ...apt, status: "available" as const };
+              if (apt.id === updatedContract.apartmentId) return { ...apt, status: "rented" as const, rentalPrice: updatedContract.monthlyRent };
+              return apt;
+            }),
+          );
+        } else if (oldContract && validation.data.monthlyRent !== oldContract.monthlyRent) {
+          setApartments((current) =>
+            current.map((apt) =>
+              apt.id === updatedContract.apartmentId
+                ? { ...apt, rentalPrice: updatedContract.monthlyRent }
+                : apt,
+            ),
+          );
+        }
         toast.success("Cập nhật hợp đồng thành công");
       } else {
         const createdContract = await api.post<RentalContract>("/contracts", validation.data);
