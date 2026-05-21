@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { AuthUser, LoginResponse } from "@/types";
 import { api, clearStoredAuth, setStoredAuth } from "@/lib/api";

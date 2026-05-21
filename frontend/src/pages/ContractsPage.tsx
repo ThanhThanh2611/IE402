@@ -40,8 +40,15 @@ import {
   TableRow,
   Textarea,
   Skeleton,
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
 } from "@/components/ui";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search } from "lucide-react";
 
 const statusLabels = { active: "Đang hoạt động", expired: "Hết hạn", cancelled: "Đã hủy" };
 const statusColors = {
@@ -73,6 +80,12 @@ export default function ContractsPage() {
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
+  // Filters & Pagination states
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchStatus, setSearchStatus] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -98,6 +111,29 @@ export default function ContractsPage() {
 
   const getApartmentCode = (id: number) => apartments.find((a) => a.id === id)?.code || "";
   const getTenantName = (id: number) => tenants.find((t) => t.id === id)?.fullName || "";
+
+  // Reset page when search or status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchKeyword, searchStatus]);
+
+  const filteredContracts = contracts.filter((c) => {
+    if (searchStatus && c.status !== searchStatus) return false;
+    if (searchKeyword) {
+      const keyword = searchKeyword.toLowerCase().trim();
+      const tenantName = getTenantName(c.tenantId).toLowerCase();
+      const aptCode = getApartmentCode(c.apartmentId).toLowerCase();
+      if (!tenantName.includes(keyword) && !aptCode.includes(keyword)) return false;
+    }
+    return true;
+  });
+
+  const totalItems = filteredContracts.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const paginatedContracts = filteredContracts.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const availableApartments = apartments.filter(
     (a) => a.status === "available" || (editId && a.id === contracts.find((c) => c.id === editId)?.apartmentId),
@@ -244,45 +280,154 @@ export default function ContractsPage() {
                 description="Bạn có thể tạo hợp đồng mới để hệ thống bắt đầu ghi nhận doanh thu và tỷ lệ lấp đầy."
               />
             ) : (
-            <div className="overflow-x-auto">
-            <Table className="min-w-[920px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Căn hộ</TableHead>
-                  <TableHead>Người thuê</TableHead>
-                  <TableHead>Bắt đầu</TableHead>
-                  <TableHead>Kết thúc</TableHead>
-                  <TableHead className="text-right">Tiền thuê/tháng</TableHead>
-                  <TableHead className="text-center">Trạng thái</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contracts.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{getApartmentCode(c.apartmentId)}</TableCell>
-                    <TableCell>{getTenantName(c.tenantId)}</TableCell>
-                    <TableCell>{formatDate(c.startDate)}</TableCell>
-                    <TableCell>{formatDate(c.endDate)}</TableCell>
-                    <TableCell className="text-right">{formatVND(c.monthlyRent)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={statusColors[c.status]}>{statusLabels[c.status]}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setDeleteId(c.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+              <div className="space-y-4">
+                {/* Search & Filter Bar */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Tìm theo tên khách hoặc mã căn hộ..."
+                      value={searchKeyword}
+                      onChange={(e) => setSearchKeyword(e.target.value)}
+                      className="pl-9 rounded-md h-9"
+                    />
+                  </div>
+                  <div className="w-full sm:w-48">
+                    <Select
+                      value={searchStatus || "__all__"}
+                      onValueChange={(val) => setSearchStatus(val === "__all__" ? "" : val)}
+                    >
+                      <SelectTrigger className="rounded-md">
+                        <SelectValue placeholder="Tất cả trạng thái" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả trạng thái</SelectItem>
+                        <SelectItem value="active">Đang hoạt động</SelectItem>
+                        <SelectItem value="expired">Hết hạn</SelectItem>
+                        <SelectItem value="cancelled">Đã hủy</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {filteredContracts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed rounded-lg bg-muted/20">
+                    <p className="text-muted-foreground text-sm">Không tìm thấy hợp đồng nào phù hợp với bộ lọc.</p>
+                    <Button variant="link" onClick={() => { setSearchKeyword(""); setSearchStatus(""); }} className="mt-1 text-xs text-primary">
+                      Xóa bộ lọc
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto rounded-md border border-border">
+                      <Table className="min-w-[920px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Căn hộ</TableHead>
+                            <TableHead>Người thuê</TableHead>
+                            <TableHead>Bắt đầu</TableHead>
+                            <TableHead>Kết thúc</TableHead>
+                            <TableHead className="text-right">Tiền thuê/tháng</TableHead>
+                            <TableHead className="text-center">Trạng thái</TableHead>
+                            <TableHead className="text-right">Hành động</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedContracts.map((c) => (
+                            <TableRow key={c.id}>
+                              <TableCell className="font-medium">{getApartmentCode(c.apartmentId)}</TableCell>
+                              <TableCell>{getTenantName(c.tenantId)}</TableCell>
+                              <TableCell>{formatDate(c.startDate)}</TableCell>
+                              <TableCell>{formatDate(c.endDate)}</TableCell>
+                              <TableCell className="text-right">{formatVND(c.monthlyRent)}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge className={statusColors[c.status]}>{statusLabels[c.status]}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-md">
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => setDeleteId(c.id)} className="rounded-md">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {totalPages > 1 && (
+                      <div className="mt-4 flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
+                        <p className="text-xs text-muted-foreground">
+                          Hiển thị {Math.min(filteredContracts.length, (currentPage - 1) * pageSize + 1)} - {Math.min(filteredContracts.length, currentPage * pageSize)} trong tổng số {filteredContracts.length} hợp đồng
+                        </p>
+                        <Pagination className="w-auto m-0">
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (currentPage > 1) setCurrentPage((prev) => prev - 1);
+                                }}
+                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                            {Array.from({ length: totalPages }).map((_, idx) => {
+                              const pageNum = idx + 1;
+                              if (
+                                pageNum === 1 ||
+                                pageNum === totalPages ||
+                                Math.abs(currentPage - pageNum) <= 1
+                              ) {
+                                return (
+                                  <PaginationItem key={pageNum}>
+                                    <PaginationLink
+                                      href="#"
+                                      isActive={currentPage === pageNum}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setCurrentPage(pageNum);
+                                      }}
+                                      className="cursor-pointer"
+                                    >
+                                      {pageNum}
+                                    </PaginationLink>
+                                  </PaginationItem>
+                                );
+                              }
+                              if (
+                                (pageNum === 2 && currentPage > 3) ||
+                                (pageNum === totalPages - 1 && currentPage < totalPages - 2)
+                              ) {
+                                return (
+                                  <PaginationItem key={pageNum}>
+                                    <PaginationEllipsis />
+                                  </PaginationItem>
+                                );
+                              }
+                              return null;
+                            })}
+                            <PaginationItem>
+                              <PaginationNext
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
+                                }}
+                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
+                    )}
+                  </>
+                )}
+              </div>
             )
           )}
         </CardContent>

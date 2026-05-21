@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +24,8 @@ import {
   UserCog,
   LogOut,
   Globe,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 const mainMenu = [
@@ -31,15 +34,16 @@ const mainMenu = [
 ];
 
 const managerMenu = [
-  { to: "/apartments", label: "Căn hộ", icon: Building2 },
-  { to: "/contracts", label: "Hợp đồng", icon: FileText },
-  { to: "/tenants", label: "Người thuê", icon: Users },
-  { to: "/payments", label: "Thanh toán", icon: CreditCard },
-  { to: "/users", label: "Người dùng", icon: UserCog },
+  { to: "/management/apartments", label: "Căn hộ", icon: Building2 },
+  { to: "/management/contracts", label: "Hợp đồng", icon: FileText },
+  { to: "/management/tenants", label: "Người thuê", icon: Users },
+  { to: "/management/payments", label: "Thanh toán", icon: CreditCard },
+  { to: "/management/users", label: "Người dùng", icon: UserCog },
 ];
 
 export function AppLayout() {
   const { user, isManager, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -114,8 +118,23 @@ export function AppLayout() {
             )}
           </SidebarContent>
 
-          <SidebarFooter className="p-4">
+          <SidebarFooter className="p-4 gap-2">
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={toggleTheme}>
+                  {theme === "light" ? (
+                    <>
+                      <Moon className="h-4 w-4" />
+                      <span>Giao diện tối</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="h-4 w-4 text-amber-500" />
+                      <span>Giao diện sáng</span>
+                    </>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => void handleLogout()}>
                   <LogOut className="h-4 w-4" />

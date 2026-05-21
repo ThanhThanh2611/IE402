@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { Html, OrbitControls, useGLTF } from "@react-three/drei";
 import { Material, Mesh, Object3D } from "three";
 import { ArrowUpDown, ArrowUp, Box, DoorOpen, Eye, EyeOff, Loader2, RefreshCcw, Upload } from "lucide-react";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 import {
   AlertDialog,
@@ -42,6 +43,7 @@ import {
   TabsList,
   TabsTrigger,
   Textarea,
+  Switch,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError } from "@/lib/api";
@@ -553,6 +555,8 @@ export default function BuildingDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isManager } = useAuth();
+  const [editMode, setEditMode] = useState(false);
+  const isEditing = isManager && editMode;
   const buildingId = Number(id);
   const buildingModelInputRef = useRef<HTMLInputElement | null>(null);
   const floorModelInputRef = useRef<HTMLInputElement | null>(null);
@@ -1410,6 +1414,12 @@ export default function BuildingDetailPage() {
 
   return (
     <div className="space-y-4">
+      <Breadcrumbs
+        items={[
+          { label: "Bản đồ", to: "/map" },
+          { label: building.name },
+        ]}
+      />
       {pageError && (
         <PageErrorState
           compact
@@ -1429,6 +1439,18 @@ export default function BuildingDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {isManager && (
+            <div className="flex items-center gap-2 bg-muted/50 border px-3 py-1.5 rounded-lg shadow-sm">
+              <Label htmlFor="edit-mode-toggle" className="text-sm font-semibold cursor-pointer">
+                Chế độ chỉnh sửa
+              </Label>
+              <Switch
+                id="edit-mode-toggle"
+                checked={editMode}
+                onCheckedChange={setEditMode}
+              />
+            </div>
+          )}
           <Button
             variant={viewMode === "overview" ? "default" : "outline"}
             onClick={() => {
@@ -1460,7 +1482,7 @@ export default function BuildingDetailPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-base">Danh sách tầng</CardTitle>
-              {isManager && (
+              {isEditing && (
                 <Button size="sm" variant="outline" onClick={openCreateFloor}>
                   Thêm tầng
                 </Button>
@@ -1514,7 +1536,7 @@ export default function BuildingDetailPage() {
                         )}
                       </Button>
                     </div>
-                    {isManager && (
+                    {isEditing && (
                       <div className="mt-2 flex justify-end gap-2">
                         <Button variant="outline" size="sm" onClick={() => openEditFloor(floor)}>
                           Sửa tầng
@@ -1575,7 +1597,7 @@ export default function BuildingDetailPage() {
                     <p className="text-xs text-muted-foreground">
                       Bấm vào một hotspot để focus nhanh trên mặt sàn 3D.
                     </p>
-                    {isManager && (
+                    {isEditing && (
                       <Button size="sm" variant="outline" onClick={openCreateHotspot} disabled={!selectedFloor}>
                         Thêm hotspot
                       </Button>
@@ -1618,7 +1640,7 @@ export default function BuildingDetailPage() {
                                 local: {node.localX ?? "-"}, {node.localY ?? "-"}, {node.localZ ?? "-"}
                               </p>
                             </button>
-                            {isManager && (
+                            {isEditing && (
                               <div className="flex shrink-0 items-center gap-2">
                                 <Button variant="outline" size="sm" onClick={() => openEditHotspot(node)}>
                                   Sửa
@@ -1637,7 +1659,7 @@ export default function BuildingDetailPage() {
                       <p className="text-sm text-muted-foreground">
                         Tầng này chưa có hotspot local để bấm trong mô hình 3D.
                       </p>
-                      {isManager && (
+                      {isEditing && (
                         <Button size="sm" variant="secondary" className="mt-3" onClick={openCreateHotspot} disabled={!selectedFloor}>
                           Tạo hotspot đầu tiên
                         </Button>
@@ -1651,14 +1673,14 @@ export default function BuildingDetailPage() {
                     <p className="text-xs text-muted-foreground">
                       Dùng edge để mô tả hành lang hoặc kết nối liên tầng giữa các node.
                     </p>
-                    {isManager && (
+                    {isEditing && (
                       <Button size="sm" variant="outline" onClick={openCreateEdge} disabled={selectedFloorNodes.length < 2}>
                         Thêm edge
                       </Button>
                     )}
                   </div>
 
-                  {isManager && connectorSuggestion && (
+                  {isEditing && connectorSuggestion && (
                     <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
                       <p className="font-medium text-primary">Gợi ý tạo edge liên tầng</p>
                       <p className="mt-1 text-muted-foreground">
@@ -1708,7 +1730,7 @@ export default function BuildingDetailPage() {
                                   </Badge>
                                 </div>
                               </div>
-                              {isManager && (
+                              {isEditing && (
                                 <div className="flex shrink-0 items-center gap-2">
                                   <Button variant="outline" size="sm" onClick={() => openEditEdge(edge)}>
                                     Sửa
@@ -1734,76 +1756,74 @@ export default function BuildingDetailPage() {
               </Tabs>
             </div>
 
-            <Separator />
+            {isEditing && (
+              <>
+                <Separator />
 
-            <div className="space-y-2">
-              <Label htmlFor="model-file">Upload mô hình 3D tổng quan tòa nhà (.glb/.gltf)</Label>
-              <Input
-                ref={buildingModelInputRef}
-                id="model-file"
-                type="file"
-                accept=".glb,.gltf"
-                disabled={!isManager}
-                onChange={(event) => setSelectedModelFile(event.target.files?.[0] ?? null)}
-              />
-              <Button
-                className="w-full"
-                onClick={() => void handleUploadModel()}
-                disabled={!isManager || uploadingModel || !selectedModelFile}
-              >
-                {uploadingModel ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Upload model
-              </Button>
-              {!isManager && (
-                <p className="text-xs text-muted-foreground">
-                  Tài khoản User chỉ xem được mô hình; upload dành cho luồng quản trị dữ liệu.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                File này chỉ dùng cho chế độ <span className="font-medium">3D tổng quan</span>.
-              </p>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="model-file">Upload mô hình 3D tổng quan tòa nhà (.glb/.gltf)</Label>
+                  <Input
+                    ref={buildingModelInputRef}
+                    id="model-file"
+                    type="file"
+                    accept=".glb,.gltf"
+                    onChange={(event) => setSelectedModelFile(event.target.files?.[0] ?? null)}
+                  />
+                  <Button
+                    className="w-full"
+                    onClick={() => void handleUploadModel()}
+                    disabled={uploadingModel || !selectedModelFile}
+                  >
+                    {uploadingModel ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" />
+                    )}
+                    Upload model
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    File này chỉ dùng cho chế độ <span className="font-medium">3D tổng quan</span>.
+                  </p>
+                </div>
 
-            <Separator />
+                <Separator />
 
-            <div className="space-y-2">
-              <Label htmlFor="floor-model-file">
-                Upload model 3D riêng cho {selectedFloor ? `tầng ${selectedFloor.floorNumber}` : "tầng đang chọn"} (.glb/.gltf)
-              </Label>
-              <Input
-                ref={floorModelInputRef}
-                id="floor-model-file"
-                type="file"
-                accept=".glb,.gltf"
-                disabled={!isManager || !selectedFloor}
-                onChange={(event) => setSelectedFloorModelFile(event.target.files?.[0] ?? null)}
-              />
-              <Button
-                className="w-full"
-                variant="secondary"
-                onClick={() => void handleUploadFloorModel()}
-                disabled={!isManager || !selectedFloor || uploadingFloorModel || !selectedFloorModelFile}
-              >
-                {uploadingFloorModel ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Upload model tầng
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Floor mode chỉ render khi `floors.model3dUrl` có dữ liệu. Giới hạn upload: 70MB.
-              </p>
-              {selectedFloor?.model3dUrl && (
-                <p className="text-xs text-muted-foreground">
-                  Model tầng hiện tại: <span className="font-medium">{selectedFloor.model3dUrl}</span>
-                </p>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="floor-model-file">
+                    Upload model 3D riêng cho {selectedFloor ? `tầng ${selectedFloor.floorNumber}` : "tầng đang chọn"} (.glb/.gltf)
+                  </Label>
+                  <Input
+                    ref={floorModelInputRef}
+                    id="floor-model-file"
+                    type="file"
+                    accept=".glb,.gltf"
+                    disabled={!selectedFloor}
+                    onChange={(event) => setSelectedFloorModelFile(event.target.files?.[0] ?? null)}
+                  />
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    onClick={() => void handleUploadFloorModel()}
+                    disabled={!selectedFloor || uploadingFloorModel || !selectedFloorModelFile}
+                  >
+                    {uploadingFloorModel ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" />
+                    )}
+                    Upload model tầng
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Floor mode chỉ render khi `floors.model3dUrl` có dữ liệu. Giới hạn upload: 70MB.
+                  </p>
+                  {selectedFloor?.model3dUrl && (
+                    <p className="text-xs text-muted-foreground">
+                      Model tầng hiện tại: <span className="font-medium">{selectedFloor.model3dUrl}</span>
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

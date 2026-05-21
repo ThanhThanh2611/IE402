@@ -1,16 +1,15 @@
-import React, { useMemo, useState, useRef, Suspense, useEffect } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import React, { useMemo, useState, useRef, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { 
   OrbitControls, 
   PerspectiveCamera, 
-  ContactShadows, 
   Grid, 
   Environment,
   Html,
   BakeShadows,
   TransformControls,
   useGLTF,
-  Box
 } from "@react-three/drei";
 import * as THREE from "three";
 import type { FurnitureItem, FurnitureCatalogItem } from "@/types";
@@ -120,35 +119,6 @@ export const LAYOUT_2PN_WALLS: WallSegment[] = [
 ];
 
 // --- Helper Components ---
-
-function Floor({ x, z, w, d, color, name, label, offsetX, offsetZ, floorType }: RoomData & { offsetX: number, offsetZ: number }) {
-  const texture = useMemo(() => {
-    if (floorType === "wood") return "#c19a6b"; // Gỗ sồi tự nhiên
-    if (floorType === "tile") return "#f8f9fa"; // Gạch trắng xám sang trọng
-    return color;
-  }, [floorType, color]);
-
-  return (
-    <group position={[x + w / 2 + offsetX, 0.02, z + d / 2 + offsetZ]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color={texture} roughness={0.7} metalness={0.1} />
-      </mesh>
-      {/* Baseboard (LoD3 detail) */}
-      <mesh position={[0, 0.05, -d/2]} castShadow>
-         <boxGeometry args={[w, 0.1, 0.02]} />
-         <meshStandardMaterial color="#ffffff" />
-      </mesh>
-      {name && (
-        <Html position={[0, 0.1, 0]} center distanceFactor={10}>
-          <div className="bg-black/40 backdrop-blur-sm text-white px-2 py-0.5 rounded text-[8px] font-bold pointer-events-none whitespace-nowrap">
-            {name}
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-}
 
 function Wall({ p1, p2, thickness, offsetX, offsetZ, openings = [], type = "wall" }: WallSegment & { offsetX: number, offsetZ: number }) {
   const dx = p2[0] - p1[0];
@@ -300,6 +270,18 @@ function GltfModel({ url }: { url: string }) {
   return <primitive object={scene.clone()} />;
 }
 
+interface FurnitureNodeProps {
+  item: FurnitureItem;
+  catalogItem?: FurnitureCatalogItem;
+  offsetX: number;
+  offsetZ: number;
+  onItemMove?: (id: number, x: number, z: number, y: number) => void;
+  onItemRotate?: (id: number, rotY: number) => void;
+  selected: boolean;
+  onSelect: (id: number) => void;
+  readOnly: boolean;
+}
+
 function FurnitureNode({ 
   item, 
   catalogItem, 
@@ -308,9 +290,11 @@ function FurnitureNode({
   onItemMove, 
   onItemRotate,
   selected,
-  onSelect
-}: any) {
+  onSelect,
+  readOnly
+}: FurnitureNodeProps) {
   const meshRef = useRef<THREE.Group>(null);
+  const [meshNode, setMeshNode] = useState<THREE.Group | null>(null);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
   const [liveRotationY, setLiveRotationY] = useState<number>(Number(item.rotationY) || 0);
 
@@ -333,11 +317,17 @@ function FurnitureNode({
   return (
     <group>
       <group 
-        ref={meshRef} 
+        ref={(node) => {
+          (meshRef as React.MutableRefObject<THREE.Group | null>).current = node;
+          if (meshNode !== node) {
+            setMeshNode(node);
+          }
+        }} 
         position={[px + offsetX, py, pz + offsetZ]} 
         rotation={[0, rotY, 0]}
         onClick={(e) => {
           e.stopPropagation();
+          if (readOnly) return;
           onSelect(item.id);
         }}
       >
@@ -348,9 +338,9 @@ function FurnitureNode({
             <mesh position={[0, h/2, 0]} castShadow receiveShadow>
               <boxGeometry args={[w, h, d]} />
               <meshStandardMaterial 
-                color={selected ? "#3b82f6" : "#cbd5e1"} 
-                emissive={selected ? "#3b82f6" : "#000000"}
-                emissiveIntensity={selected ? 0.2 : 0}
+                color={selected && !readOnly ? "#3b82f6" : "#cbd5e1"} 
+                emissive={selected && !readOnly ? "#3b82f6" : "#000000"}
+                emissiveIntensity={selected && !readOnly ? 0.2 : 0}
               />
             </mesh>
           )}
@@ -359,14 +349,14 @@ function FurnitureNode({
         <Html position={[0, h + 0.4, 0]} center distanceFactor={10}>
           <div className="flex flex-col items-center gap-1.5 pointer-events-none select-none">
             <div className={`px-2.5 py-1 rounded-md text-[9px] font-bold shadow-lg whitespace-nowrap transition-all flex items-center gap-2 ${
-              selected ? "bg-blue-600 text-white scale-110 ring-2 ring-white/50" : "bg-slate-800/80 text-slate-200 backdrop-blur-sm"
+              selected && !readOnly ? "bg-blue-600 text-white scale-110 ring-2 ring-white/50" : "bg-slate-800/80 text-slate-200 backdrop-blur-sm"
              }`}>
               <span>{item.label || catalogItem?.name || "Nội thất"}</span>
-              {selected && transformMode === "rotate" && (
+              {selected && !readOnly && transformMode === "rotate" && (
                 <span className="bg-white/20 px-1 rounded font-mono">{degrees}°</span>
               )}
             </div>
-            {selected && (
+            {selected && !readOnly && (
               <div className="flex gap-1.5 pointer-events-auto mt-0.5">
                 <button 
                   className={`px-3 py-1 rounded-md text-[9px] font-extrabold shadow-md transition-all active:scale-95 ${
@@ -394,9 +384,9 @@ function FurnitureNode({
         </Html>
       </group>
 
-      {selected && (
+      {selected && !readOnly && (
         <TransformControls 
-          object={meshRef.current as any} 
+          object={meshNode ?? undefined} 
           mode={transformMode}
           showX={transformMode === "translate"}
           showZ={transformMode === "translate"}
@@ -433,7 +423,23 @@ function FurnitureNode({
 }
 
 // --- Main Scene ---
-export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRotate, activeLayout: externalLayout }: any) {
+export interface ApartmentSceneProps {
+  items?: FurnitureItem[];
+  catalog?: FurnitureCatalogItem[];
+  onItemMove?: (id: number, x: number, z: number, y: number) => void;
+  onItemRotate?: (id: number, rotY: number) => void;
+  activeLayout?: string;
+  readOnly?: boolean;
+}
+
+export function ApartmentScene({ 
+  items = [], 
+  catalog = [], 
+  onItemMove, 
+  onItemRotate, 
+  activeLayout: externalLayout,
+  readOnly = false
+}: ApartmentSceneProps) {
   const activeLayout = externalLayout || "1PN";
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   
@@ -447,7 +453,9 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRot
 
   return (
     <div className="relative h-full w-full bg-slate-950 rounded-2xl overflow-hidden shadow-2xl">
-      <Canvas shadows dpr={[1, 2]} onPointerMissed={() => setSelectedItemId(null)}>
+      <Canvas shadows dpr={[1, 2]} onPointerMissed={() => {
+        if (!readOnly) setSelectedItemId(null);
+      }}>
         <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={35} />
         <OrbitControls makeDefault enableDamping />
         <ambientLight intensity={0.6} />
@@ -481,8 +489,8 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRot
           
           {walls.map((seg, idx) => <Wall key={idx} {...seg} offsetX={offsetX} offsetZ={offsetZ} />)}
           
-          {items.map((item: any) => {
-            const catalogItem = catalog.find((c: any) => c.id === item.catalogId);
+          {items.map((item) => {
+            const catalogItem = catalog.find((c) => c.id === item.catalogId);
             return (
               <FurnitureNode 
                 key={item.id}
@@ -494,6 +502,7 @@ export function ApartmentScene({ items = [], catalog = [], onItemMove, onItemRot
                 onItemRotate={onItemRotate}
                 selected={selectedItemId === item.id}
                 onSelect={setSelectedItemId}
+                readOnly={readOnly}
               />
             );
           })}

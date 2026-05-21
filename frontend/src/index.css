@@ -40,6 +40,37 @@
   --sidebar-ring: #0057FF;
 }
 
+.dark {
+  --background: #0A0F1D;
+  --foreground: #F8FAFC;
+  --card: #141B2D;
+  --card-foreground: #F8FAFC;
+  --popover: #141B2D;
+  --popover-foreground: #F8FAFC;
+  --primary: #3B82F6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E293B;
+  --secondary-foreground: #F8FAFC;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  --accent: #3B82F6;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --border: #1E293B;
+  --input: #1E293B;
+  --ring: #3B82F6;
+  --chart-1: #3B82F6;
+  --chart-2: #60A5FA;
+  --chart-3: #6366F1;
+  --chart-4: #8B5CF6;
+  --chart-5: #A855F7;
+  
+  --sidebar: #030712;
+  --sidebar-foreground: #F3F4F6;
+  --sidebar-border: #1F2937;
+  --sidebar-accent: #111827;
+}
+
 @theme inline {
   --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -104,6 +135,10 @@
     backdrop-filter: blur(12px);
     border: 1px solid rgba(229, 231, 235, 0.6);
   }
+  .dark .glass {
+    background: rgba(20, 27, 45, 0.7);
+    border: 1px solid rgba(30, 41, 59, 0.6);
+  }
   .glow-primary {
     box-shadow: 0 0 20px rgba(0, 87, 255, 0.15);
   }
@@ -115,5 +150,11 @@
       radial-gradient(ellipse at 20% 50%, rgba(0, 87, 255, 0.08) 0%, transparent 50%),
       radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
       radial-gradient(ellipse at 50% 80%, rgba(139, 92, 246, 0.04) 0%, transparent 50%);
+  }
+  .dark .gradient-mesh {
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(139, 92, 246, 0.02) 0%, transparent 50%);
   }
 }

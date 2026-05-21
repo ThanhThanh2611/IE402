@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, ApiError } from "@/lib/api";
 import { formatVND, formatDate } from "@/lib/hooks";
 import { paymentSchema, validateForm, type PaymentInput } from "@/lib/validators";
@@ -40,8 +40,15 @@ import {
   TableRow,
   Textarea,
   Skeleton,
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
 } from "@/components/ui";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, RotateCcw } from "lucide-react";
 
 const statusLabels = { pending: "Chờ thanh toán", paid: "Đã thanh toán", overdue: "Quá hạn" };
 const statusColors = {
@@ -71,6 +78,45 @@ export default function PaymentsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+
+  // Filters & Pagination States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
+      // 1. Lọc theo search (mã căn hộ hoặc tên người thuê)
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        const contract = contracts.find((c) => c.id === p.contractId);
+        const apt = contract ? apartments.find((a) => a.id === contract.apartmentId) : null;
+        const tenant = contract ? tenants.find((t) => t.id === contract.tenantId) : null;
+
+        const aptCode = apt?.code?.toLowerCase() || "";
+        const tenantName = tenant?.fullName?.toLowerCase() || "";
+
+        if (!aptCode.includes(query) && !tenantName.includes(query)) {
+          return false;
+        }
+      }
+
+      // 2. Lọc theo trạng thái
+      if (statusFilter && statusFilter !== "__all__") {
+        if (p.status !== statusFilter) return false;
+      }
+
+      return true;
+    });
+  }, [payments, searchQuery, statusFilter, contracts, apartments, tenants]);
+
+  const totalPages = Math.ceil(filteredPayments.length / pageSize);
+
+  const paginatedPayments = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPayments.slice(start, start + pageSize);
+  }, [filteredPayments, currentPage, pageSize]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -195,56 +241,180 @@ export default function PaymentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Danh sách thanh toán ({payments.length})</CardTitle>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Danh sách thanh toán ({filteredPayments.length})</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm kiếm theo mã căn hộ hoặc tên người thuê..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+            <div className="w-full sm:w-[200px]">
+              <Select
+                value={statusFilter || "__all__"}
+                onValueChange={(val) => {
+                  setStatusFilter(val === "__all__" ? "" : val);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="pending">Chờ thanh toán</SelectItem>
+                  <SelectItem value="paid">Đã thanh toán</SelectItem>
+                  <SelectItem value="overdue">Quá hạn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(searchQuery || statusFilter) && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("");
+                  setCurrentPage(1);
+                }}
+                className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Đặt lại
+              </Button>
+            )}
+          </div>
+
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
+          ) : payments.length === 0 ? (
+            <EmptyState
+              title="Chưa có thanh toán"
+              description="Khi phát sinh giao dịch thuê nhà, các lần thanh toán sẽ xuất hiện ở đây để theo dõi công nợ."
+            />
+          ) : filteredPayments.length === 0 ? (
+            <EmptyState
+              title="Không tìm thấy thanh toán"
+              description="Không tìm thấy bản ghi thanh toán nào khớp với từ khóa tìm kiếm hoặc bộ lọc của bạn."
+            />
           ) : (
-            payments.length === 0 ? (
-              <EmptyState
-                title="Chưa có thanh toán"
-                description="Khi phát sinh giao dịch thuê nhà, các lần thanh toán sẽ xuất hiện ở đây để theo dõi công nợ."
-              />
-            ) : (
-            <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hợp đồng</TableHead>
-                  <TableHead>Ngày thanh toán</TableHead>
-                  <TableHead className="text-right">Số tiền</TableHead>
-                  <TableHead className="text-center">Trạng thái</TableHead>
-                  <TableHead>Ghi chú</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{getContractLabel(p.contractId)}</TableCell>
-                    <TableCell>{formatDate(p.paymentDate)}</TableCell>
-                    <TableCell className="text-right">{formatVND(p.amount)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={statusColors[p.status]}>{statusLabels[p.status]}</Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate">{p.note || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setDeleteId(p.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-4">
+              <div className="overflow-x-auto rounded-md border border-border">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hợp đồng</TableHead>
+                      <TableHead>Ngày thanh toán</TableHead>
+                      <TableHead className="text-right">Số tiền</TableHead>
+                      <TableHead className="text-center">Trạng thái</TableHead>
+                      <TableHead>Ghi chú</TableHead>
+                      <TableHead className="text-right">Hành động</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedPayments.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">{getContractLabel(p.contractId)}</TableCell>
+                        <TableCell>{formatDate(p.paymentDate)}</TableCell>
+                        <TableCell className="text-right">{formatVND(p.amount)}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={statusColors[p.status]}>{statusLabels[p.status]}</Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[150px] truncate">{p.note || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setDeleteId(p.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Hiển thị {(currentPage - 1) * pageSize + 1} -{" "}
+                    {Math.min(currentPage * pageSize, filteredPayments.length)} trong tổng số{" "}
+                    {filteredPayments.length} kết quả
+                  </p>
+                  <Pagination className="w-auto m-0">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage > 1) setCurrentPage(currentPage - 1);
+                          }}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          Math.abs(page - currentPage) <= 1
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setCurrentPage(page);
+                                }}
+                                isActive={currentPage === page}
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        }
+                        if (
+                          page === 2 ||
+                          page === totalPages - 1
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          );
+                        }
+                        return null;
+                      })}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                          }}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </div>
-            )
           )}
         </CardContent>
       </Card>
