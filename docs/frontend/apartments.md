@@ -75,6 +75,18 @@ FE render theo đúng các cờ backend trả về, thay vì tự suy luận ch�
 - Dữ liệu vị trí được đồng bộ về backend theo geometry `POINT Z`
 - Khi thả item vào bên trong boundary của một `space`, FE tự gắn `spaceId` phù hợp trước khi gọi backend
 
+#### 1.4. Tự động xác định Layout (1PN vs 2PN)
+
+Để đảm bảo tính đồng bộ giữa 3D Workspace và diện tích thực tế của căn hộ, FE triển khai logic tự động chọn layout khi tải trang chi tiết:
+
+- **Quy tắc xác định**:
+    - Nếu diện tích (`area`) < 55 m2: Tự động chọn layout **1PN + 1WC (Open Plan)**.
+    - Nếu diện tích (`area`) >= 55 m2: Tự động chọn layout **2PN + 2WC (Original)**.
+- **Hiển thị**: 
+    - Tabs chọn layout thủ công đã bị loại bỏ để tránh gây lỗi dữ liệu vị trí nội thất.
+    - Một **Badge** thông tin sẽ hiển thị loại hình căn hộ đã được hệ thống xác định tự động.
+- **Mục đích**: Đảm bảo các bức tường và không gian 2D/3D khớp hoàn toàn với diện tích thực tế của căn hộ, tránh việc người dùng chọn nhầm layout 2PN cho một căn hộ diện tích nhỏ 40m2.
+
 #### Thư viện nội thất
 
 - FE hiển thị `furnitureCatalog`

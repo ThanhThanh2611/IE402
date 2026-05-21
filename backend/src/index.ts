@@ -51,7 +51,7 @@ app.use("/api/status-history", authenticate, requireManager, statusHistoryRouter
 app.use("/api/users", authenticate, requireManager, usersRouter);
 app.use("/api/navigation", authenticate, navigationRouter);
 app.use("/api/furniture-catalog", authenticate, furnitureCatalogRouter);
-app.use("/api/furniture-layout-templates", authenticate, requireManager, furnitureLayoutTemplatesRouter);
+app.use("/api/furniture-layout-templates", authenticate, furnitureLayoutTemplatesRouter);
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);

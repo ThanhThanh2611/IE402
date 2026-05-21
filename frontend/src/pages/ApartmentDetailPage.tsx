@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense, useRef, type DragEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -66,9 +66,20 @@ import type {
   FurnitureLayout,
   User,
 } from "@/types";
-import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye } from "lucide-react";
-import { ApartmentScene, APARTMENT_WIDTH, APARTMENT_DEPTH, MOCK_ROOMS, MOCK_WALLS } from "@/components/apartment/ApartmentScene";
+import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye, Info, AlertTriangle } from "lucide-react";
+import { 
+  LAYOUT_1PN_ROOMS, 
+  LAYOUT_1PN_WALLS, 
+  LAYOUT_2PN_ROOMS, 
+  LAYOUT_2PN_WALLS 
+} from "@/components/apartment/ApartmentScene";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FurnitureModelPreview } from "@/components/apartment/FurnitureModelPreview";
+
+// Lazy load ApartmentScene để tránh Three.js block trang lần đầu
+const ApartmentScene = lazy(() =>
+  import("@/components/apartment/ApartmentScene").then((m) => ({ default: m.ApartmentScene }))
+);
 
 const apartmentStatusLabels = {
   available: "Còn trống",
@@ -348,7 +359,7 @@ function replaceLayoutInDetail(
 
 export default function ApartmentDetailPage() {
   const navigate = useNavigate();
-  const { isManager } = useAuth();
+  const { isManager, user: currentUser } = useAuth();
   const { id, apartmentId } = useParams();
   const buildingId = Number(id);
   const resolvedApartmentId = Number(apartmentId);
@@ -387,6 +398,7 @@ export default function ApartmentDetailPage() {
   const [grantForm, setGrantForm] = useState<ApartmentAccessGrantInput>(emptyGrantForm);
   const [grantErrors, setGrantErrors] = useState<Record<string, string>>({});
   const [workspaceMode, setWorkspaceMode] = useState<"2d" | "3d">("2d");
+  const [activeLayout, setActiveLayout] = useState<"1PN" | "2PN">("1PN");
   const [modelUploadDialogOpen, setModelUploadDialogOpen] = useState(false);
   const [uploadingModelType, setUploadingModelType] = useState<"apartment" | "space" | "catalog" | null>(null);
   const [uploadingModelTarget, setUploadingModelTarget] = useState<number | null>(null);
@@ -401,13 +413,21 @@ export default function ApartmentDetailPage() {
     id: number;
   } | null>(null);
 
+  // Biến lấy id user hiện tại để kiểm tra quyền sở hữu layout
+  const currentUserId = currentUser?.id;
+
+  // Kiểm tra user có quyền chỉnh sửa layout không (là chủ hoặc manager)
+  const canEditLayout = (layoutUserId: number | null) =>
+    isManager || layoutUserId === currentUserId;
+
+  // States cho chức năng template (chỉ dành cho Manager)
   const [templates, setTemplates] = useState<Array<any>>([]);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplateForApply, setSelectedTemplateForApply] = useState<number | null>(null);
   const [templateNameForApply, setTemplateNameForApply] = useState("");
-
   const [createTemplateDialogOpen, setCreateTemplateDialogOpen] = useState(false);
   const [createTemplateForm, setCreateTemplateForm] = useState({ name: "", description: "" });
+  const hasDeletedLayoutRef = useRef(false);
 
   const loadTemplates = useCallback(async () => {
     if (!detail?.building?.id) return;
@@ -422,9 +442,6 @@ export default function ApartmentDetailPage() {
     }
   }, [detail?.building?.id]);
 
-  useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
 
   const loadDetail = useCallback(async () => {
     if (Number.isNaN(resolvedApartmentId)) {
@@ -438,12 +455,42 @@ export default function ApartmentDetailPage() {
       const result = await api.get<ApartmentDetailResponse>(
         `/apartments/${resolvedApartmentId}/details`,
       );
+
+      // Kiểm tra xem user đã có layout riêng (userId === currentUser.id) chưa
+      // Nếu chưa (kể cả khi đã có layout global userId=null), tạo layout mới cho user
+      const userId = currentUser?.id;
+      const hasOwnLayout = userId
+        ? result.layouts.some((layout) => layout.userId === userId)
+        : result.layouts.some((layout) => layout.userId === null);
+
+      if (!hasOwnLayout && !hasDeletedLayoutRef.current) {
+        try {
+          const newLayout = await api.post<FurnitureLayout>(
+            `/apartments/${resolvedApartmentId}/layouts`,
+            {
+              name: "Layout của tôi",
+              status: "draft",
+              version: 1,
+            }
+          );
+          const layoutWithItems = { ...newLayout, items: [] };
+          // Thêm layout mới vào đầu danh sách và ưu tiên chọn
+          result.layouts = [layoutWithItems, ...result.layouts];
+        } catch (createError) {
+          console.error("Lỗi tự động tạo layout:", createError);
+        }
+      }
+
       setDetail(result);
       setSelectedLayoutId((current) => {
         if (current && result.layouts.some((layout) => layout.id === current)) {
           return current;
         }
-        return result.layouts[0]?.id ?? null;
+        // Ưu tiên chọn layout của user hiện tại (userId khớp)
+        const ownLayout = currentUser?.id
+          ? result.layouts.find((layout) => layout.userId === currentUser.id)
+          : null;
+        return ownLayout?.id ?? result.layouts[0]?.id ?? null;
       });
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Không thể tải chi tiết căn hộ";
@@ -452,11 +499,22 @@ export default function ApartmentDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [resolvedApartmentId]);
+  }, [resolvedApartmentId, currentUser]);
 
   useEffect(() => {
     void loadDetail();
   }, [loadDetail]);
+
+  useEffect(() => {
+    if (detail?.apartment?.area) {
+      const area = parseFloat(detail.apartment.area);
+      if (area < 55) {
+        setActiveLayout("1PN");
+      } else {
+        setActiveLayout("2PN");
+      }
+    }
+  }, [detail?.apartment?.id, detail?.apartment?.area]);
 
   const loadAccessGrants = useCallback(async () => {
     if (!isManager || Number.isNaN(resolvedApartmentId)) return;
@@ -523,6 +581,10 @@ export default function ApartmentDetailPage() {
         .sort((left, right) => right.area - left.area),
     [spaces],
   );
+
+  const currentWidth = activeLayout === "1PN" ? 6.0 : 10.1;
+  const currentDepth = activeLayout === "1PN" ? 6.7 : 7.0;
+
   const availableGrantUsers = useMemo(
     () =>
       editingGrant
@@ -781,7 +843,7 @@ export default function ApartmentDetailPage() {
       toast.success("Tạo template thành công");
       setCreateTemplateDialogOpen(false);
       setCreateTemplateForm({ name: "", description: "" });
-      await loadTemplates();
+      await Promise.all([loadTemplates(), loadDetail()]);
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Không thể tạo template");
     } finally {
@@ -846,6 +908,7 @@ export default function ApartmentDetailPage() {
       }
       if (deleteState.type === "layout") {
         await api.delete(`/apartments/${detail.apartment.id}/layouts/${deleteState.id}`);
+        hasDeletedLayoutRef.current = true;
       }
       if (deleteState.type === "item" && selectedLayout) {
         await api.delete(
@@ -1027,8 +1090,8 @@ export default function ApartmentDetailPage() {
     const rect = event.currentTarget.getBoundingClientRect();
     const pctX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
     const pctY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
-    const ptX = Number((pctX * APARTMENT_WIDTH).toFixed(2));
-    const ptY = Number((pctY * APARTMENT_DEPTH).toFixed(2));
+    const ptX = Number((pctX * currentWidth).toFixed(2));
+    const ptY = Number((pctY * currentDepth).toFixed(2));
 
     try {
       const payload = JSON.parse(raw) as
@@ -1134,9 +1197,9 @@ export default function ApartmentDetailPage() {
     const item = selectedLayout.items.find((entry) => entry.id === itemId);
     if (!item) return;
 
-    const nextPosition = `POINT Z (${x} ${z} ${yHover})`; // Lưu 3 trục hệ số x y z
-    const pctX = (x / APARTMENT_WIDTH) * 100;
-    const pctZ = (z / APARTMENT_DEPTH) * 100;
+    const nextPosition = `POINT Z (${x} ${z} ${yHover})`;
+    const pctX = (x / currentWidth) * 100;
+    const pctZ = (z / currentDepth) * 100;
     const resolvedSpaceId = resolveDropSpaceId(pctX, pctZ);
 
     try {
@@ -1151,10 +1214,10 @@ export default function ApartmentDetailPage() {
           scaleX: item.scaleX,
           scaleY: item.scaleY,
           scaleZ: item.scaleZ,
+          spaceId: resolvedSpaceId,
           label: item.label,
           isLocked: item.isLocked,
           metadata: item.metadata,
-          spaceId: resolvedSpaceId,
         },
       );
 
@@ -1167,10 +1230,50 @@ export default function ApartmentDetailPage() {
           ),
         }));
       });
-      // toast.success("Đã đồng bộ vị trí nội thất!"); 
     } catch (error) {
       console.error("Failed to update item position from 3D", error);
-      toast.error("Lỗi khi đồng bộ vị trí thiết bị 3D");
+      toast.error("Lỗi khi đồng bộ vị trí nội thất 3D");
+    }
+  };
+
+  const handleItemRotate3D = async (itemId: number, rotationY: number) => {
+    if (!selectedLayout) return;
+    const item = selectedLayout.items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    const nextRotationY = String(rotationY);
+
+    try {
+      await api.put(
+        `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
+        {
+          catalogId: item.catalogId,
+          position: item.position,
+          rotationX: item.rotationX,
+          rotationY: nextRotationY,
+          rotationZ: item.rotationZ,
+          scaleX: item.scaleX,
+          scaleY: item.scaleY,
+          scaleZ: item.scaleZ,
+          spaceId: item.spaceId,
+          label: item.label,
+          isLocked: item.isLocked,
+          metadata: item.metadata,
+        },
+      );
+
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return replaceLayoutInDetail(prev, selectedLayout.id, (layout) => ({
+          ...layout,
+          items: layout.items.map((it) =>
+            it.id === item.id ? { ...it, rotationY: nextRotationY } : it,
+          ),
+        }));
+      });
+    } catch (error) {
+      console.error("Failed to update item rotation from 3D", error);
+      toast.error("Lỗi khi đồng bộ góc xoay nội thất 3D");
     }
   };
 
@@ -1430,7 +1533,7 @@ export default function ApartmentDetailPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.8fr_1fr]">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Không gian LoD4</CardTitle>
@@ -1444,67 +1547,53 @@ export default function ApartmentDetailPage() {
             )}
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tên</TableHead>
-                    <TableHead>Loại</TableHead>
-                    <TableHead>Room type</TableHead>
-                    <TableHead>Cha</TableHead>
-                    {isManager && <TableHead>Model 3D</TableHead>}
-                    {isManager && <TableHead className="text-right">Hành động</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {spaces.map((space) => (
-                    <TableRow key={space.id}>
-                      <TableCell className="font-medium">{space.name}</TableCell>
-                      <TableCell>{spaceTypeLabels[space.spaceType]}</TableCell>
-                      <TableCell>{space.roomType ? roomTypeLabels[space.roomType] : "-"}</TableCell>
-                      <TableCell>
-                        {space.parentSpaceId
+            <div className="space-y-4">
+              {spaces.map((space) => (
+                <div key={space.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border p-4 bg-muted/20">
+                  <div className="space-y-1">
+                    <div className="font-semibold">{space.name}</div>
+                    <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                      <span>Loại: {spaceTypeLabels[space.spaceType]}</span>
+                      <span>
+                        Room: {space.roomType ? roomTypeLabels[space.roomType] : "-"}
+                      </span>
+                      <span>
+                        Cha: {space.parentSpaceId
                           ? spaces.find((item) => item.id === space.parentSpaceId)?.name ?? `#${space.parentSpaceId}`
                           : "-"}
-                      </TableCell>
-                      {isManager && (
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setUploadingModelType("space");
-                              setUploadingModelTarget(space.id);
-                              setModelUploadDialogOpen(true);
-                            }}
-                          >
-                            <Upload className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
-                      {isManager && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditSpace(space)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "space", id: space.id })}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                  {spaces.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={isManager ? 5 : 4} className="py-8 text-center text-muted-foreground">
-                        Chưa có dữ liệu không gian indoor.
-                      </TableCell>
-                    </TableRow>
+                      </span>
+                    </div>
+                  </div>
+                  {isManager && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setUploadingModelType("space");
+                          setUploadingModelTarget(space.id);
+                          setModelUploadDialogOpen(true);
+                        }}
+                        title="Upload Model 3D"
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        Model
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openEditSpace(space)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "space", id: space.id })}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   )}
-                </TableBody>
-              </Table>
+                </div>
+              ))}
+              {spaces.length === 0 && (
+                <div className="py-8 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                  Chưa có dữ liệu không gian indoor.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1513,12 +1602,6 @@ export default function ApartmentDetailPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Layouts nội thất</CardTitle>
             <div className="flex gap-2">
-              {templates.length > 0 && (
-                <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Từ template
-                </Button>
-              )}
               <Button onClick={openCreateLayout}>
                 <Plus className="mr-2 h-4 w-4" />
                 Tạo layout
@@ -1540,43 +1623,85 @@ export default function ApartmentDetailPage() {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">Version {layout.version}</p>
                 <div className="mt-3 flex gap-2 flex-wrap">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSelectedLayoutId(layout.id);
-                      handleCreateTemplateFromLayout();
-                    }}
-                  >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Lưu thành template
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openEditLayout(layout);
-                    }}
-                  >
-                    <Pencil className="mr-1 h-4 w-4" />
-                    Sửa
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setDeleteState({ type: "layout", id: layout.id });
-                    }}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                    Xóa
-                  </Button>
+                  {/* Nút Template (Lưu/Hủy) - cho phép mọi người */}
+                  {(() => {
+                    const isPublished = layout.status === "published";
+                    const relatedTemplate = templates.find((t) => t.sourceLayoutId === layout.id);
+
+                    if (isPublished && relatedTemplate) {
+                      // Nút Hủy công bố
+                      return (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={async (event) => {
+                            event.stopPropagation();
+                            if (!window.confirm("Bạn có chắc chắn muốn hủy công bố template này? Các thay đổi sẽ không thể hoàn tác.")) return;
+                            try {
+                              await api.delete(`/furniture-layout-templates/${relatedTemplate.id}`);
+                              toast.success("Đã hủy công bố template");
+                              await Promise.all([loadDetail(), loadTemplates()]);
+                            } catch (error: any) {
+                              toast.error(error.message || "Lỗi khi hủy công bố template");
+                            }
+                          }}
+                        >
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          Hủy công bố
+                        </Button>
+                      );
+                    } else {
+                      // Nút Lưu thành template
+                      return (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedLayoutId(layout.id);
+                            handleCreateTemplateFromLayout();
+                          }}
+                        >
+                          <Plus className="mr-1 h-4 w-4" />
+                          Lưu thành template
+                        </Button>
+                      );
+                    }
+                  })()}
+                  {canEditLayout(layout.userId) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (layout.status === "published") {
+                          const confirmEdit = window.confirm("Layout này đang được công bố làm mẫu (template). Các chỉnh sửa của bạn sẽ ảnh hưởng trực tiếp đến template chung. Bạn có chắc chắn muốn sửa không?");
+                          if (!confirmEdit) return;
+                        }
+                        openEditLayout(layout);
+                      }}
+                    >
+                      <Pencil className="mr-1 h-4 w-4" />
+                      Sửa
+                    </Button>
+                  )}
+                  {canEditLayout(layout.userId) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteState({ type: "layout", id: layout.id });
+                      }}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4 text-destructive" />
+                      Xóa
+                    </Button>
+                  )}
                 </div>
               </button>
             ))}
@@ -1650,8 +1775,15 @@ export default function ApartmentDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Workspace kéo thả nội thất</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex flex-col gap-1">
+            <CardTitle>Workspace kéo thả nội thất</CardTitle>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                {activeLayout === "1PN" ? "Căn hộ 1 PN + 1 WC" : "Căn hộ 2 PN + 2 WC"}
+              </Badge>
+            </div>
+          </div>
           <div className="flex items-center gap-1 rounded-md border p-1">
             <Button
               variant={workspaceMode === "2d" ? "default" : "ghost"}
@@ -1674,49 +1806,53 @@ export default function ApartmentDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {workspaceMode === "3d" ? (
-            <div className="h-[800px]">
+          {/* 3D Workspace — luôn mounted, ẩn bằng CSS để tránh WebGL context bị reset */}
+          <div className={workspaceMode === "3d" ? "h-[800px]" : "hidden"}>
+            <Suspense fallback={
+              <div className="h-[800px] flex flex-col items-center justify-center gap-3 text-muted-foreground rounded-xl border border-dashed bg-muted/20">
+                <Box className="h-8 w-8 animate-pulse" />
+                <p className="text-sm">Đang tải mô hình 3D...</p>
+              </div>
+            }>
               <ApartmentScene 
                 items={selectedLayout?.items} 
                 catalog={catalog} 
                 onItemMove={handleItemMove3D}
+                onItemRotate={handleItemRotate3D}
+                activeLayout={activeLayout}
               />
-            </div>
-          ) : (
+            </Suspense>
+          </div>
+
+          {/* 2D Workspace */}
+          <div className={workspaceMode === "2d" ? "" : "hidden"}>
             <>
-              {workspaceSpaces.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {workspaceSpaces.map((space) => (
-                    <Badge key={space.id} variant="outline" className="bg-background/80">
-                      {spaceTypeLabels[space.spaceType]}
-                      {" · "}
-                      {space.name}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+
               <div
                 className="relative mx-auto overflow-hidden rounded-xl border border-dashed bg-muted/30"
                 style={{ 
-                  aspectRatio: `${APARTMENT_WIDTH} / ${APARTMENT_DEPTH}`,
-                  maxHeight: "600px"
+                  aspectRatio: `${currentWidth} / ${currentDepth}`,
+                  maxHeight: "600px",
+                  width: "100%",
+                  maxWidth: `${currentWidth * 60}px` // Scale factor for nice display
                 }}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => void handleWorkspaceDrop(event)}
               >
+                {/* Grid container - limited to the apartment box */}
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
                 <svg
                   className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-                  viewBox="0 0 100 100"
+                  viewBox={`0 0 ${currentWidth} ${currentDepth}`}
                   preserveAspectRatio="none"
                   aria-hidden="true"
                 >
                   {/* Render 3D mapped rooms */}
-                  {MOCK_ROOMS.map((room) => {
-                    const xPct = (room.x / APARTMENT_WIDTH) * 100;
-                    const yPct = (room.z / APARTMENT_DEPTH) * 100;
-                    const wPct = (room.w / APARTMENT_WIDTH) * 100;
-                    const dPct = (room.d / APARTMENT_DEPTH) * 100;
+                  {(activeLayout === "1PN" ? LAYOUT_1PN_ROOMS : LAYOUT_2PN_ROOMS).map((room) => {
+                    const xPct = room.x;
+                    const yPct = room.z;
+                    const wPct = room.w;
+                    const dPct = room.d;
                     return (
                       <g key={`mock-room-${room.id}`}>
                         <rect
@@ -1724,17 +1860,15 @@ export default function ApartmentDetailPage() {
                           y={yPct}
                           width={wPct}
                           height={dPct}
-                          style={{ fill: room.color, opacity: 0.2, stroke: room.color, strokeOpacity: 0.6 }}
-                          strokeWidth={0.5}
-                          vectorEffect="non-scaling-stroke"
+                          style={{ fill: room.color, opacity: 0.15 }}
                         />
-                        {room.name && (
+                        {room.name && workspaceSpaces.length === 0 && (
                           <text
                             x={xPct + wPct / 2}
                             y={yPct + dPct / 2}
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            style={{ fill: "rgb(15 23 42 / 0.7)", fontSize: "2.5px", fontWeight: 600 }}
+                            style={{ fill: "rgb(15 23 42 / 0.7)", fontSize: "0.35px", fontWeight: 600 }}
                           >
                             {room.name}
                           </text>
@@ -1744,13 +1878,13 @@ export default function ApartmentDetailPage() {
                   })}
 
                   {/* Render 3D mapped walls */}
-                  {MOCK_WALLS.map((wall, idx) => {
-                    const x1 = (wall.p1[0] / APARTMENT_WIDTH) * 100;
-                    const y1 = (wall.p1[1] / APARTMENT_DEPTH) * 100;
-                    const x2 = (wall.p2[0] / APARTMENT_WIDTH) * 100;
-                    const y2 = (wall.p2[1] / APARTMENT_DEPTH) * 100;
-                    // approximate thickness relative to viewBox scale
-                    const strokeWidthObj = (wall.thickness / APARTMENT_WIDTH) * 100;
+                  {(activeLayout === "1PN" ? LAYOUT_1PN_WALLS : LAYOUT_2PN_WALLS).map((wall, idx) => {
+                    const x1 = wall.p1[0];
+                    const y1 = wall.p1[1];
+                    const x2 = wall.p2[0];
+                    const y2 = wall.p2[1];
+                    // thickness directly in meters
+                    const strokeWidthObj = wall.thickness;
                     return (
                       <line
                         key={`mock-wall-${idx}`}
@@ -1767,7 +1901,8 @@ export default function ApartmentDetailPage() {
 
                   {/* Render Db bounds if exist */}
                   {workspaceSpaces.map((space) => {
-                    const polygonPoints = space.points.map((point) => `${(point.x / APARTMENT_WIDTH) * 100},${(point.y / APARTMENT_DEPTH) * 100}`).join(" ");
+                    // Convert % back to meters for the new viewBox
+                    const polygonPoints = space.points.map((point) => `${(point.x / 100) * currentWidth},${(point.y / 100) * currentDepth}`).join(" ");
                     const polygonStyle =
                       space.spaceType === "unit"
                         ? { fill: "rgb(59 130 246 / 0.08)", stroke: "rgb(59 130 246 / 0.4)" }
@@ -1784,10 +1919,10 @@ export default function ApartmentDetailPage() {
                           vectorEffect="non-scaling-stroke"
                         />
                         <text
-                          x={clamp(space.labelPoint.x, 4, 96)}
-                          y={clamp(space.labelPoint.y, 6, 96)}
+                          x={clamp((space.labelPoint.x / 100) * currentWidth, 0.4, currentWidth - 0.4)}
+                          y={clamp((space.labelPoint.y / 100) * currentDepth, 0.6, currentDepth - 0.6)}
                           textAnchor="middle"
-                          style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "4px", fontWeight: 600 }}
+                          style={{ fill: "rgb(15 23 42 / 0.9)", fontSize: "0.3px", fontWeight: 600 }}
                         >
                           {space.name}
                         </text>
@@ -1814,8 +1949,8 @@ export default function ApartmentDetailPage() {
                         }
                         className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
                         style={{
-                          left: `${clamp((point.x / APARTMENT_WIDTH) * 100, 0, 100)}%`,
-                          top: `${clamp((point.y / APARTMENT_DEPTH) * 100, 0, 100)}%`,
+                          left: `${clamp((point.x / currentWidth) * 100, 0, 100)}%`,
+                          top: `${clamp((point.y / currentDepth) * 100, 0, 100)}%`,
                           transform: "translate(-50%, -50%)",
                         }}
                       >
@@ -1835,15 +1970,19 @@ export default function ApartmentDetailPage() {
                 )}
               </div>
             </>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            Kéo item từ thư viện nội thất phía dưới vào workspace để thêm mới. Kéo item đang có trong workspace để đổi vị trí. Nếu item rơi vào boundary của một không gian LoD4, hệ thống sẽ tự gắn item vào đúng không gian đó.
-          </p>
-          {workspaceSpaces.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Workspace đang chưa có sơ đồ phòng vì chưa có `boundary` hợp lệ ở các không gian LoD4.
-            </p>
-          )}
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">
+              <Info className="h-4 w-4 text-primary shrink-0" />
+              <span>Kéo thả nội thất từ thư viện vào sơ đồ để sắp đặt. Hệ thống sẽ tự động liên kết vào phòng tương ứng.</span>
+            </div>
+            {workspaceSpaces.length === 0 && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>Căn hộ này chưa được thiết lập sơ đồ phòng.</span>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -1875,57 +2014,75 @@ export default function ApartmentDetailPage() {
                       JSON.stringify({ type: "catalog", catalogId: item.id }),
                     )
                   }
-                  className="cursor-grab"
+                  className="cursor-grab flex gap-4"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.code}</p>
-                    </div>
-                    <Badge variant="outline">{furnitureCategoryLabels[item.category]}</Badge>
+                  <div className="w-20 h-20 bg-muted/20 rounded-md shrink-0 flex items-center justify-center border overflow-hidden relative pointer-events-none">
+                    {item.model3dUrl ? (
+                      /* @ts-ignore */
+                      <model-viewer
+                        src={item.model3dUrl}
+                        alt={item.name}
+                        style={{ width: "100%", height: "100%" }}
+                        interaction-prompt="none"
+                        camera-controls="false"
+                      />
+                    ) : (
+                      <Box className="w-8 h-8 text-muted-foreground" />
+                    )}
                   </div>
-                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                    <p className="truncate">Model: {item.model3dUrl}</p>
-                    <p>
-                      Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
-                    </p>
-                    <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.code}</p>
+                      </div>
+                      <Badge variant="outline" className="shrink-0">{furnitureCategoryLabels[item.category]}</Badge>
+                    </div>
+                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                      <p className="truncate">Model: {item.model3dUrl}</p>
+                      <p>
+                        Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
+                      </p>
+                      <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                    </div>
                   </div>
                 </div>
-                {isManager && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.model3dUrl && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPreviewModelId(item.id)}
-                      >
-                        <Eye className="mr-1 h-4 w-4" />
-                        Xem 3D
-                      </Button>
-                    )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {item.model3dUrl && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setUploadingModelType("catalog");
-                        setUploadingModelTarget(item.id);
-                        setModelUploadDialogOpen(true);
-                      }}
+                      onClick={() => setPreviewModelId(item.id)}
                     >
-                      <Upload className="mr-1 h-4 w-4" />
-                      {item.model3dUrl ? "Thay" : "Upload"}
+                      <Eye className="mr-1 h-4 w-4" />
+                      Xem 3D
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
-                      <Pencil className="mr-1 h-4 w-4" />
-                      Sửa
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "catalog", id: item.id })}>
-                      <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                      Xóa
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  {isManager && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setUploadingModelType("catalog");
+                          setUploadingModelTarget(item.id);
+                          setModelUploadDialogOpen(true);
+                        }}
+                      >
+                        <Upload className="mr-1 h-4 w-4" />
+                        {item.model3dUrl ? "Thay" : "Upload"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
+                        <Pencil className="mr-1 h-4 w-4" />
+                        Sửa
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "catalog", id: item.id })}>
+                        <Trash2 className="mr-1 h-4 w-4 text-destructive" />
+                        Xóa
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
                 ))}
             </div>

@@ -42,7 +42,7 @@
 ## Phase 2: GIS & 3D
 - [x] `/map` - Bản đồ GIS (Mapbox/Leaflet, markers, filters, popup, timeline snapshot)
 - [x] `/buildings/:id` - Chi tiết tòa nhà + mô hình 3D (Three.js/React Three Fiber, upload model, click apartment popup)
-- [ ] `/buildings/:id/apartments/:apartmentId` - Chi tiết căn hộ (linked from 3D view)
+- [x] `/buildings/:id/apartments/:apartmentId` - Chi tiết căn hộ (linked from 3D view)
 
 ## Phase 2.5: Navigation & Topology
 - [x] BE: Schema navigation_nodes + navigation_edges (PointZ geometry, node_type/edge_type enums)
@@ -100,4 +100,5 @@
 - [x] FE: Bổ sung bind `door -> apartment.entryNodeId`, xóa hotspot an toàn và refresh graph sau thao tác trong trang tòa nhà
 - [x] FE: Bổ sung UI CRUD edge topology thủ công ngay trên trang chi tiết tòa nhà
 - [x] FE: Bổ sung UI CRUD tầng ngay trong trang chi tiết tòa nhà để dùng trực tiếp Floors API
-- [x] Docs: Viết hướng dẫn chi tiết cách dùng màn 3D/2D của tòa nhà và trang chi tiết căn hộ theo UI hiện tại
+- [x] FE+BE: Gộp sảnh, khách, bếp thành "Phòng khách, Bếp & Ăn" và sửa triệt để lỗi loạn chữ trên giao diện sơ đồ 2D
+- [x] FE+BE: Căn chỉnh thẳng hàng mép dưới (bottom boundary) của WC 2 (Chung) và Loggia sát tường bao ngoài (7.0m) trên cả 2D và 3D cho căn hộ 2PN

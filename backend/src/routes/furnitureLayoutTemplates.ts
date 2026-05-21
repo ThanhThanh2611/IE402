@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
+import { requireManager } from "../middleware/auth";
 import {
   buildings,
   furnitureLayoutTemplates,
@@ -75,7 +76,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// POST /furniture-layout-templates
+// POST /furniture-layout-templates — Manager only
 // Body: { buildingId, name, description, sourceLayoutId? }
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -106,9 +107,17 @@ router.post("/", async (req: Request, res: Response) => {
         description: description || null,
         sourceLayoutId: sourceLayoutId ? Number(sourceLayoutId) : null,
         createdById: userId,
-        isPublished: false,
+        isPublished: true, // Auto publish khi tạo từ user
       })
       .returning();
+
+    // Cập nhật trạng thái của layout nguồn thành 'published'
+    if (sourceLayoutId) {
+      await db
+        .update(furnitureLayouts)
+        .set({ status: "published" })
+        .where(eq(furnitureLayouts.id, Number(sourceLayoutId)));
+    }
 
     res.status(201).json(result[0]);
   } catch (error) {
@@ -117,8 +126,8 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// PUT /furniture-layout-templates/:id
-router.put("/:id", async (req: Request, res: Response) => {
+// PUT /furniture-layout-templates/:id — Manager only
+router.put("/:id", requireManager, async (req: Request, res: Response) => {
   try {
     const templateId = Number(req.params.id);
     const { name, description, isPublished } = req.body;
@@ -152,10 +161,36 @@ router.put("/:id", async (req: Request, res: Response) => {
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const templateId = Number(req.params.id);
+    const user = (req as any).user;
+
+    // Lấy thông tin template để kiểm tra quyền
+    const existing = await db
+      .select({ createdById: furnitureLayoutTemplates.createdById, sourceLayoutId: furnitureLayoutTemplates.sourceLayoutId })
+      .from(furnitureLayoutTemplates)
+      .where(eq(furnitureLayoutTemplates.id, templateId));
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Không tìm thấy template layout" });
+      return;
+    }
+
+    // Chỉ manager hoặc người tạo ra template mới được xóa
+    if (user?.role !== "manager" && existing[0].createdById !== user?.id) {
+      res.status(403).json({ error: "Bạn không có quyền xóa template này" });
+      return;
+    }
 
     await db
       .delete(furnitureLayoutTemplates)
       .where(eq(furnitureLayoutTemplates.id, templateId));
+
+    // Đổi trạng thái layout nguồn về draft
+    if (existing[0].sourceLayoutId) {
+      await db
+        .update(furnitureLayouts)
+        .set({ status: "draft" })
+        .where(eq(furnitureLayouts.id, existing[0].sourceLayoutId));
+    }
 
     res.status(204).send();
   } catch (error) {
@@ -166,7 +201,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
 // POST /furniture-layout-templates/:templateId/apply
 // Body: { apartmentId, layoutName }
-// Copy items từ template layout sang căn hộ mới
+// Copy items từ template layout sang căn hộ mới — mọi user đã đăng nhập đều có thể dùng
 router.post("/:templateId/apply", async (req: Request, res: Response) => {
   try {
     const templateId = Number(req.params.templateId);

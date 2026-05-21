@@ -435,7 +435,7 @@ async function seed() {
   console.log(`Inserted ${insertedFurnitureCatalog.length} furniture catalog items`);
 
   // 4f. Apartment spaces + sample layouts/items cho một số căn hộ
-  const sampleApartments = insertedApartments.slice(0, 6);
+  const sampleApartments = insertedApartments.slice(0, 10); // Lấy 10 căn mẫu
   const insertedSpaces: Array<{
     id: number;
     apartmentId: number;
@@ -448,44 +448,59 @@ async function seed() {
       .insert(apartmentSpaces)
       .values({
         apartmentId: apartment.id,
-        name: `Không gian căn ${apartment.code}`,
+        name: `Căn hộ ${apartment.code}`,
         spaceType: "unit",
         lodLevel: "lod4",
-        metadata: { apartmentCode: apartment.code },
+        metadata: { apartmentCode: apartment.code, totalArea: apartment.area },
       })
       .returning();
 
-    const livingRoom = await db
-      .insert(apartmentSpaces)
-      .values({
-        apartmentId: apartment.id,
-        parentSpaceId: unit[0].id,
-        name: "Phòng khách",
-        spaceType: "room",
-        roomType: "living_room",
-        lodLevel: "lod4",
-        metadata: { width: 40, depth: 35 },
-      })
-      .returning();
-
-    const bedroom = await db
-      .insert(apartmentSpaces)
-      .values({
-        apartmentId: apartment.id,
-        parentSpaceId: unit[0].id,
-        name: "Phòng ngủ",
-        spaceType: "room",
-        roomType: "bedroom",
-        lodLevel: "lod4",
-        metadata: { width: 30, depth: 30 },
-      })
-      .returning();
-
-    insertedSpaces.push(
-      { id: unit[0].id, apartmentId: apartment.id, parentSpaceId: null, name: unit[0].name },
-      { id: livingRoom[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: livingRoom[0].name },
-      { id: bedroom[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: bedroom[0].name },
-    );
+    if (apartment.numBedrooms === 1) {
+      // Layout 1PN Mẫu
+      const spaces = [
+        { name: "WC", type: "bathroom", area: 4.4, boundary: "POLYGON Z ((0 0 0, 33.33 0 0, 33.33 37.31 0, 0 37.31 0, 0 0 0))" },
+        { name: "Phòng khách, Bếp & Ăn", type: "living_room", area: 21.0, boundary: "POLYGON Z ((33.33 0 0, 100 0 0, 100 82.09 0, 50 82.09 0, 50 52.24 0, 0 52.24 0, 0 37.31 0, 33.33 37.31 0, 33.33 0 0))" },
+        { name: "Phòng Ngủ", type: "bedroom", area: 12.6, boundary: "POLYGON Z ((0 52.24 0, 50 52.24 0, 50 100 0, 0 100 0, 0 52.24 0))" },
+        { name: "Ban Công", type: "balcony", area: 8.4, boundary: "POLYGON Z ((50 82.09 0, 100 82.09 0, 100 100 0, 50 100 0, 50 82.09 0))" },
+      ];
+      for (const s of spaces) {
+        const res = await db.insert(apartmentSpaces).values({
+          apartmentId: apartment.id,
+          parentSpaceId: unit[0].id,
+          name: s.name,
+          spaceType: "room",
+          roomType: s.type as any,
+          lodLevel: "lod4",
+          boundary: s.boundary ? sql`ST_GeomFromText(${s.boundary}, 4326)` : null,
+          metadata: { area: s.area },
+        }).returning();
+        insertedSpaces.push({ id: res[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: res[0].name });
+      }
+    } else {
+      // Layout 2PN Mẫu (Theo Hình 5)
+      const spaces = [
+        { name: "Phòng khách, Bếp & Ăn", type: "living_room", area: 25.1, boundary: "POLYGON Z ((3.96 44.29 0, 88.91 44.29 0, 88.91 100 0, 25.74 100 0, 25.74 70.29 0, 3.96 70.29 0, 3.96 44.29 0))" },
+        { name: "Phòng ngủ 1", type: "bedroom", area: 9.4, boundary: "POLYGON Z ((3.96 3.14 0, 36.14 3.14 0, 36.14 44.29 0, 3.96 44.29 0, 3.96 3.14 0))" },
+        { name: "Phòng ngủ 2", type: "bedroom", area: 12.5, boundary: "POLYGON Z ((55.05 3.14 0, 98.02 3.14 0, 98.02 44.29 0, 55.05 44.29 0, 55.05 3.14 0))" },
+        { name: "WC 1 (Ensuite)", type: "bathroom", area: 4.5, boundary: "POLYGON Z ((37.23 3.14 0, 53.96 3.14 0, 53.96 44.29 0, 37.23 44.29 0, 37.23 3.14 0))" },
+        { name: "WC 2 (Chung)", type: "bathroom", area: 4.0, boundary: "POLYGON Z ((3.96 70.29 0, 25.74 70.29 0, 25.74 100 0, 3.96 100 0, 3.96 70.29 0))" },
+        { name: "Loggia", type: "balcony", area: 3.4, boundary: "POLYGON Z ((88.91 45.86 0, 97.82 45.86 0, 97.82 100 0, 88.91 100 0, 88.91 45.86 0))" },
+      ];
+      for (const s of spaces) {
+        const res = await db.insert(apartmentSpaces).values({
+          apartmentId: apartment.id,
+          parentSpaceId: unit[0].id,
+          name: s.name,
+          spaceType: "room",
+          roomType: s.type as any,
+          lodLevel: "lod4",
+          boundary: s.boundary ? sql`ST_GeomFromText(${s.boundary}, 4326)` : null,
+          metadata: { area: s.area },
+        }).returning();
+        insertedSpaces.push({ id: res[0].id, apartmentId: apartment.id, parentSpaceId: unit[0].id, name: res[0].name });
+      }
+    }
+    insertedSpaces.push({ id: unit[0].id, apartmentId: apartment.id, parentSpaceId: null, name: unit[0].name });
   }
   console.log(`Inserted ${insertedSpaces.length} apartment spaces`);
 
@@ -632,8 +647,17 @@ async function seed() {
 
   insertedLayouts.forEach((layout) => {
     const apartmentSpaceRows = insertedSpaces.filter((space) => space.apartmentId === layout.apartmentId);
-    const livingRoom = apartmentSpaceRows.find((space) => space.name === "Phòng khách");
-    const bedroom = apartmentSpaceRows.find((space) => space.name === "Phòng ngủ");
+    const livingRoom = apartmentSpaceRows.find((space) => 
+      space.name === "Phòng khách" || 
+      space.name === "Phòng Khách & Sảnh" || 
+      space.name === "Khách, Bếp & Ăn"
+    );
+    const bedroom = apartmentSpaceRows.find((space) => 
+      space.name === "Phòng ngủ" || 
+      space.name === "Phòng Ngủ" ||
+      space.name === "Phòng ngủ 1" ||
+      space.name === "Phòng ngủ 2"
+    );
 
     if (livingRoom) {
       furnitureItemValues.push(
@@ -706,11 +730,16 @@ async function seed() {
     }
   });
 
-  const insertedFurnitureItems = await db
-    .insert(furnitureItems)
-    .values(furnitureItemValues)
-    .returning();
-  console.log(`Inserted ${insertedFurnitureItems.length} furniture items`);
+  let insertedFurnitureItems: any[] = [];
+  if (furnitureItemValues.length > 0) {
+    insertedFurnitureItems = await db
+      .insert(furnitureItems)
+      .values(furnitureItemValues)
+      .returning();
+    console.log(`Inserted ${insertedFurnitureItems.length} furniture items`);
+  } else {
+    console.log("No furniture items to insert.");
+  }
 
   console.log("\nSeed completed successfully!");
   console.log(`Summary:

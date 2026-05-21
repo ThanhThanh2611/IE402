@@ -95,4 +95,11 @@
 - [x] FE: Cho bind hotspot `door` với căn hộ, thêm xóa hotspot và tự gỡ `entryNodeId` an toàn
 - [x] FE: Thêm UI CRUD edge topology thủ công trên trang chi tiết tòa nhà
 - [x] FE: Thêm UI CRUD tầng ngay trong trang chi tiết tòa nhà
+- [x] FE: Tự động chọn layout 1PN/2PN theo diện tích căn hộ (< 55m2 vs >= 55m2)
+- [x] FE: Fix lỗi tab 2D→3D trắng lần đầu (lazy load ApartmentScene, giữ Canvas mounted bằng CSS hidden, tách GltfModel component tránh vi phạm Rules of Hooks)
 - [x] Docs: Viết hướng dẫn chi tiết cho màn 3D/2D tòa nhà và trang chi tiết căn hộ
+- [x] FE+BE: Đồng bộ ranh giới phòng (boundary) PolygonZ mẫu vào database seed, tự động xác định room type/spaceId khi kéo thả nội thất
+- [x] FE+BE: Quản lý layout nội thất độc lập theo từng user đăng nhập, tự động tạo layout mặc định "Layout của tôi" khi danh sách trống
+- [x] FE+BE: Gộp sảnh, khách, bếp thành "Phòng khách, Bếp & Ăn" và sửa triệt để lỗi loạn chữ trên giao diện sơ đồ 2D
+- [x] FE+BE: Đồng bộ căn chỉnh thẳng hàng mép dưới (bottom boundary) của WC 2 (Chung) và Loggia sát tường bao ngoài (7.0m) trên cả 2D và 3D cho căn hộ 2PN
+
