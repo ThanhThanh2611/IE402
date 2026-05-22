@@ -55,7 +55,6 @@ app.use("/api/furniture-layout-templates", authenticate, furnitureLayoutTemplate
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
-  // Tự động đồng bộ danh mục nội thất khi khởi động
   void syncFurnitureCatalog().catch((err) => {
     console.error("Lỗi khi đồng bộ danh mục nội thất:", err);
   });
