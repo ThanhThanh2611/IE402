@@ -18,10 +18,16 @@ export const userUpdateSchema = userSchema.omit({ password: true });
 export const apartmentSchema = z.object({
   floorId: z.number().min(1, "Vui lòng chọn tầng"),
   code: z.string().min(1, "Vui lòng nhập mã căn hộ"),
-  area: z.string().min(1, "Vui lòng nhập diện tích"),
-  numBedrooms: z.number().nullable(),
-  numBathrooms: z.number().nullable(),
-  rentalPrice: z.string().min(1, "Vui lòng nhập giá thuê"),
+  area: z
+    .string()
+    .min(1, "Vui lòng nhập diện tích")
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Diện tích phải lớn hơn 0"),
+  numBedrooms: z.number().int("Số phòng ngủ phải là số nguyên").min(0, "Số phòng ngủ không được âm").nullable(),
+  numBathrooms: z.number().int("Số phòng tắm phải là số nguyên").min(0, "Số phòng tắm không được âm").nullable(),
+  rentalPrice: z
+    .string()
+    .min(1, "Vui lòng nhập giá thuê")
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Giá thuê phải lớn hơn 0"),
   description: z.string().optional(),
 });
 
@@ -45,8 +51,14 @@ export const contractSchema = z
     tenantId: z.number().min(1, "Vui lòng chọn người thuê"),
     startDate: z.string().min(1, "Vui lòng chọn ngày bắt đầu"),
     endDate: z.string().min(1, "Vui lòng chọn ngày kết thúc"),
-    monthlyRent: z.string().min(1, "Vui lòng nhập tiền thuê"),
-    deposit: z.string().optional(),
+    monthlyRent: z
+      .string()
+      .min(1, "Vui lòng nhập tiền thuê")
+      .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Tiền thuê phải lớn hơn 0"),
+    deposit: z
+      .string()
+      .optional()
+      .refine((v) => !v || (!isNaN(Number(v)) && Number(v) >= 0), "Tiền cọc không được âm"),
     note: z.string().optional(),
   })
   .refine((d) => d.endDate > d.startDate, {
@@ -56,7 +68,10 @@ export const contractSchema = z
 
 export const paymentSchema = z.object({
   contractId: z.number().min(1, "Vui lòng chọn hợp đồng"),
-  amount: z.string().min(1, "Vui lòng nhập số tiền"),
+  amount: z
+    .string()
+    .min(1, "Vui lòng nhập số tiền")
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Số tiền phải lớn hơn 0"),
   paymentDate: z.string().min(1, "Vui lòng chọn ngày thanh toán"),
   status: z.enum(["pending", "paid", "overdue"]),
   note: z.string().optional(),

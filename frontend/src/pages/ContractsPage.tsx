@@ -57,6 +57,14 @@ const statusColors = {
   cancelled: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
+function getEffectiveStatus(contract: RentalContract): "active" | "expired" | "cancelled" {
+  if (contract.status !== "active") return contract.status;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (new Date(contract.endDate) < today) return "expired";
+  return "active";
+}
+
 const emptyForm: ContractInput = {
   apartmentId: 0,
   tenantId: 0,
@@ -118,7 +126,7 @@ export default function ContractsPage() {
   }, [searchKeyword, searchStatus]);
 
   const filteredContracts = contracts.filter((c) => {
-    if (searchStatus && c.status !== searchStatus) return false;
+    if (searchStatus && getEffectiveStatus(c) !== searchStatus) return false;
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase().trim();
       const tenantName = getTenantName(c.tenantId).toLowerCase();
@@ -341,7 +349,10 @@ export default function ContractsPage() {
                               <TableCell>{formatDate(c.endDate)}</TableCell>
                               <TableCell className="text-right">{formatVND(c.monthlyRent)}</TableCell>
                               <TableCell className="text-center">
-                                <Badge className={statusColors[c.status]}>{statusLabels[c.status]}</Badge>
+                                {(() => {
+                                  const s = getEffectiveStatus(c);
+                                  return <Badge className={statusColors[s]}>{statusLabels[s]}</Badge>;
+                                })()}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
