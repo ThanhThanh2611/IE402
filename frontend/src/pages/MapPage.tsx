@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { latLngBounds, type LatLngBounds } from "leaflet";
+import L, { latLngBounds, type LatLngBounds } from "leaflet";
 import {
   CircleMarker,
   MapContainer,
+  Marker,
   Popup,
   TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -39,8 +41,24 @@ import type {
   NearbyBuildingResult,
   OccupancyHistoryPoint,
 } from "@/types";
-import { Filter, Loader2, MapPinned, Navigation, RotateCcw } from "lucide-react";
+import { Filter, Loader2, MapPinned, Navigation, RotateCcw, Globe, Building2, MapPin, Coins, Compass, Search, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+
+function formatRealtimeCurrency(value: string): string {
+  if (!value) return "";
+  const num = Number(value);
+  if (Number.isNaN(num) || num <= 0) return "";
+  if (num >= 1e9) {
+    return `${(num / 1e9).toFixed(1).replace(/\.0$/, "")} tỷ VND`;
+  }
+  if (num >= 1e6) {
+    return `${(num / 1e6).toFixed(1).replace(/\.0$/, "")} triệu VND`;
+  }
+  if (num >= 1e3) {
+    return `${(num / 1e3).toFixed(0)} nghìn VND`;
+  }
+  return `${num} VND`;
+}
 
 type MapFilters = {
   district: string;
@@ -48,6 +66,10 @@ type MapFilters = {
   ward: string;
   minPrice: string;
   maxPrice: string;
+  search: string;
+  occupancyRange: string;
+  minFloors: string;
+  maxFloors: string;
 };
 
 const DEFAULT_CENTER: [number, number] = [10.7769, 106.7009];
@@ -100,6 +122,10 @@ function createEmptyFilters(): MapFilters {
     ward: "",
     minPrice: "",
     maxPrice: "",
+    search: "",
+    occupancyRange: "",
+    minFloors: "",
+    maxFloors: "",
   };
 }
 
@@ -185,16 +211,285 @@ function MapAutoFit({ bounds }: { bounds: LatLngBounds | null }) {
   return null;
 }
 
+function MapEventHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const map = useMapEvents({
+    zoomend() {
+      onZoomChange(map.getZoom());
+    },
+  });
+
+  useEffect(() => {
+    onZoomChange(map.getZoom());
+  }, [map, onZoomChange]);
+
+  return null;
+}
+
+function getClusterTolerance(zoom: number): number {
+  if (zoom <= 8) return 1.5;
+  if (zoom === 9) return 0.5;
+  if (zoom === 10) return 0.18;
+  if (zoom === 11) return 0.06;
+  if (zoom === 12) return 0.018;
+  if (zoom === 13) return 0.006;
+  if (zoom === 14) return 0.002;
+  if (zoom === 15) return 0.0007;
+  return 0.0; // zoom >= 16: no clustering
+}
+
+interface Cluster {
+  id: string;
+  center: [number, number];
+  features: BuildingGeoJsonFeature[];
+}
+
+function clusterFeatures(features: BuildingGeoJsonFeature[], zoom: number): Cluster[] {
+  const tolerance = getClusterTolerance(zoom);
+  const clusters: Cluster[] = [];
+
+  for (const feature of features) {
+    const coords = getFeatureCenter(feature);
+    let addedToCluster = false;
+
+    for (const cluster of clusters) {
+      const latDiff = Math.abs(cluster.center[0] - coords[0]);
+      const lngDiff = Math.abs(cluster.center[1] - coords[1]);
+      const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+
+      if (distance < tolerance) {
+        cluster.features.push(feature);
+        const count = cluster.features.length;
+        cluster.center[0] = (cluster.center[0] * (count - 1) + coords[0]) / count;
+        cluster.center[1] = (cluster.center[1] * (count - 1) + coords[1]) / count;
+        addedToCluster = true;
+        break;
+      }
+    }
+
+    if (!addedToCluster) {
+      clusters.push({
+        id: `cluster-${feature.properties.id}-${Date.now()}-${Math.random()}`,
+        center: [coords[0], coords[1]],
+        features: [feature],
+      });
+    }
+  }
+
+  return clusters;
+}
+
+const createClusterIcon = (count: number, averageOccupancy: number, isLarge: boolean) => {
+  let color = "#0284C7"; // sky-600 primary
+  if (averageOccupancy >= 80) color = "#059669"; // emerald-600 (high occupancy)
+  else if (averageOccupancy < 50) color = "#EA580C"; // orange-600 (low occupancy)
+
+  const size = isLarge ? 44 : 34;
+  const fontSize = isLarge ? 14 : 12;
+  const pulse = isLarge ? `box-shadow: 0 0 0 4px ${color}33, 0 2px 8px rgba(0,0,0,0.3);` : "box-shadow: 0 2px 6px rgba(0,0,0,0.25);";
+
+  return L.divIcon({
+    html: `<div title="Cụm ${count} tòa nhà — Click để phóng to" style="background-color: ${color}; color: #ffffff; border: 3px solid #ffffff; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: ${fontSize}px; cursor: pointer; ${pulse}">${count}</div>`,
+    className: "custom-cluster-marker",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+};
+
+// Component con chứa logic zoom map — phải đặt trong MapContainer để dùng useMap()
+function ClusterMarker({ cluster, averageOccupancy, navigate, occupancyMap, nearbyIds }: {
+  cluster: Cluster;
+  averageOccupancy: number;
+  navigate: (path: string) => void;
+  occupancyMap: Record<number, BuildingOccupancyDetail>;
+  nearbyIds: number[];
+}) {
+  const map = useMap();
+  const count = cluster.features.length;
+  const isLarge = count > 5;
+
+  const handleClusterClick = () => {
+    if (isLarge) {
+      // Zoom vào vùng bao phủ cụm thay vì mở popup
+      const points = cluster.features.map((f) => getFeatureCenter(f));
+      const bounds = latLngBounds(points);
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: true });
+    }
+    // Nếu <= 5, Popup sẽ hiện tự nhiên qua Leaflet
+  };
+
+  return (
+    <Marker
+      key={cluster.id}
+      position={cluster.center}
+      icon={createClusterIcon(count, averageOccupancy, isLarge)}
+      eventHandlers={isLarge ? { click: handleClusterClick } : {}}
+    >
+      <Tooltip direction="top" offset={[0, -10]}>
+        {isLarge
+          ? `Cụm ${count} tòa nhà — Click để phóng to`
+          : `Cụm ${count} tòa nhà — Click để xem danh sách`}
+      </Tooltip>
+      {!isLarge && (
+        <Popup>
+          <div className="min-w-56 max-w-72 max-h-64 overflow-y-auto space-y-2 p-1">
+            <p className="font-bold text-xs border-b pb-1.5 mb-2 text-foreground">
+              Danh sách tòa nhà ({count})
+            </p>
+            <div className="space-y-2">
+              {cluster.features.map((feat) => {
+                const buildingId = feat.properties.id;
+                const occ = occupancyMap[buildingId];
+                const rate = toOccupancyRate(occ?.occupancyRate);
+                const isNearby = nearbyIds.includes(buildingId);
+                return (
+                  <div key={buildingId} className="flex flex-col gap-1 border-b border-border last:border-0 pb-1.5 last:pb-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`font-semibold text-xs text-foreground line-clamp-1 ${isNearby ? 'text-primary' : ''}`}>
+                        {feat.properties.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{rate.toFixed(0)}%</span>
+                    </div>
+                    <Button
+                      className="text-[10px] h-6 px-2 w-full mt-0.5"
+                      onClick={() => navigate(`/buildings/${buildingId}`)}
+                    >
+                      Xem chi tiết
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Popup>
+      )}
+    </Marker>
+  );
+}
+
 export default function MapPage() {
   const navigate = useNavigate();
   const currentMonth = useMemo(() => getCurrentMonth(), []);
 
   const [allBuildings, setAllBuildings] = useState<Building[]>([]);
+  const [zoom, setZoom] = useState(12);
+
   const [filters, setFilters] = useState<MapFilters>(() => createEmptyFilters());
   const [appliedFilters, setAppliedFilters] = useState<MapFilters>(() => createEmptyFilters());
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [mapFeatures, setMapFeatures] = useState<BuildingGeoJsonFeature[]>([]);
   const [occupancyMap, setOccupancyMap] = useState<Record<number, BuildingOccupancyDetail>>({});
   const [loadingMap, setLoadingMap] = useState(true);
+  const [isOpenLocation, setIsOpenLocation] = useState(true);
+  const [isOpenPriceSpecs, setIsOpenPriceSpecs] = useState(true);
+  const [isOpenNearby, setIsOpenNearby] = useState(false);
+
+  const priceError = useMemo(() => {
+    if (filters.minPrice) {
+      const min = Number(filters.minPrice);
+      if (Number.isNaN(min) || min < 0) return "Giá tối thiểu không hợp lệ";
+    }
+    if (filters.maxPrice) {
+      const max = Number(filters.maxPrice);
+      if (Number.isNaN(max) || max < 0) return "Giá tối đa không hợp lệ";
+    }
+    if (filters.minPrice && filters.maxPrice) {
+      const min = Number(filters.minPrice);
+      const max = Number(filters.maxPrice);
+      if (!Number.isNaN(min) && !Number.isNaN(max) && min > max) {
+        return "Giá tối thiểu phải nhỏ hơn hoặc bằng giá tối đa";
+      }
+    }
+    return null;
+  }, [filters.minPrice, filters.maxPrice]);
+
+  const floorsError = useMemo(() => {
+    if (filters.minFloors) {
+      const min = Number(filters.minFloors);
+      if (Number.isNaN(min) || min < 0) return "Số tầng tối thiểu không hợp lệ";
+    }
+    if (filters.maxFloors) {
+      const max = Number(filters.maxFloors);
+      if (Number.isNaN(max) || max < 0) return "Số tầng tối đa không hợp lệ";
+    }
+    if (filters.minFloors && filters.maxFloors) {
+      const min = Number(filters.minFloors);
+      const max = Number(filters.maxFloors);
+      if (!Number.isNaN(min) && !Number.isNaN(max) && min > max) {
+        return "Số tầng tối thiểu phải nhỏ hơn hoặc bằng số tầng tối đa";
+      }
+    }
+    return null;
+  }, [filters.minFloors, filters.maxFloors]);
+
+  // Debounce search input for responsive immediate filtering without lagging the Leaflet canvas
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [filters.search]);
+
+  // Debounce minPrice and maxPrice input for responsive immediate server-side filtering
+  useEffect(() => {
+    const minPriceNum = filters.minPrice ? Number(filters.minPrice) : null;
+    const maxPriceNum = filters.maxPrice ? Number(filters.maxPrice) : null;
+
+    // Validate values: only trigger fetch when they are valid or empty
+    if (filters.minPrice && (minPriceNum === null || Number.isNaN(minPriceNum) || minPriceNum < 0)) return;
+    if (filters.maxPrice && (maxPriceNum === null || Number.isNaN(maxPriceNum) || maxPriceNum < 0)) return;
+    if (minPriceNum !== null && maxPriceNum !== null && minPriceNum > maxPriceNum) return;
+
+    const handler = setTimeout(() => {
+      setAppliedFilters((prev) => ({
+        ...prev,
+        minPrice: filters.minPrice,
+        maxPrice: filters.maxPrice,
+      }));
+    }, 500);
+
+    return () => clearTimeout(handler);
+  }, [filters.minPrice, filters.maxPrice]);
+
+  const filteredMapFeatures = useMemo(() => {
+    return mapFeatures.filter((feature) => {
+      // 1. Tìm kiếm theo tên hoặc địa chỉ (lọc tức thì với debounce)
+      if (debouncedSearch) {
+        const keyword = debouncedSearch.toLowerCase().trim();
+        if (keyword) {
+          const nameMatch = feature.properties.name.toLowerCase().includes(keyword);
+          const addressMatch = feature.properties.address.toLowerCase().includes(keyword);
+          if (!nameMatch && !addressMatch) return false;
+        }
+      }
+
+      // 2. Lọc theo tỷ lệ lấp đầy (lọc tức thì)
+      if (filters.occupancyRange && filters.occupancyRange !== "__all__") {
+        const occupancy = occupancyMap[feature.properties.id];
+        const rate = toOccupancyRate(occupancy?.occupancyRate);
+        if (filters.occupancyRange === "under_50" && rate >= 50) return false;
+        if (filters.occupancyRange === "50_80" && (rate < 50 || rate >= 80)) return false;
+        if (filters.occupancyRange === "over_80" && rate < 80) return false;
+      }
+
+      // 3. Lọc theo số tầng (chỉ lọc khi không có lỗi khoảng tầng)
+      if (!floorsError) {
+        if (filters.minFloors) {
+          const minF = Number(filters.minFloors);
+          if (!Number.isNaN(minF) && feature.properties.totalFloors < minF) return false;
+        }
+        if (filters.maxFloors) {
+          const maxF = Number(filters.maxFloors);
+          if (!Number.isNaN(maxF) && feature.properties.totalFloors > maxF) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [mapFeatures, occupancyMap, debouncedSearch, filters.occupancyRange, filters.minFloors, filters.maxFloors, floorsError]);
+
+  const clusters = useMemo(() => {
+    return clusterFeatures(filteredMapFeatures, zoom);
+  }, [filteredMapFeatures, zoom]);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
@@ -251,26 +546,30 @@ export default function MapPage() {
   }, [allBuildings, filters.city, filters.district]);
 
   const mapBounds = useMemo(() => {
-    if (mapFeatures.length === 0) return null;
+    if (filteredMapFeatures.length === 0) return null;
 
-    const points = mapFeatures.map((feature) => getFeatureCenter(feature));
+    const points = filteredMapFeatures.map((feature) => getFeatureCenter(feature));
 
     return latLngBounds(points);
-  }, [mapFeatures]);
+  }, [filteredMapFeatures]);
 
   const visibleFeatureIds = useMemo(() => {
-    return new Set(mapFeatures.map((feature) => feature.properties.id));
-  }, [mapFeatures]);
+    return new Set(filteredMapFeatures.map((feature) => feature.properties.id));
+  }, [filteredMapFeatures]);
 
   const hasActiveFilter = useMemo(() => {
     return Boolean(
-      appliedFilters.city ||
-      appliedFilters.district ||
-      appliedFilters.ward ||
-      appliedFilters.minPrice ||
-      appliedFilters.maxPrice,
+      filters.city ||
+      filters.district ||
+      filters.ward ||
+      filters.minPrice ||
+      filters.maxPrice ||
+      filters.search ||
+      filters.occupancyRange ||
+      filters.minFloors ||
+      filters.maxFloors
     );
-  }, [appliedFilters]);
+  }, [filters]);
 
   const selectedTimelineIndex = useMemo(() => {
     if (timelineMonths.length === 0 || !selectedTimelineMonth) return 0;
@@ -463,31 +762,10 @@ export default function MapPage() {
     };
   }, [debouncedTimelineMonth]);
 
-  const applyFilters = () => {
-    const minPrice = filters.minPrice ? Number(filters.minPrice) : null;
-    const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : null;
-
-    if (filters.minPrice && (minPrice === null || Number.isNaN(minPrice) || minPrice < 0)) {
-      toast.error("Giá tối thiểu không hợp lệ");
-      return;
-    }
-
-    if (filters.maxPrice && (maxPrice === null || Number.isNaN(maxPrice) || maxPrice < 0)) {
-      toast.error("Giá tối đa không hợp lệ");
-      return;
-    }
-
-    if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) {
-      toast.error("Giá tối thiểu phải nhỏ hơn hoặc bằng giá tối đa");
-      return;
-    }
-
-    setAppliedFilters({ ...filters });
-  };
-
   const resetFilters = () => {
     const empty = createEmptyFilters();
     setFilters(empty);
+    setDebouncedSearch("");
     setAppliedFilters({ ...empty });
   };
 
@@ -576,207 +854,488 @@ export default function MapPage() {
         />
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="h-fit">
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:h-[calc(100vh-140px)]">
+        <Card className="h-fit xl:h-full xl:flex xl:flex-col xl:overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Filter className="h-4 w-4" />
               Bộ lọc bản đồ
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Thành phố</Label>
-              <Select
-                value={filters.city || undefined}
-                onValueChange={(value) => {
-                  const nextCity = !value || value === "__all__" ? "" : value;
-                  setFilters((prev) => ({
-                    ...prev,
-                    city: nextCity,
-                    district: "",
-                    ward: "",
-                  }));
-                }}
+          <CardContent className="space-y-4 xl:flex-1 xl:overflow-y-auto p-4 select-none">
+            {/* Nhóm 1: Địa điểm & Tìm kiếm */}
+            <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between font-semibold text-xs uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                onClick={() => setIsOpenLocation(!isOpenLocation)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả thành phố" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tất cả thành phố</SelectItem>
-                  {cityOptions.map((city) => (
-                    <SelectItem key={city} value={city}>
-                      {city}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Quận/Huyện</Label>
-              <Select
-                value={filters.district || undefined}
-                onValueChange={(value) => {
-                  const nextDistrict = !value || value === "__all__" ? "" : value;
-                  setFilters((prev) => ({
-                    ...prev,
-                    district: nextDistrict,
-                    ward: "",
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả quận/huyện" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tất cả quận/huyện</SelectItem>
-                  {districtOptions.map((district) => (
-                    <SelectItem key={district} value={district}>
-                      {district}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Phường/Xã</Label>
-              <Select
-                value={filters.ward || undefined}
-                onValueChange={(value) => {
-                  const nextWard = !value || value === "__all__" ? "" : value;
-                  setFilters((prev) => ({
-                    ...prev,
-                    ward: nextWard,
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả phường/xã" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tất cả phường/xã</SelectItem>
-                  {wardOptions.map((ward) => (
-                    <SelectItem key={ward} value={ward}>
-                      {ward}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Giá từ (VND)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={filters.minPrice}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      minPrice: event.target.value,
-                    }))
-                  }
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Giá đến (VND)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={filters.maxPrice}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      maxPrice: event.target.value,
-                    }))
-                  }
-                  placeholder="50000000"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button className="flex-1" onClick={applyFilters} disabled={loadingMap}>
-                Áp dụng
-              </Button>
-              <Button variant="outline" onClick={resetFilters} disabled={loadingMap} className="sm:w-auto">
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-              <Label>Bán kính tìm lân cận (m)</Label>
-              <Input
-                type="number"
-                min={100}
-                step={100}
-                value={radiusMeters}
-                onChange={(event) => setRadiusMeters(event.target.value)}
-              />
-              <Button
-                className="w-full"
-                variant="secondary"
-                onClick={findNearbyBuildings}
-                disabled={searchingNearby}
-              >
-                {searchingNearby ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Đang tìm...
-                  </>
+                <span className="flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-primary" />
+                  Địa điểm & Tìm kiếm
+                </span>
+                {isOpenLocation ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
                 ) : (
-                  <>
-                    <Navigation className="h-4 w-4" />
-                    Tìm tòa nhà gần tôi
-                  </>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 )}
-              </Button>
+              </button>
+
+              {isOpenLocation && (
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  {/* Tìm kiếm nhanh */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Search className="h-3.5 w-3.5" />
+                      Tìm kiếm tòa nhà
+                    </Label>
+                    <Input
+                      value={filters.search}
+                      onChange={(event) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          search: event.target.value,
+                        }))
+                      }
+                      placeholder="Nhập tên hoặc địa chỉ..."
+                      className="rounded-md h-9"
+                    />
+                  </div>
+
+                  {/* Thành phố */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Globe className="h-3.5 w-3.5" />
+                      Thành phố
+                    </Label>
+                    <Select
+                      value={filters.city || undefined}
+                      onValueChange={(value) => {
+                        const nextCity = !value || value === "__all__" ? "" : value;
+                        setFilters((prev) => {
+                          const next = {
+                            ...prev,
+                            city: nextCity,
+                            district: "",
+                            ward: "",
+                          };
+                          setAppliedFilters(next);
+                          return next;
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-md h-9">
+                        <SelectValue placeholder="Tất cả thành phố" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả thành phố</SelectItem>
+                        {cityOptions.map((city) => (
+                          <SelectItem key={city} value={city}>
+                            {city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Quận/Huyện */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Quận / Huyện
+                    </Label>
+                    <Select
+                      value={filters.district || undefined}
+                      disabled={!filters.city}
+                      onValueChange={(value) => {
+                        const nextDistrict = !value || value === "__all__" ? "" : value;
+                        setFilters((prev) => {
+                          const next = {
+                            ...prev,
+                            district: nextDistrict,
+                            ward: "",
+                          };
+                          setAppliedFilters(next);
+                          return next;
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-md h-9">
+                        <SelectValue placeholder={filters.city ? "Tất cả quận/huyện" : "Chọn thành phố trước"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả quận/huyện</SelectItem>
+                        {districtOptions.map((district) => (
+                          <SelectItem key={district} value={district}>
+                            {district}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Phường/Xã */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Phường / Xã
+                    </Label>
+                    <Select
+                      value={filters.ward || undefined}
+                      disabled={!filters.district}
+                      onValueChange={(value) => {
+                        const nextWard = !value || value === "__all__" ? "" : value;
+                        setFilters((prev) => {
+                          const next = {
+                            ...prev,
+                            ward: nextWard,
+                          };
+                          setAppliedFilters(next);
+                          return next;
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-md h-9">
+                        <SelectValue placeholder={filters.district ? "Tất cả phường/xã" : "Chọn quận/huyện trước"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả phường/xã</SelectItem>
+                        {wardOptions.map((ward) => (
+                          <SelectItem key={ward} value={ward}>
+                            {ward}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {nearbyBuildings.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Kết quả lân cận ({nearbyBuildings.length})</p>
-                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {nearbyBuildings.map((item) => {
-                    const isVisibleOnMap = visibleFeatureIds.has(item.building.id);
+            {/* Nhóm 2: Giá thuê & Thông số */}
+            <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between font-semibold text-xs uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                onClick={() => setIsOpenPriceSpecs(!isOpenPriceSpecs)}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5 text-primary" />
+                  Giá thuê & Thông số
+                </span>
+                {isOpenPriceSpecs ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
 
-                    return (
-                      <button
-                        key={item.building.id}
-                        type="button"
-                        className={cn(
-                          "w-full rounded-lg border border-border bg-background p-3 text-left transition-colors",
-                          isVisibleOnMap && "border-primary/70",
+              {isOpenPriceSpecs && (
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  {/* Tỷ lệ lấp đầy */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Layers className="h-3.5 w-3.5" />
+                      Tỷ lệ lấp đầy
+                    </Label>
+                    <Select
+                      value={filters.occupancyRange || undefined}
+                      onValueChange={(value) => {
+                        const nextOcc = !value || value === "__all__" ? "" : value;
+                        setFilters((prev) => ({
+                          ...prev,
+                          occupancyRange: nextOcc,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="rounded-md h-9">
+                        <SelectValue placeholder="Tất cả tỷ lệ lấp đầy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả tỷ lệ lấp đầy</SelectItem>
+                        <SelectItem value="under_50">Dưới 50%</SelectItem>
+                        <SelectItem value="50_80">50% - 79%</SelectItem>
+                        <SelectItem value="over_80">Từ 80% trở lên</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Số tầng tòa nhà */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Số tầng tòa nhà
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Tầng từ</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={filters.minFloors}
+                          onChange={(event) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              minFloors: event.target.value,
+                            }))
+                          }
+                          placeholder="Tối thiểu"
+                          className="rounded-md h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Tầng đến</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={filters.maxFloors}
+                          onChange={(event) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              maxFloors: event.target.value,
+                            }))
+                          }
+                          placeholder="Tối đa"
+                          className="rounded-md h-9"
+                        />
+                      </div>
+                    </div>
+                    {floorsError && (
+                      <p className="text-[11px] text-destructive font-medium block mt-1">
+                        {floorsError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Giá thuê */}
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Coins className="h-3.5 w-3.5" />
+                      Giá thuê trung bình (VND)
+                    </Label>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Giá từ</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={filters.minPrice}
+                          onChange={(event) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              minPrice: event.target.value,
+                            }))
+                          }
+                          placeholder="Tối thiểu"
+                          className="rounded-md h-9"
+                        />
+                        {filters.minPrice && (
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium block mt-0.5">
+                            {formatRealtimeCurrency(filters.minPrice)}
+                          </span>
                         )}
-                        onClick={() => navigate(`/buildings/${item.building.id}`)}
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <p className="line-clamp-1 text-sm font-medium">{item.building.name}</p>
-                          <Badge variant="outline">{formatDistance(item.distance)}</Badge>
-                        </div>
-                        <p className="line-clamp-1 text-xs text-muted-foreground">{item.building.address}</p>
-                        {!isVisibleOnMap && (
-                          <p className="mt-1 text-xs text-muted-foreground">Nằm ngoài bộ lọc bản đồ hiện tại</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Giá đến</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={filters.maxPrice}
+                          onChange={(event) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              maxPrice: event.target.value,
+                            }))
+                          }
+                          placeholder="Tối đa"
+                          className="rounded-md h-9"
+                        />
+                        {filters.maxPrice && (
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium block mt-0.5">
+                            {formatRealtimeCurrency(filters.maxPrice)}
+                          </span>
                         )}
-                      </button>
-                    );
-                  })}
+                      </div>
+                    </div>
+                    {priceError && (
+                      <p className="text-[11px] text-destructive font-medium block mt-1">
+                        {priceError}
+                      </p>
+                    )}
+
+                    {/* Lọc giá nhanh */}
+                    <div className="space-y-1.5 mt-2">
+                      <span className="text-[10px] text-muted-foreground block font-medium">Lọc nhanh theo giá:</span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-[10px] h-7 px-1.5"
+                          type="button"
+                          onClick={() => {
+                            const next = { ...filters, minPrice: "", maxPrice: "5000000" };
+                            setFilters(next);
+                            setAppliedFilters(next);
+                          }}
+                        >
+                          &lt; 5 triệu
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-[10px] h-7 px-1.5"
+                          type="button"
+                          onClick={() => {
+                            const next = { ...filters, minPrice: "5000000", maxPrice: "10000000" };
+                            setFilters(next);
+                            setAppliedFilters(next);
+                          }}
+                        >
+                          5 - 10 triệu
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-[10px] h-7 px-1.5"
+                          type="button"
+                          onClick={() => {
+                            const next = { ...filters, minPrice: "10000000", maxPrice: "20000000" };
+                            setFilters(next);
+                            setAppliedFilters(next);
+                          }}
+                        >
+                          10 - 20 triệu
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-[10px] h-7 px-1.5"
+                          type="button"
+                          onClick={() => {
+                            const next = { ...filters, minPrice: "20000000", maxPrice: "" };
+                            setFilters(next);
+                            setAppliedFilters(next);
+                          }}
+                        >
+                          &gt; 20 triệu
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Đặt lại bộ lọc */}
+                  <div className="pt-2 border-t border-border/50">
+                    <Button
+                      variant="outline"
+                      onClick={resetFilters}
+                      disabled={loadingMap}
+                      className="w-full rounded-md h-9 flex items-center justify-center gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-colors text-xs cursor-pointer"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Đặt lại bộ lọc
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Nhóm 3: Tìm kiếm lân cận */}
+            <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between font-semibold text-xs uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                onClick={() => setIsOpenNearby(!isOpenNearby)}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Compass className="h-3.5 w-3.5 text-primary" />
+                  Tìm kiếm lân cận
+                </span>
+                {isOpenNearby ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+
+              {isOpenNearby && (
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Compass className="h-3.5 w-3.5" />
+                      Bán kính tìm lân cận (m)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={100}
+                      step={100}
+                      value={radiusMeters}
+                      onChange={(event) => setRadiusMeters(event.target.value)}
+                      className="rounded-md h-9"
+                    />
+                  </div>
+                  <Button
+                    className="w-full rounded-md h-9 text-xs cursor-pointer"
+                    variant="secondary"
+                    onClick={findNearbyBuildings}
+                    disabled={searchingNearby}
+                  >
+                    {searchingNearby ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Đang tìm...
+                      </>
+                    ) : (
+                      <>
+                        <Navigation className="h-4 w-4" />
+                        Tìm tòa nhà gần tôi
+                      </>
+                    )}
+                  </Button>
+
+                  {nearbyBuildings.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      <p className="text-xs font-semibold text-muted-foreground">Kết quả lân cận ({nearbyBuildings.length})</p>
+                      <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                        {nearbyBuildings.map((item) => {
+                          const isVisibleOnMap = visibleFeatureIds.has(item.building.id);
+
+                          return (
+                            <button
+                              key={item.building.id}
+                              type="button"
+                              className={cn(
+                                "w-full rounded-lg border border-border bg-background p-2.5 text-left transition-colors hover:border-primary/50 cursor-pointer",
+                                isVisibleOnMap && "border-primary/70 bg-primary/5",
+                              )}
+                              onClick={() => navigate(`/buildings/${item.building.id}`)}
+                            >
+                              <div className="mb-1 flex items-center justify-between gap-1.5">
+                                <p className="line-clamp-1 text-xs font-semibold">{item.building.name}</p>
+                                <Badge variant="outline" className="text-[10px] px-1 h-5">{formatDistance(item.distance)}</Badge>
+                              </div>
+                              <p className="line-clamp-1 text-[10px] text-muted-foreground">{item.building.address}</p>
+                              {!isVisibleOnMap && (
+                                <p className="mt-1 text-[9px] text-destructive font-medium">Nằm ngoài bộ lọc hiện tại</p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden xl:h-full xl:flex xl:flex-col">
           <CardHeader className="gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <MapPinned className="h-4 w-4" />
-                Vị trí tòa nhà ({mapFeatures.length})
+                Vị trí tòa nhà ({filteredMapFeatures.length})
               </CardTitle>
               <div className="flex items-center gap-2">
                 {hasActiveFilter && <Badge variant="secondary">Đang lọc dữ liệu</Badge>}
@@ -811,15 +1370,15 @@ export default function MapPage() {
             </div>
           </CardHeader>
 
-          <CardContent className="p-0">
+          <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
             {loadingMap ? (
-              <Skeleton className="h-[70vh] min-h-105 w-full rounded-none" />
-            ) : mapFeatures.length === 0 ? (
-              <div className="flex h-[70vh] min-h-105 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+              <Skeleton className="h-[50vh] xl:flex-1 min-h-80 w-full rounded-none" />
+            ) : filteredMapFeatures.length === 0 ? (
+              <div className="flex h-[50vh] xl:flex-1 min-h-80 items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 Không có tòa nhà phù hợp với bộ lọc hiện tại.
               </div>
             ) : (
-              <div className="h-[70vh] min-h-105 w-full">
+              <div className="h-[calc(100vh-140px)] xl:flex-1 min-h-80 w-full relative">
                 <MapContainer
                   center={DEFAULT_CENTER}
                   zoom={12}
@@ -832,64 +1391,85 @@ export default function MapPage() {
                   />
 
                   <MapAutoFit bounds={mapBounds} />
+                  <MapEventHandler onZoomChange={setZoom} />
 
-                  {mapFeatures.map((feature) => {
-                    const [lat, lng] = getFeatureCenter(feature);
-                    const buildingId = feature.properties.id;
-                    const occupancy = occupancyMap[buildingId];
-                    const occupancyRate = toOccupancyRate(occupancy?.occupancyRate);
-                    const isNearby = nearbyIds.includes(buildingId);
+                  {clusters.map((cluster) => {
+                    if (cluster.features.length === 1) {
+                      const feature = cluster.features[0];
+                      const [lat, lng] = getFeatureCenter(feature);
+                      const buildingId = feature.properties.id;
+                      const occupancy = occupancyMap[buildingId];
+                      const occupancyRate = toOccupancyRate(occupancy?.occupancyRate);
+                      const isNearby = nearbyIds.includes(buildingId);
 
-                    return (
-                      <CircleMarker
-                        key={buildingId}
-                        center={[lat, lng]}
-                        radius={markerRadius(occupancyRate, isNearby)}
-                        pathOptions={{
-                          color: "var(--color-background)",
-                          weight: isNearby ? 3 : 2,
-                          fillColor: markerColor(occupancyRate),
-                          fillOpacity: isNearby ? 0.95 : 0.85,
-                        }}
-                      >
-                        <Tooltip direction="top" offset={[0, -6]}>
-                          {feature.properties.name} - {occupancyRate.toFixed(1)}%
-                        </Tooltip>
-                        <Popup>
-                          <div className="min-w-60 space-y-3">
-                            <div>
-                              <p className="font-semibold">{feature.properties.name}</p>
-                              <p className="text-xs text-muted-foreground">{feature.properties.address}</p>
-                            </div>
-
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-xs">
-                                <span>Tỷ lệ lấp đầy</span>
-                                <span className="font-semibold">{occupancyRate.toFixed(1)}%</span>
+                      return (
+                        <CircleMarker
+                          key={buildingId}
+                          center={[lat, lng]}
+                          radius={markerRadius(occupancyRate, isNearby)}
+                          pathOptions={{
+                            color: "var(--color-background)",
+                            weight: isNearby ? 3 : 2,
+                            fillColor: markerColor(occupancyRate),
+                            fillOpacity: isNearby ? 0.95 : 0.85,
+                          }}
+                        >
+                          <Tooltip direction="top" offset={[0, -6]}>
+                            {feature.properties.name} - {occupancyRate.toFixed(1)}%
+                          </Tooltip>
+                          <Popup>
+                            <div className="min-w-60 space-y-3">
+                              <div>
+                                <p className="font-semibold text-sm">{feature.properties.name}</p>
+                                <p className="text-xs text-muted-foreground">{feature.properties.address}</p>
                               </div>
-                              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                                <div
-                                  className="h-full rounded-full bg-primary"
-                                  style={{ width: `${Math.min(occupancyRate, 100)}%` }}
-                                />
+
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span>Tỷ lệ lấp đầy</span>
+                                  <span className="font-semibold">{occupancyRate.toFixed(1)}%</span>
+                                </div>
+                                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                  <div
+                                    className="h-full rounded-full bg-primary"
+                                    style={{ width: `${Math.min(occupancyRate, 100)}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {occupancy?.rentedApartments ?? 0}/{occupancy?.totalApartments ?? 0} căn hộ đang thuê
+                                </p>
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                {occupancy?.rentedApartments ?? 0}/{occupancy?.totalApartments ?? 0} căn hộ đang thuê
-                              </p>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                              <span>Quận: {feature.properties.district || "-"}</span>
-                              <span>Tầng: {feature.properties.totalFloors}</span>
-                            </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                                <span>Quận: {feature.properties.district || "-"}</span>
+                                <span>Tầng: {feature.properties.totalFloors}</span>
+                              </div>
 
-                            <Button size="sm" className="w-full" onClick={() => navigate(`/buildings/${buildingId}`)}>
-                              Xem chi tiết
-                            </Button>
-                          </div>
-                        </Popup>
-                      </CircleMarker>
-                    );
+                              <Button size="sm" className="w-full" onClick={() => navigate(`/buildings/${buildingId}`)}>
+                                Xem chi tiết
+                              </Button>
+                            </div>
+                          </Popup>
+                        </CircleMarker>
+                      );
+                    } else {
+                      const averageOccupancy =
+                        cluster.features.reduce((sum, feat) => {
+                          const occ = occupancyMap[feat.properties.id];
+                          return sum + toOccupancyRate(occ?.occupancyRate);
+                        }, 0) / cluster.features.length;
+
+                      return (
+                        <ClusterMarker
+                          key={cluster.id}
+                          cluster={cluster}
+                          averageOccupancy={averageOccupancy}
+                          navigate={navigate}
+                          occupancyMap={occupancyMap}
+                          nearbyIds={nearbyIds}
+                        />
+                      );
+                    }
                   })}
                 </MapContainer>
               </div>

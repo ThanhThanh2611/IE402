@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, lazy, Suspense, useRef, type DragEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -42,6 +42,7 @@ import {
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmptyState, PageErrorState } from "@/components/PageFeedback";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ApiError, api } from "@/lib/api";
 import { formatDate, formatVND } from "@/lib/hooks";
 import {
@@ -64,8 +65,13 @@ import type {
   FurnitureCatalogItem,
   FurnitureItem,
   FurnitureLayout,
+  FurnitureLayoutTemplate,
   User,
 } from "@/types";
+
+// Type alias dùng nội bộ cho template
+type LayoutTemplate = FurnitureLayoutTemplate;
+
 import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye, Info, AlertTriangle } from "lucide-react";
 import { 
   LAYOUT_1PN_ROOMS, 
@@ -73,7 +79,6 @@ import {
   LAYOUT_2PN_ROOMS, 
   LAYOUT_2PN_WALLS 
 } from "@/components/apartment/ApartmentScene";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FurnitureModelPreview } from "@/components/apartment/FurnitureModelPreview";
 
 // Lazy load ApartmentScene để tránh Three.js block trang lần đầu
@@ -358,7 +363,6 @@ function replaceLayoutInDetail(
 }
 
 export default function ApartmentDetailPage() {
-  const navigate = useNavigate();
   const { isManager, user: currentUser } = useAuth();
   const { id, apartmentId } = useParams();
   const buildingId = Number(id);
@@ -369,6 +373,9 @@ export default function ApartmentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null);
+  const [editMode, setEditMode] = useState(false);
+
+
 
   const [spaceDialogOpen, setSpaceDialogOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState<ApartmentSpace | null>(null);
@@ -421,7 +428,7 @@ export default function ApartmentDetailPage() {
     isManager || layoutUserId === currentUserId;
 
   // States cho chức năng template (chỉ dành cho Manager)
-  const [templates, setTemplates] = useState<Array<any>>([]);
+  const [templates, setTemplates] = useState<LayoutTemplate[]>([]);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplateForApply, setSelectedTemplateForApply] = useState<number | null>(null);
   const [templateNameForApply, setTemplateNameForApply] = useState("");
@@ -433,7 +440,7 @@ export default function ApartmentDetailPage() {
     if (!detail?.building?.id) return;
 
     try {
-      const result = await api.get<any[]>(
+      const result = await api.get<LayoutTemplate[]>(
         `/furniture-layout-templates/building/${detail.building.id}`
       );
       setTemplates(result);
@@ -546,7 +553,10 @@ export default function ApartmentDetailPage() {
     void loadAccessGrants();
   }, [isManager, loadAccessGrants]);
 
-  const spaces = detail?.spaces ?? [];
+  const spaces = useMemo(
+    () => detail?.spaces ?? [],
+    [detail?.spaces],
+  );
   const catalog = detail?.furnitureCatalog ?? [];
   const selectedLayout = useMemo(
     () => detail?.layouts.find((layout) => layout.id === selectedLayoutId) ?? null,
@@ -1280,6 +1290,15 @@ export default function ApartmentDetailPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Bản đồ", to: "/map" },
+          { label: detail.building?.name ?? "Tòa nhà", to: `/buildings/${buildingId}` },
+          { label: `Tầng ${detail.floor?.floorNumber ?? "-"}` },
+          { label: `Căn hộ ${detail.apartment.code}` },
+        ]}
+      />
+
       {pageError && (
         <PageErrorState
           compact
@@ -1289,19 +1308,30 @@ export default function ApartmentDetailPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/buildings/${buildingId}`)}>
-            Quay lại tòa nhà
-          </Button>
           <h1 className="text-2xl font-semibold">Chi tiết căn hộ {detail.apartment.code}</h1>
           <p className="text-sm text-muted-foreground">
             {detail.building?.name ?? "Không rõ tòa nhà"} · Tầng {detail.floor?.floorNumber ?? "-"}
           </p>
         </div>
-        <Button variant="outline" onClick={() => void loadDetail()}>
-          Tải lại dữ liệu
-        </Button>
+        <div className="flex items-center gap-3">
+          {isManager && (
+            <div className="flex items-center gap-2 bg-muted/50 border px-3 py-1.5 rounded-lg shadow-sm">
+              <Label htmlFor="edit-mode-toggle" className="text-sm font-semibold cursor-pointer">
+                Chế độ chỉnh sửa
+              </Label>
+              <Switch
+                id="edit-mode-toggle"
+                checked={editMode}
+                onCheckedChange={setEditMode}
+              />
+            </div>
+          )}
+          <Button variant="outline" onClick={() => void loadDetail()}>
+            Tải lại dữ liệu
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -1394,7 +1424,7 @@ export default function ApartmentDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Mô hình nội thất căn hộ (Indoor Model)</CardTitle>
-          {isManager && (
+          {isManager && editMode && (
             <Button
               onClick={() => {
                 setUploadingModelType("apartment");
@@ -1422,7 +1452,7 @@ export default function ApartmentDetailPage() {
         </CardContent>
       </Card>
 
-      {isManager && (
+      {isManager && editMode && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <div>
@@ -1537,7 +1567,7 @@ export default function ApartmentDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Không gian LoD4</CardTitle>
-            {isManager && (
+            {isManager && editMode && (
               <div className="flex gap-2">
                 <Button onClick={openCreateSpace} size="sm">
                   <Plus className="mr-2 h-4 w-4" />
@@ -1564,7 +1594,7 @@ export default function ApartmentDetailPage() {
                       </span>
                     </div>
                   </div>
-                  {isManager && (
+                  {isManager && editMode && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         variant="outline"
@@ -1601,12 +1631,14 @@ export default function ApartmentDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Layouts nội thất</CardTitle>
-            <div className="flex gap-2">
-              <Button onClick={openCreateLayout}>
-                <Plus className="mr-2 h-4 w-4" />
-                Tạo layout
-              </Button>
-            </div>
+            {editMode && (
+              <div className="flex gap-2">
+                <Button onClick={openCreateLayout}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Tạo layout
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {detail.layouts.map((layout) => (
@@ -1622,87 +1654,90 @@ export default function ApartmentDetailPage() {
                   <Badge variant="outline">{layoutStatusLabels[layout.status]}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">Version {layout.version}</p>
-                <div className="mt-3 flex gap-2 flex-wrap">
-                  {/* Nút Template (Lưu/Hủy) - cho phép mọi người */}
-                  {(() => {
-                    const isPublished = layout.status === "published";
-                    const relatedTemplate = templates.find((t) => t.sourceLayoutId === layout.id);
+                {editMode && (
+                  <div className="mt-3 flex gap-2 flex-wrap">
+                    {/* Nút Template (Lưu/Hủy) - cho phép mọi người */}
+                    {(() => {
+                      const isPublished = layout.status === "published";
+                      const relatedTemplate = templates.find((t) => t.sourceLayoutId === layout.id);
 
-                    if (isPublished && relatedTemplate) {
-                      // Nút Hủy công bố
-                      return (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={async (event) => {
-                            event.stopPropagation();
-                            if (!window.confirm("Bạn có chắc chắn muốn hủy công bố template này? Các thay đổi sẽ không thể hoàn tác.")) return;
-                            try {
-                              await api.delete(`/furniture-layout-templates/${relatedTemplate.id}`);
-                              toast.success("Đã hủy công bố template");
-                              await Promise.all([loadDetail(), loadTemplates()]);
-                            } catch (error: any) {
-                              toast.error(error.message || "Lỗi khi hủy công bố template");
-                            }
-                          }}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" />
-                          Hủy công bố
-                        </Button>
-                      );
-                    } else {
-                      // Nút Lưu thành template
-                      return (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSelectedLayoutId(layout.id);
-                            handleCreateTemplateFromLayout();
-                          }}
-                        >
-                          <Plus className="mr-1 h-4 w-4" />
-                          Lưu thành template
-                        </Button>
-                      );
-                    }
-                  })()}
-                  {canEditLayout(layout.userId) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (layout.status === "published") {
-                          const confirmEdit = window.confirm("Layout này đang được công bố làm mẫu (template). Các chỉnh sửa của bạn sẽ ảnh hưởng trực tiếp đến template chung. Bạn có chắc chắn muốn sửa không?");
-                          if (!confirmEdit) return;
-                        }
-                        openEditLayout(layout);
-                      }}
-                    >
-                      <Pencil className="mr-1 h-4 w-4" />
-                      Sửa
-                    </Button>
-                  )}
-                  {canEditLayout(layout.userId) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleteState({ type: "layout", id: layout.id });
-                      }}
-                    >
-                      <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                      Xóa
-                    </Button>
-                  )}
-                </div>
+                      if (isPublished && relatedTemplate) {
+                        // Nút Hủy công bố
+                        return (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={async (event) => {
+                              event.stopPropagation();
+                              if (!window.confirm("Bạn có chắc chắn muốn hủy công bố template này? Các thay đổi sẽ không thể hoàn tác.")) return;
+                              try {
+                                await api.delete(`/furniture-layout-templates/${relatedTemplate.id}`);
+                                toast.success("Đã hủy công bố template");
+                                await Promise.all([loadDetail(), loadTemplates()]);
+                              } catch (error: unknown) {
+                                const message = error instanceof Error ? error.message : "Lỗi khi hủy công bố template";
+                                toast.error(message);
+                              }
+                            }}
+                          >
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            Hủy công bố
+                          </Button>
+                        );
+                      } else {
+                        // Nút Lưu thành template
+                        return (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedLayoutId(layout.id);
+                              handleCreateTemplateFromLayout();
+                            }}
+                          >
+                            <Plus className="mr-1 h-4 w-4" />
+                            Lưu thành template
+                          </Button>
+                        );
+                      }
+                    })()}
+                    {canEditLayout(layout.userId) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (layout.status === "published") {
+                            const confirmEdit = window.confirm("Layout này đang được công bố làm mẫu (template). Các chỉnh sửa của bạn sẽ ảnh hưởng trực tiếp đến template chung. Bạn có chắc chắn muốn sửa không?");
+                            if (!confirmEdit) return;
+                          }
+                          openEditLayout(layout);
+                        }}
+                      >
+                        <Pencil className="mr-1 h-4 w-4" />
+                        Sửa
+                      </Button>
+                    )}
+                    {canEditLayout(layout.userId) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteState({ type: "layout", id: layout.id });
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4 text-destructive" />
+                        Xóa
+                      </Button>
+                    )}
+                  </div>
+                )}
               </button>
             ))}
             {detail.layouts.length === 0 && (
@@ -1712,72 +1747,74 @@ export default function ApartmentDetailPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{selectedLayout ? `Items của ${selectedLayout.name}` : "Items nội thất"}</CardTitle>
-          <Button onClick={openCreateItem} disabled={!selectedLayout}>
-            <Plus className="mr-2 h-4 w-4" />
-            Thêm item
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {selectedLayout ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nhãn</TableHead>
-                    <TableHead>Mẫu</TableHead>
-                    <TableHead>Không gian</TableHead>
-                    <TableHead>Vị trí</TableHead>
-                    <TableHead>Khóa</TableHead>
-                    <TableHead className="text-right">Hành động</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedLayout.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.label || `Item #${item.id}`}</TableCell>
-                      <TableCell>{currentCatalogName(item.catalogId)}</TableCell>
-                      <TableCell>
-                        {item.spaceId
-                          ? spaces.find((space) => space.id === item.spaceId)?.name ?? `#${item.spaceId}`
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="max-w-[280px] truncate">{formatPointZ(item.position)}</TableCell>
-                      <TableCell>{item.isLocked ? "Có" : "Không"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEditItem(item)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "item", id: item.id })}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {selectedLayout.items.length === 0 && (
+      {editMode && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{selectedLayout ? `Items của ${selectedLayout.name}` : "Items nội thất"}</CardTitle>
+            <Button onClick={openCreateItem} disabled={!selectedLayout}>
+              <Plus className="mr-2 h-4 w-4" />
+              Thêm item
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {selectedLayout ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                        Layout này chưa có item nội thất nào.
-                      </TableCell>
+                      <TableHead>Nhãn</TableHead>
+                      <TableHead>Mẫu</TableHead>
+                      <TableHead>Không gian</TableHead>
+                      <TableHead>Vị trí</TableHead>
+                      <TableHead>Khóa</TableHead>
+                      <TableHead className="text-right">Hành động</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Chọn một layout để xem danh sách item.</p>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedLayout.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.label || `Item #${item.id}`}</TableCell>
+                        <TableCell>{currentCatalogName(item.catalogId)}</TableCell>
+                        <TableCell>
+                          {item.spaceId
+                            ? spaces.find((space) => space.id === item.spaceId)?.name ?? `#${item.spaceId}`
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="max-w-[280px] truncate">{formatPointZ(item.position)}</TableCell>
+                        <TableCell>{item.isLocked ? "Có" : "Không"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openEditItem(item)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "item", id: item.id })}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {selectedLayout.items.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          Layout này chưa có item nội thất nào.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Chọn một layout để xem danh sách item.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex flex-col gap-1">
-            <CardTitle>Workspace kéo thả nội thất</CardTitle>
+            <CardTitle>{editMode ? "Workspace kéo thả nội thất" : "Sơ đồ & mô hình 3D căn hộ"}</CardTitle>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                 {activeLayout === "1PN" ? "Căn hộ 1 PN + 1 WC" : "Căn hộ 2 PN + 2 WC"}
@@ -1817,9 +1854,10 @@ export default function ApartmentDetailPage() {
               <ApartmentScene 
                 items={selectedLayout?.items} 
                 catalog={catalog} 
-                onItemMove={handleItemMove3D}
-                onItemRotate={handleItemRotate3D}
+                onItemMove={editMode ? handleItemMove3D : undefined}
+                onItemRotate={editMode ? handleItemRotate3D : undefined}
                 activeLayout={activeLayout}
+                readOnly={!editMode}
               />
             </Suspense>
           </div>
@@ -1836,8 +1874,12 @@ export default function ApartmentDetailPage() {
                   width: "100%",
                   maxWidth: `${currentWidth * 60}px` // Scale factor for nice display
                 }}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => void handleWorkspaceDrop(event)}
+                onDragOver={(event) => {
+                  if (editMode) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  if (editMode) void handleWorkspaceDrop(event);
+                }}
               >
                 {/* Grid container - limited to the apartment box */}
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.12)_1px,transparent_1px)] bg-[size:32px_32px]" />
@@ -1940,14 +1982,18 @@ export default function ApartmentDetailPage() {
                       <button
                         key={item.id}
                         type="button"
-                        draggable
-                        onDragStart={(event) =>
-                          event.dataTransfer.setData(
-                            "application/json",
-                            JSON.stringify({ type: "item", itemId: item.id }),
-                          )
-                        }
-                        className="absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm"
+                        draggable={editMode}
+                        onDragStart={(event) => {
+                          if (editMode) {
+                            event.dataTransfer.setData(
+                              "application/json",
+                              JSON.stringify({ type: "item", itemId: item.id }),
+                            );
+                          }
+                        }}
+                        className={`absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
+                          editMode ? "cursor-grab" : "cursor-default"
+                        }`}
                         style={{
                           left: `${clamp((point.x / currentWidth) * 100, 0, 100)}%`,
                           top: `${clamp((point.y / currentDepth) * 100, 0, 100)}%`,
@@ -1986,155 +2032,157 @@ export default function ApartmentDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Thư viện nội thất</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">Tổng {catalog.length} mẫu</p>
-          </div>
-          {isManager && (
-            <Button onClick={openCreateCatalog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Thêm mẫu nội thất
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {catalog.length > 0 && (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {catalog
-                .slice((catalogCurrentPage - 1) * catalogItemsPerPage, catalogCurrentPage * catalogItemsPerPage)
-                .map((item) => (
-              <div key={item.id} className="rounded-lg border p-4">
-                <div
-                  draggable={!!selectedLayout}
-                  onDragStart={(event) =>
-                    event.dataTransfer.setData(
-                      "application/json",
-                      JSON.stringify({ type: "catalog", catalogId: item.id }),
-                    )
-                  }
-                  className="cursor-grab flex gap-4"
-                >
-                  <div className="w-20 h-20 bg-muted/20 rounded-md shrink-0 flex items-center justify-center border overflow-hidden relative pointer-events-none">
-                    {item.model3dUrl ? (
-                      /* @ts-ignore */
-                      <model-viewer
-                        src={item.model3dUrl}
-                        alt={item.name}
-                        style={{ width: "100%", height: "100%" }}
-                        interaction-prompt="none"
-                        camera-controls="false"
-                      />
-                    ) : (
-                      <Box className="w-8 h-8 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{item.code}</p>
+      {editMode && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Thư viện nội thất</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">Tổng {catalog.length} mẫu</p>
+            </div>
+            {isManager && (
+              <Button onClick={openCreateCatalog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Thêm mẫu nội thất
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {catalog.length > 0 && (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {catalog
+                  .slice((catalogCurrentPage - 1) * catalogItemsPerPage, catalogCurrentPage * catalogItemsPerPage)
+                  .map((item) => (
+                <div key={item.id} className="rounded-lg border p-4">
+                  <div
+                    draggable={!!selectedLayout}
+                    onDragStart={(event) =>
+                      event.dataTransfer.setData(
+                        "application/json",
+                        JSON.stringify({ type: "catalog", catalogId: item.id }),
+                      )
+                    }
+                    className="cursor-grab flex gap-4"
+                  >
+                    <div className="w-20 h-20 bg-muted/20 rounded-md shrink-0 flex items-center justify-center border overflow-hidden relative pointer-events-none">
+                      {item.model3dUrl ? (
+                        /* @ts-expect-error: model-viewer is a custom web component not registered in react JSX types */
+                        <model-viewer
+                          src={item.model3dUrl}
+                          alt={item.name}
+                          style={{ width: "100%", height: "100%" }}
+                          interaction-prompt="none"
+                          camera-controls="false"
+                        />
+                      ) : (
+                        <Box className="w-8 h-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{item.code}</p>
+                        </div>
+                        <Badge variant="outline" className="shrink-0">{furnitureCategoryLabels[item.category]}</Badge>
                       </div>
-                      <Badge variant="outline" className="shrink-0">{furnitureCategoryLabels[item.category]}</Badge>
-                    </div>
-                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                      <p className="truncate">Model: {item.model3dUrl}</p>
-                      <p>
-                        Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
-                      </p>
-                      <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                      <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                        <p className="truncate">Model: {item.model3dUrl}</p>
+                        <p>
+                          Kích thước: {item.defaultWidth ?? "-"} x {item.defaultDepth ?? "-"} x {item.defaultHeight ?? "-"}
+                        </p>
+                        <p>Trạng thái: {item.isActive ? "Đang dùng" : "Ngưng dùng"}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {item.model3dUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPreviewModelId(item.id)}
-                    >
-                      <Eye className="mr-1 h-4 w-4" />
-                      Xem 3D
-                    </Button>
-                  )}
-                  {isManager && (
-                    <>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.model3dUrl && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setUploadingModelType("catalog");
-                          setUploadingModelTarget(item.id);
-                          setModelUploadDialogOpen(true);
-                        }}
+                        onClick={() => setPreviewModelId(item.id)}
                       >
-                        <Upload className="mr-1 h-4 w-4" />
-                        {item.model3dUrl ? "Thay" : "Upload"}
+                        <Eye className="mr-1 h-4 w-4" />
+                        Xem 3D
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
-                        <Pencil className="mr-1 h-4 w-4" />
-                        Sửa
+                    )}
+                    {isManager && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setUploadingModelType("catalog");
+                            setUploadingModelTarget(item.id);
+                            setModelUploadDialogOpen(true);
+                          }}
+                        >
+                          <Upload className="mr-1 h-4 w-4" />
+                          {item.model3dUrl ? "Thay" : "Upload"}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openEditCatalog(item)}>
+                          <Pencil className="mr-1 h-4 w-4" />
+                          Sửa
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "catalog", id: item.id })}>
+                          <Trash2 className="mr-1 h-4 w-4 text-destructive" />
+                          Xóa
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                  ))}
+              </div>
+            )}
+            {catalog.length === 0 && (
+              <p className="text-sm text-muted-foreground">Chưa có dữ liệu thư viện nội thất.</p>
+            )}
+
+            {catalog.length > catalogItemsPerPage && (
+              <div className="flex items-center justify-between pt-4 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Trang {catalogCurrentPage} / {Math.ceil(catalog.length / catalogItemsPerPage)}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCatalogCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={catalogCurrentPage === 1}
+                  >
+                    Trước
+                  </Button>
+                  {Array.from({ length: Math.ceil(catalog.length / catalogItemsPerPage) }).map((_, idx) => {
+                    const pageNum = idx + 1;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={catalogCurrentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCatalogCurrentPage(pageNum)}
+                      >
+                        {pageNum}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => setDeleteState({ type: "catalog", id: item.id })}>
-                        <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                        Xóa
-                      </Button>
-                    </>
-                  )}
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCatalogCurrentPage((p) =>
+                        Math.min(Math.ceil(catalog.length / catalogItemsPerPage), p + 1)
+                      )
+                    }
+                    disabled={catalogCurrentPage === Math.ceil(catalog.length / catalogItemsPerPage)}
+                  >
+                    Sau
+                  </Button>
                 </div>
               </div>
-                ))}
-            </div>
-          )}
-          {catalog.length === 0 && (
-            <p className="text-sm text-muted-foreground">Chưa có dữ liệu thư viện nội thất.</p>
-          )}
-
-          {catalog.length > catalogItemsPerPage && (
-            <div className="flex items-center justify-between pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                Trang {catalogCurrentPage} / {Math.ceil(catalog.length / catalogItemsPerPage)}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCatalogCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={catalogCurrentPage === 1}
-                >
-                  Trước
-                </Button>
-                {Array.from({ length: Math.ceil(catalog.length / catalogItemsPerPage) }).map((_, idx) => {
-                  const pageNum = idx + 1;
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={catalogCurrentPage === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCatalogCurrentPage(pageNum)}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setCatalogCurrentPage((p) =>
-                      Math.min(Math.ceil(catalog.length / catalogItemsPerPage), p + 1)
-                    )
-                  }
-                  disabled={catalogCurrentPage === Math.ceil(catalog.length / catalogItemsPerPage)}
-                >
-                  Sau
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={spaceDialogOpen} onOpenChange={setSpaceDialogOpen}>
         <DialogContent className="sm:max-w-2xl">

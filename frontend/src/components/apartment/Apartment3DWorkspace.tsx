@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import {
   OrbitControls,
@@ -9,7 +9,6 @@ import {
   Html,
   BakeShadows
 } from "@react-three/drei";
-import * as THREE from "three";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // 1. Data Structure: Layouts

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, ApiError } from "@/lib/api";
 import { userSchema, userUpdateSchema, validateForm, type UserInput, type UserUpdateInput } from "@/lib/validators";
 import { EmptyState, PageErrorState } from "@/components/PageFeedback";
@@ -38,8 +38,15 @@ import {
   TableHeader,
   TableRow,
   Skeleton,
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
 } from "@/components/ui";
-import { Plus, Pencil, Trash2, UserCheck, UserX } from "lucide-react";
+import { Plus, Pencil, Trash2, UserCheck, UserX, Search, RotateCcw } from "lucide-react";
 
 const emptyForm: UserInput = {
   username: "",
@@ -59,6 +66,31 @@ export default function UsersPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+
+  // Filters & Pagination States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        const username = u.username?.toLowerCase() || "";
+        const fullName = u.fullName?.toLowerCase() || "";
+        const email = u.email?.toLowerCase() || "";
+        return username.includes(query) || fullName.includes(query) || email.includes(query);
+      }
+      return true;
+    });
+  }, [users, searchQuery]);
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -171,70 +203,172 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Danh sách người dùng ({users.length})</CardTitle>
+          <CardTitle>Danh sách người dùng ({filteredUsers.length})</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm kiếm theo username, họ tên hoặc email..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery("");
+                  setCurrentPage(1);
+                }}
+                className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Đặt lại
+              </Button>
+            )}
+          </div>
+
           {loading ? (
             <Skeleton className="h-[300px] w-full" />
+          ) : users.length === 0 ? (
+            <EmptyState
+              title="Chưa có người dùng"
+              description="Manager có thể tạo tài khoản mới tại đây để cấp quyền truy cập hệ thống."
+            />
+          ) : filteredUsers.length === 0 ? (
+            <EmptyState
+              title="Không tìm thấy người dùng"
+              description="Không tìm thấy bản ghi người dùng nào khớp với từ khóa tìm kiếm của bạn."
+            />
           ) : (
-            users.length === 0 ? (
-              <EmptyState
-                title="Chưa có người dùng"
-                description="Manager có thể tạo tài khoản mới tại đây để cấp quyền truy cập hệ thống."
-              />
-            ) : (
-            <div className="overflow-x-auto">
-            <Table className="min-w-[860px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Họ tên</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-center">Vai trò</TableHead>
-                  <TableHead className="text-center">Trạng thái</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">{u.username}</TableCell>
-                    <TableCell>{u.fullName}</TableCell>
-                    <TableCell>{u.email || "-"}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={u.role === "manager" ? "default" : "secondary"}>
-                        {u.role === "manager" ? "Manager" : "User"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={u.isActive ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-destructive/10 text-destructive border border-destructive/20"}>
-                        {u.isActive ? "Hoạt động" : "Vô hiệu"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleActive(u)}
-                          title={u.isActive ? "Vô hiệu hóa" : "Kích hoạt"}
-                        >
-                          {u.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setDeleteId(u.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-4">
+              <div className="overflow-x-auto rounded-md border border-border">
+                <Table className="min-w-[860px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Họ tên</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="text-center">Vai trò</TableHead>
+                      <TableHead className="text-center">Trạng thái</TableHead>
+                      <TableHead className="text-right">Hành động</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedUsers.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.username}</TableCell>
+                        <TableCell>{u.fullName}</TableCell>
+                        <TableCell>{u.email || "-"}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={u.role === "manager" ? "default" : "secondary"}>
+                            {u.role === "manager" ? "Manager" : "User"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={u.isActive ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-destructive/10 text-destructive border border-destructive/20"}>
+                            {u.isActive ? "Hoạt động" : "Vô hiệu"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleActive(u)}
+                              title={u.isActive ? "Vô hiệu hóa" : "Kích hoạt"}
+                            >
+                              {u.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setDeleteId(u.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Hiển thị {(currentPage - 1) * pageSize + 1} -{" "}
+                    {Math.min(currentPage * pageSize, filteredUsers.length)} trong tổng số{" "}
+                    {filteredUsers.length} kết quả
+                  </p>
+                  <Pagination className="w-auto m-0">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage > 1) setCurrentPage(currentPage - 1);
+                          }}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          Math.abs(page - currentPage) <= 1
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setCurrentPage(page);
+                                }}
+                                isActive={currentPage === page}
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        }
+                        if (
+                          page === 2 ||
+                          page === totalPages - 1
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          );
+                        }
+                        return null;
+                      })}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                          }}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </div>
-            )
           )}
         </CardContent>
       </Card>

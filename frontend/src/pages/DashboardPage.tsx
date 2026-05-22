@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Card,
@@ -36,14 +36,23 @@ import {
   Line,
   XAxis,
   YAxis,
+  BarChart,
+  Bar,
+  Cell,
 } from "recharts";
 import { Skeleton } from "@/components/ui";
+
+const TOP_OCCUPANCY_ITEMS = 8;
 
 function occupancyColor(rate: number): string {
   if (rate >= 80) return "#16a34a";
   if (rate >= 60) return "#0ea5e9";
   if (rate >= 40) return "#f59e0b";
   return "#ef4444";
+}
+
+function truncateBuildingName(name: string): string {
+  return name.length > 18 ? `${name.slice(0, 16)}...` : name;
 }
 
 function toDateInputValue(date: Date): string {
@@ -61,6 +70,56 @@ type RevenueSummary = {
   totalRevenue: string;
   totalPayments: number;
 };
+
+const MONTH_NAMES = [
+  "", "Th1", "Th2", "Th3", "Th4", "Th5", "Th6",
+  "Th7", "Th8", "Th9", "Th10", "Th11", "Th12",
+];
+
+
+function AnimatedNumber({ value, formatter }: { value: number; formatter?: (v: number) => string }) {
+  const [current, setCurrent] = useState(0);
+  const prevValueRef = useRef(0);
+
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    const duration = 800; // 0.8s
+    const startValue = prevValueRef.current;
+    const endValue = value;
+
+    if (startValue === endValue) {
+      return;
+    }
+
+    let animationFrameId: number;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      
+      // Easing function: easeOutQuad
+      const easedProgress = progress * (2 - progress);
+      const currentValue = Math.round(easedProgress * (endValue - startValue) + startValue);
+      
+      setCurrent(currentValue);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step);
+      } else {
+        setCurrent(endValue);
+        prevValueRef.current = endValue;
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [value]);
+
+  return <span>{formatter ? formatter(current) : current}</span>;
+}
 
 export default function DashboardPage() {
   const now = new Date();
@@ -132,21 +191,25 @@ export default function DashboardPage() {
       ]
     : [];
 
-  const monthNames = [
-    "", "Th1", "Th2", "Th3", "Th4", "Th5", "Th6",
-    "Th7", "Th8", "Th9", "Th10", "Th11", "Th12",
-  ];
+
 
   const occupancyListData = useMemo(() => {
     return (occupancy ?? [])
       .map((b) => ({
+        buildingId: b.buildingId,
         name: b.buildingName,
+        shortName: truncateBuildingName(b.buildingName),
         rate: Math.round(b.occupancyRate * 100),
         totalApartments: b.totalApartments,
         rentedApartments: b.rentedApartments,
       }))
       .sort((a, b) => b.rate - a.rate);
   }, [occupancy]);
+
+  const topOccupancyListData = useMemo(
+    () => occupancyListData.slice(0, TOP_OCCUPANCY_ITEMS),
+    [occupancyListData],
+  );
 
   const revenueChartData = useMemo(() => {
     const byMonth = new Map<number, number>();
@@ -160,7 +223,7 @@ export default function DashboardPage() {
     return Array.from({ length: 12 }, (_, index) => {
       const month = index + 1;
       return {
-        name: monthNames[month],
+        name: MONTH_NAMES[month],
         revenue: byMonth.get(month) ?? 0,
       };
     });
@@ -186,6 +249,7 @@ export default function DashboardPage() {
       .map((feature) => ({
         id: feature.properties.id,
         name: feature.properties.name,
+        shortName: truncateBuildingName(feature.properties.name),
         totalApartments: feature.properties.totalApartments,
         rentedApartments: feature.properties.rentedApartments,
         availableApartments: feature.properties.availableApartments,
@@ -210,6 +274,11 @@ export default function DashboardPage() {
           : 0,
     };
   }, [snapshot]);
+
+  const topSnapshotItems = useMemo(
+    () => snapshotSummary.items.slice(0, TOP_OCCUPANCY_ITEMS),
+    [snapshotSummary.items],
+  );
 
   return (
     <div className="space-y-6">
@@ -249,7 +318,7 @@ export default function DashboardPage() {
             Áp dụng cho biểu đồ lịch sử lấp đầy và tổng doanh thu trong khoảng thời gian.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
+        <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
             <Label htmlFor="dashboard-from-date">Từ ngày</Label>
             <Input
@@ -281,7 +350,7 @@ export default function DashboardPage() {
               onChange={(event) => setSelectedYear(event.target.value || String(now.getFullYear()))}
             />
           </div>
-          <div className="space-y-2 md:col-span-3 lg:max-w-xs">
+          <div className="space-y-2">
             <Label htmlFor="dashboard-snapshot-date">Mốc snapshot</Label>
             <Input
               id="dashboard-snapshot-date"
@@ -291,7 +360,7 @@ export default function DashboardPage() {
             />
           </div>
           {selectedRangeLabel && (
-            <div className="md:col-span-3 flex flex-wrap gap-2">
+            <div className="sm:col-span-2 xl:col-span-4 flex flex-wrap gap-2">
               <Badge variant="secondary">Khoảng thời gian: {selectedRangeLabel}</Badge>
               <Badge variant="outline">Năm biểu đồ doanh thu: {selectedYear}</Badge>
               <Badge variant="outline">Snapshot: {snapshotDate}</Badge>
@@ -301,7 +370,7 @@ export default function DashboardPage() {
       </Card>
 
       {/* Stat Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {loadingOverview
           ? Array.from({ length: 4 }).map((_, i) => (
               <Card key={i} className="glass">
@@ -311,14 +380,19 @@ export default function DashboardPage() {
               </Card>
             ))
           : stats.map((stat) => (
-              <Card key={stat.label} className="glass glow-primary-sm">
+              <Card
+                key={stat.label}
+                className="glass glow-primary-sm hover:shadow-[0_0_15px_rgba(0,87,255,0.15)] hover:border-primary/40 transition-all duration-300"
+              >
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">
                         {stat.label}
                       </p>
-                      <p className="text-3xl font-bold tracking-tight mt-1">{stat.value}</p>
+                      <p className="text-3xl font-bold tracking-tight mt-1">
+                        <AnimatedNumber value={stat.value} />
+                      </p>
                     </div>
                     <div className={`rounded-xl p-3 ${stat.bg}`}>
                       <stat.icon className={`h-6 w-6 ${stat.color}`} />
@@ -329,16 +403,21 @@ export default function DashboardPage() {
             ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="glass">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="glass hover:shadow-[0_0_15px_rgba(0,87,255,0.12)] hover:border-primary/30 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Doanh thu trong kỳ</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight">
-                  {loadingRevenueSummary || !revenueSummary
-                    ? "..."
-                    : formatVND(revenueSummary.totalRevenue)}
+                  {loadingRevenueSummary || !revenueSummary ? (
+                    "..."
+                  ) : (
+                    <AnimatedNumber
+                      value={Number(revenueSummary.totalRevenue) || 0}
+                      formatter={formatVND}
+                    />
+                  )}
                 </p>
               </div>
               <div className="rounded-xl bg-primary/10 p-3">
@@ -348,13 +427,17 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass">
+        <Card className="glass hover:shadow-[0_0_15px_rgba(0,87,255,0.12)] hover:border-primary/30 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Số giao dịch đã thu</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight">
-                  {loadingRevenueSummary || !revenueSummary ? "..." : revenueSummary.totalPayments}
+                  {loadingRevenueSummary || !revenueSummary ? (
+                    "..."
+                  ) : (
+                    <AnimatedNumber value={revenueSummary.totalPayments} />
+                  )}
                 </p>
               </div>
               <div className="rounded-xl bg-emerald-500/10 p-3">
@@ -364,15 +447,20 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass">
+        <Card className="glass hover:shadow-[0_0_15px_rgba(0,87,255,0.12)] hover:border-primary/30 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Lấp đầy cuối kỳ</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight">
-                  {loadingOccupancyHistory || occupancyHistoryChartData.length === 0
-                    ? "..."
-                    : `${occupancyHistoryChartData[occupancyHistoryChartData.length - 1].occupancyRatePercent}%`}
+                  {loadingOccupancyHistory || occupancyHistoryChartData.length === 0 ? (
+                    "..."
+                  ) : (
+                    <AnimatedNumber
+                      value={occupancyHistoryChartData[occupancyHistoryChartData.length - 1].occupancyRatePercent}
+                      formatter={(v) => `${v}%`}
+                    />
+                  )}
                 </p>
               </div>
               <div className="rounded-xl bg-sky-500/10 p-3">
@@ -382,15 +470,19 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass">
+        <Card className="glass hover:shadow-[0_0_15px_rgba(0,87,255,0.12)] hover:border-primary/30 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Hợp đồng mới trong kỳ</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight">
-                  {loadingOccupancyHistory
-                    ? "..."
-                    : occupancyHistoryChartData.reduce((sum, item) => sum + item.newContracts, 0)}
+                  {loadingOccupancyHistory ? (
+                    "..."
+                  ) : (
+                    <AnimatedNumber
+                      value={occupancyHistoryChartData.reduce((sum, item) => sum + item.newContracts, 0)}
+                    />
+                  )}
                 </p>
               </div>
               <div className="rounded-xl bg-violet-500/10 p-3">
@@ -410,46 +502,53 @@ export default function DashboardPage() {
           <CardContent>
             {loadingOccupancy ? (
               <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
-                {occupancyListData.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Chưa có dữ liệu tỷ lệ lấp đầy.</p>
-                ) : (
-                  occupancyListData.map((item) => (
-                    <div key={item.name} className="space-y-1 rounded-md border p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="line-clamp-1 text-sm font-medium" title={item.name}>
-                          {item.name}
-                        </p>
-                        <p
-                          className="shrink-0 text-sm font-semibold"
-                          style={{ color: occupancyColor(item.rate) }}
-                        >
-                          {item.rate}%
-                        </p>
-                      </div>
-
-                      <div className="h-2 rounded-full bg-muted">
-                        <div
-                          className="h-2 rounded-full transition-all"
-                          style={{
-                            width: `${item.rate}%`,
-                            backgroundColor: occupancyColor(item.rate),
-                          }}
-                        />
-                      </div>
-
-                      <p className="text-xs text-muted-foreground">
-                        {item.rentedApartments}/{item.totalApartments} căn đã thuê
-                      </p>
-                    </div>
-                  ))
-                )}
+            ) : occupancyListData.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center rounded-lg border bg-background/60 px-4 text-center">
+                <p className="text-sm text-muted-foreground">Chưa có dữ liệu tỷ lệ lấp đầy.</p>
               </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={330}>
+                <BarChart
+                  data={topOccupancyListData}
+                  layout="vertical"
+                  margin={{ top: 8, right: 28, left: 8, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(229, 231, 235, 0.4)" />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tickFormatter={(value: number) => `${value}%`}
+                    tickMargin={8}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="shortName"
+                    width={112}
+                    tickMargin={8}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(value) => [`${Number(value)}%`, "Tỷ lệ lấp đầy"]}
+                    labelFormatter={(_, payload) => {
+                      const item = payload?.[0]?.payload as (typeof topOccupancyListData)[number] | undefined;
+                      if (!item) return "";
+                      return `${item.name} - ${item.rentedApartments}/${item.totalApartments} căn đã thuê`;
+                    }}
+                  />
+                  <Bar dataKey="rate" radius={[0, 8, 8, 0]} barSize={18}>
+                    {topOccupancyListData.map((item) => (
+                      <Cell key={item.buildingId ?? item.name} fill={occupancyColor(item.rate)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             )}
             {!loadingOccupancy && (
               <p className="mt-2 text-xs text-muted-foreground">
-                Danh sách đã sắp xếp theo tỷ lệ lấp đầy giảm dần.
+                {occupancyListData.length > TOP_OCCUPANCY_ITEMS
+                  ? `Hiển thị ${TOP_OCCUPANCY_ITEMS}/${occupancyListData.length} tòa nhà có tỷ lệ cao nhất.`
+                  : "Dữ liệu đã sắp xếp theo tỷ lệ lấp đầy giảm dần."}
               </p>
             )}
           </CardContent>
@@ -467,7 +566,7 @@ export default function DashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={revenueChartData} margin={{ top: 12, right: 8, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.4)" />
                   <XAxis dataKey="name" tickMargin={8} />
                   <YAxis
                     width={64}
@@ -481,9 +580,9 @@ export default function DashboardPage() {
                     type="monotone"
                     dataKey="revenue"
                     stroke="var(--color-primary)"
-                    strokeWidth={2}
-                    dot={{ fill: "var(--color-primary)", r: 4 }}
-                    activeDot={{ r: 6, fill: "var(--color-primary)" }}
+                    strokeWidth={3}
+                    dot={{ fill: "var(--color-primary)", r: 4, strokeWidth: 1 }}
+                    activeDot={{ r: 6, fill: "var(--color-primary)", stroke: "#fff", strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -535,7 +634,7 @@ export default function DashboardPage() {
                       <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.4)" />
                   <XAxis dataKey="label" tickMargin={8} />
                   <YAxis
                     yAxisId="left"
@@ -565,7 +664,7 @@ export default function DashboardPage() {
                     name="Tỷ lệ lấp đầy"
                     stroke="var(--color-primary)"
                     fill="url(#occupancyGradient)"
-                    strokeWidth={2}
+                    strokeWidth={3}
                   />
                   <Line
                     yAxisId="right"
@@ -573,7 +672,7 @@ export default function DashboardPage() {
                     dataKey="activeContracts"
                     name="Hợp đồng hiệu lực"
                     stroke="#0ea5e9"
-                    strokeWidth={2}
+                    strokeWidth={3}
                     dot={{ r: 3, fill: "#0ea5e9" }}
                   />
                 </AreaChart>
@@ -591,13 +690,13 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border bg-background/60 p-3">
+              <div className="rounded-lg border bg-background/60 p-2.5">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Lấp đầy toàn hệ thống</p>
-                <p className="mt-1 text-xl font-semibold">{snapshotSummary.occupancyRate}%</p>
+                <p className="mt-1 text-lg font-semibold">{snapshotSummary.occupancyRate}%</p>
               </div>
-              <div className="rounded-lg border bg-background/60 p-3">
+              <div className="rounded-lg border bg-background/60 p-2.5">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Căn đang thuê / tổng căn</p>
-                <p className="mt-1 text-xl font-semibold">
+                <p className="mt-1 text-lg font-semibold">
                   {snapshotSummary.totals.rentedApartments}/{snapshotSummary.totals.totalApartments}
                 </p>
               </div>
@@ -605,35 +704,51 @@ export default function DashboardPage() {
             {loadingSnapshot ? (
               <Skeleton className="h-[320px] w-full" />
             ) : snapshotSummary.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Không có dữ liệu snapshot ở ngày đã chọn.</p>
-            ) : (
-              <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
-                {snapshotSummary.items.map((item) => (
-                  <div key={item.id} className="rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.rentedApartments} đang thuê · {item.availableApartments} còn trống
-                        </p>
-                      </div>
-                      <Badge variant="outline">{item.occupancyRate}%</Badge>
-                    </div>
-                    <div className="mt-3 h-2 rounded-full bg-muted">
-                      <div
-                        className="h-2 rounded-full transition-all"
-                        style={{
-                          width: `${item.occupancyRate}%`,
-                          backgroundColor: occupancyColor(item.occupancyRate),
-                        }}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {item.rentedApartments}/{item.totalApartments} căn đã được lấp đầy tại mốc này
-                    </p>
-                  </div>
-                ))}
+              <div className="flex h-[320px] items-center justify-center rounded-lg border bg-background/60 px-4 text-center">
+                <p className="text-sm text-muted-foreground">Không có dữ liệu snapshot ở ngày đã chọn.</p>
               </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart
+                  data={topSnapshotItems}
+                  layout="vertical"
+                  margin={{ top: 8, right: 24, left: 4, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(229, 231, 235, 0.4)" />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tickFormatter={(value: number) => `${value}%`}
+                    tickMargin={8}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="shortName"
+                    width={104}
+                    tickMargin={8}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(value) => [`${Number(value)}%`, "Tỷ lệ lấp đầy"]}
+                    labelFormatter={(_, payload) => {
+                      const item = payload?.[0]?.payload as (typeof topSnapshotItems)[number] | undefined;
+                      if (!item) return "";
+                      return `${item.name} - ${item.rentedApartments} đang thuê, ${item.availableApartments} còn trống, ${item.totalApartments} tổng căn`;
+                    }}
+                  />
+                  <Bar dataKey="occupancyRate" radius={[0, 8, 8, 0]} barSize={18}>
+                    {topSnapshotItems.map((item) => (
+                      <Cell key={item.id} fill={occupancyColor(item.occupancyRate)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            {!loadingSnapshot && snapshotSummary.items.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Snapshot {snapshotDate} · Hiển thị {topSnapshotItems.length}/{snapshotSummary.items.length} tòa nhà theo tỷ lệ lấp đầy cao nhất.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -641,7 +756,7 @@ export default function DashboardPage() {
 
       {/* Occupancy Rate Number */}
       {overview && (
-        <Card className="glass glow-primary-sm">
+        <Card className="glass glow-primary-sm hover:shadow-[0_0_15px_rgba(0,87,255,0.15)] hover:border-primary/40 transition-all duration-300">
           <CardContent className="p-6">
             <div className="grid gap-6 md:grid-cols-[220px_1fr] md:items-center">
               <div>
@@ -649,13 +764,16 @@ export default function DashboardPage() {
                   Tỷ lệ lấp đầy tổng thể
                 </p>
                 <p className="text-3xl font-bold text-primary tracking-tight">
-                  {Math.round(overview.occupancyRate * 100)}%
+                  <AnimatedNumber
+                    value={Math.round(overview.occupancyRate * 100)}
+                    formatter={(v) => `${v}%`}
+                  />
                 </p>
               </div>
 
               <div className="h-3 rounded-full bg-muted overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-primary transition-all"
+                  className="h-full rounded-full bg-primary transition-all duration-500"
                   style={{
                     width: `${Math.round(overview.occupancyRate * 100)}%`,
                   }}

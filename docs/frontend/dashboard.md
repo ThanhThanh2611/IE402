@@ -35,9 +35,10 @@ Lưu ý: FE hiện bám theo shape response thực tế của backend, không c�
 
 ### Cách hiển thị hiện tại
 
-- FE render danh sách theo từng tòa nhà
-- Mỗi item hiển thị tên tòa nhà, tổng căn hộ, số căn đã thuê và phần trăm lấp đầy
-- Cách trình bày hiện tại thiên về card/list hơn là dashboard chart phức tạp
+- FE render biểu đồ thanh ngang compact cho tỷ lệ lấp đầy theo từng tòa nhà
+- Mặc định hiển thị top 8 tòa nhà có tỷ lệ cao nhất để dashboard không bị dày đặc khi dữ liệu nhiều
+- Tooltip hiển thị tên tòa nhà, phần trăm lấp đầy và số căn đã thuê/tổng căn
+- Trục tên tòa nhà được rút gọn để tránh vỡ layout
 
 ## 3. Doanh thu theo tháng và theo khoảng thời gian
 
@@ -48,6 +49,11 @@ FE hiện có bộ lọc:
 - `toDate`
 - `selectedYear`
 - `snapshotDate`
+
+Bộ lọc dùng layout responsive:
+- mobile: 1 cột
+- tablet/desktop vừa: 2 cột x 2 hàng
+- desktop rộng: 4 input trên 1 hàng
 
 Khoảng ngày được dùng cho:
 - tổng doanh thu trong kỳ
@@ -138,5 +144,6 @@ API liên quan:
 - dashboard hiển thị:
   - tỷ lệ lấp đầy toàn hệ thống tại mốc ngày đã chọn
   - tổng căn đang thuê / tổng căn
-  - danh sách từng tòa nhà với progress bar lấp đầy
-- Danh sách snapshot được sắp xếp theo tỷ lệ lấp đầy giảm dần để hỗ trợ demo nghiệp vụ rõ hơn
+  - biểu đồ thanh ngang compact cho top 8 tòa nhà theo tỷ lệ lấp đầy
+- Tooltip snapshot hiển thị tên tòa nhà, số căn đang thuê, còn trống và tổng căn
+- Dữ liệu snapshot vẫn được sắp xếp theo tỷ lệ lấp đầy giảm dần để hỗ trợ demo nghiệp vụ rõ hơn

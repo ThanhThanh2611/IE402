@@ -549,6 +549,7 @@ router.get("/:id/details", async (req, res) => {
 
     res.json(detail);
   } catch (error) {
+    console.error("[GET /apartments/:id/details]", error);
     res.status(500).json({ error: "Lỗi khi lấy dữ liệu chi tiết căn hộ" });
   }
 });

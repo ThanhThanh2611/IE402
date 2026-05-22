@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute, ManagerRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { Toaster } from "@/components/ui";
@@ -29,38 +30,40 @@ function RouteLoadingFallback() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/login" element={<LoginPage />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/login" element={<LoginPage />} />
 
-            <Route
-              element={
-                <ProtectedRoute>
-                  <AppLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/map" element={<MapPage />} />
-              <Route path="/buildings/:id" element={<BuildingDetailPage />} />
-              <Route path="/buildings/:id/apartments/:apartmentId" element={<ApartmentDetailPage />} />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <AppLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/map" element={<MapPage />} />
+                <Route path="/buildings/:id" element={<BuildingDetailPage />} />
+                <Route path="/buildings/:id/apartments/:apartmentId" element={<ApartmentDetailPage />} />
 
-              {/* Manager-only routes */}
-              <Route path="/apartments" element={<ManagerRoute><ApartmentsPage /></ManagerRoute>} />
-              <Route path="/contracts" element={<ManagerRoute><ContractsPage /></ManagerRoute>} />
-              <Route path="/tenants" element={<ManagerRoute><TenantsPage /></ManagerRoute>} />
-              <Route path="/payments" element={<ManagerRoute><PaymentsPage /></ManagerRoute>} />
-              <Route path="/users" element={<ManagerRoute><UsersPage /></ManagerRoute>} />
-            </Route>
+                {/* Manager-only routes */}
+                <Route path="/management/apartments" element={<ManagerRoute><ApartmentsPage /></ManagerRoute>} />
+                <Route path="/management/contracts" element={<ManagerRoute><ContractsPage /></ManagerRoute>} />
+                <Route path="/management/tenants" element={<ManagerRoute><TenantsPage /></ManagerRoute>} />
+                <Route path="/management/payments" element={<ManagerRoute><PaymentsPage /></ManagerRoute>} />
+                <Route path="/management/users" element={<ManagerRoute><UsersPage /></ManagerRoute>} />
+              </Route>
 
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
-        <Toaster richColors position="top-right" />
-      </AuthProvider>
-    </BrowserRouter>
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+          <Toaster richColors position="top-right" />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

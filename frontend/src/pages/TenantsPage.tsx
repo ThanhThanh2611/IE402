@@ -32,8 +32,15 @@ import {
   TableHeader,
   TableRow,
   Skeleton,
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
 } from "@/components/ui";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search } from "lucide-react";
 
 const emptyForm: TenantInput = {
   fullName: "",
@@ -53,6 +60,34 @@ export default function TenantsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+
+  // Search & Pagination States
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchKeyword]);
+
+  const filteredTenants = tenants.filter((t) => {
+    if (searchKeyword) {
+      const keyword = searchKeyword.toLowerCase().trim();
+      const nameMatch = t.fullName.toLowerCase().includes(keyword);
+      const phoneMatch = t.phone.toLowerCase().includes(keyword);
+      const idCardMatch = t.idCard.toLowerCase().includes(keyword);
+      if (!nameMatch && !phoneMatch && !idCardMatch) return false;
+    }
+    return true;
+  });
+
+  const totalItems = filteredTenants.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const paginatedTenants = filteredTenants.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -162,41 +197,132 @@ export default function TenantsPage() {
                 description="Hãy thêm hồ sơ người thuê để sẵn sàng cho luồng tạo hợp đồng và theo dõi cư dân."
               />
             ) : (
-            <div className="overflow-x-auto">
-            <Table className="min-w-[840px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Họ tên</TableHead>
-                  <TableHead>SĐT</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>CCCD</TableHead>
-                  <TableHead>Địa chỉ</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tenants.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.fullName}</TableCell>
-                    <TableCell>{t.phone}</TableCell>
-                    <TableCell>{t.email || "-"}</TableCell>
-                    <TableCell>{t.idCard}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{t.address || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(t)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setDeleteId(t.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+              <div className="space-y-4">
+                {/* Search Bar */}
+                <div className="relative max-w-sm">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Tìm theo tên, SĐT hoặc CCCD..."
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    className="pl-9 rounded-md h-9"
+                  />
+                </div>
+
+                {filteredTenants.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed rounded-lg bg-muted/20">
+                    <p className="text-muted-foreground text-sm">Không tìm thấy người thuê nào phù hợp với từ khóa.</p>
+                    <Button variant="link" onClick={() => setSearchKeyword("")} className="mt-1 text-xs text-primary">
+                      Xóa bộ lọc
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto rounded-md border border-border">
+                      <Table className="min-w-[840px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Họ tên</TableHead>
+                            <TableHead>SĐT</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>CCCD</TableHead>
+                            <TableHead>Địa chỉ</TableHead>
+                            <TableHead className="text-right">Hành động</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedTenants.map((t) => (
+                            <TableRow key={t.id}>
+                              <TableCell className="font-medium">{t.fullName}</TableCell>
+                              <TableCell>{t.phone}</TableCell>
+                              <TableCell>{t.email || "-"}</TableCell>
+                              <TableCell>{t.idCard}</TableCell>
+                              <TableCell className="max-w-[200px] truncate">{t.address || "-"}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => openEdit(t)} className="rounded-md">
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => setDeleteId(t.id)} className="rounded-md">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {totalPages > 1 && (
+                      <div className="mt-4 flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
+                        <p className="text-xs text-muted-foreground">
+                          Hiển thị {Math.min(filteredTenants.length, (currentPage - 1) * pageSize + 1)} - {Math.min(filteredTenants.length, currentPage * pageSize)} trong tổng số {filteredTenants.length} người thuê
+                        </p>
+                        <Pagination className="w-auto m-0">
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (currentPage > 1) setCurrentPage((prev) => prev - 1);
+                                }}
+                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                            {Array.from({ length: totalPages }).map((_, idx) => {
+                              const pageNum = idx + 1;
+                              if (
+                                pageNum === 1 ||
+                                pageNum === totalPages ||
+                                Math.abs(currentPage - pageNum) <= 1
+                              ) {
+                                return (
+                                  <PaginationItem key={pageNum}>
+                                    <PaginationLink
+                                      href="#"
+                                      isActive={currentPage === pageNum}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setCurrentPage(pageNum);
+                                      }}
+                                      className="cursor-pointer"
+                                    >
+                                      {pageNum}
+                                    </PaginationLink>
+                                  </PaginationItem>
+                                );
+                              }
+                              if (
+                                (pageNum === 2 && currentPage > 3) ||
+                                (pageNum === totalPages - 1 && currentPage < totalPages - 2)
+                              ) {
+                                return (
+                                  <PaginationItem key={pageNum}>
+                                    <PaginationEllipsis />
+                                  </PaginationItem>
+                                );
+                              }
+                              return null;
+                            })}
+                            <PaginationItem>
+                              <PaginationNext
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
+                                }}
+                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
+                    )}
+                  </>
+                )}
+              </div>
             )
           )}
         </CardContent>

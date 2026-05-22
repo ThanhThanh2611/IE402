@@ -22,7 +22,7 @@ export function FurnitureModelPreview({ modelUrl, modelName }: FurnitureModelPre
   return (
     <div className="space-y-3">
       <div className="w-full rounded-lg bg-slate-950 border border-slate-800 overflow-hidden">
-        {/* @ts-ignore */}
+        {/* @ts-expect-error: model-viewer is a custom web component not registered in react JSX types */}
         <model-viewer
           src={modelUrl}
           alt={modelName}

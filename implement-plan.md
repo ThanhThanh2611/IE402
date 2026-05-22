@@ -55,10 +55,21 @@
 
 ## Phase 3: Polish
 - [x] Responsive design tuning
-- [ ] Dark mode support
 - [ ] Performance optimization (lazy loading, code splitting)
 - [x] Error boundaries + 404 page
 - [ ] E2E testing
+
+## Phase 4: Tái cấu trúc UI/UX & Đường dẫn (Routing)
+- [x] FE: Tái cấu trúc routing với tiền tố `/management` cho các trang quản trị của Manager (App.tsx)
+- [x] FE: Tạo component Breadcrumbs.tsx động và tích hợp vào các trang chi tiết
+- [x] FE: Sửa giao diện Dashboard (DashboardPage.tsx) - responsive grid cho thẻ KPI và hiệu ứng hover, số chạy
+- [x] FE: Điều chỉnh trang Bản đồ (MapPage.tsx) - cố định chiều cao 100vh và gom nhóm marker tòa nhà
+- [x] FE: Nâng cấp trang Quản lý Căn hộ (ApartmentsPage.tsx) - Phân trang, Tìm kiếm, Lọc nâng cao collapsible, Card View, chuyển hướng nút Xem
+- [x] FE: Tích hợp phân trang & tìm kiếm cho các trang quản lý (Hợp đồng, Khách thuê, Thanh toán, Người dùng)
+- [x] FE: Thêm nút Toggle "Edit Mode" trên trang Chi tiết Tòa nhà (BuildingDetailPage.tsx) để ẩn/hiện bảng cấu hình kỹ thuật hotspot/tầng/edge
+- [x] FE: Thêm nút Toggle "Edit Mode" và tối ưu không gian vẽ 2D/3D trên trang Chi tiết Căn hộ (ApartmentDetailPage.tsx)
+- [x] FE: Triển khai Dark Mode đồng bộ toàn hệ thống
+
 
 ## Phase 2.6: BA / ERD Alignment
 - [x] Làm rõ tách biệt `users` (tài khoản hệ thống) và `tenants` (khách thuê nghiệp vụ)
@@ -102,3 +113,38 @@
 - [x] FE: Bổ sung UI CRUD tầng ngay trong trang chi tiết tòa nhà để dùng trực tiếp Floors API
 - [x] FE+BE: Gộp sảnh, khách, bếp thành "Phòng khách, Bếp & Ăn" và sửa triệt để lỗi loạn chữ trên giao diện sơ đồ 2D
 - [x] FE+BE: Căn chỉnh thẳng hàng mép dưới (bottom boundary) của WC 2 (Chung) và Loggia sát tường bao ngoài (7.0m) trên cả 2D và 3D cho căn hộ 2PN
+
+## Phase 5: Lint Fix & GIS Map Optimization
+
+### FE: Sửa lỗi ESLint / TypeScript
+- [x] Thêm `eslint-disable react-refresh/only-export-components` vào 6 file (badge, button, sidebar, tabs, AuthContext, ThemeContext)
+- [x] ApartmentsPage.tsx: thêm thiếu `import { cn } from "@/lib/utils"` (crash fix)
+- [x] DashboardPage.tsx: sửa duplicate key `item.name` → `item.buildingId`
+- [x] ApartmentDetailPage.tsx: xóa unused imports/navigate, sửa @ts-ignore, any types
+- [x] ApartmentScene.tsx: xóa unused `useEffect`, sửa `(meshRef as any)` → proper type cast
+- [x] ApartmentScene.tsx: xóa unused `ContactShadows`, `Box`, sửa `Floor`/`label` unused, `any` dòng 419, thêm eslint-disable
+- [x] ApartmentDetailPage.tsx: bọc `spaces` vào useMemo riêng (warning dòng 556)
+- [x] MapPage.tsx: sửa parsing error dòng 1473 (syntax hỏng sau replace)
+
+### FE: Tối ưu Bản đồ GIS (MapPage.tsx)
+- [x] Giảm tolerance `getClusterTolerance()` phù hợp dữ liệu TPHCM
+- [x] Tạo component `ClusterMarker` dùng `useMap()`: click > 5 tòa → zoom in, ≤ 5 tòa → popup danh sách
+- [x] Thêm Tooltip hướng dẫn khi hover cụm
+- [x] Bỏ màu tím trên cluster icon, dùng emerald/orange/sky
+
+### Xác minh
+- [x] `npm run lint` → 0 errors, 0 warnings
+- [ ] Browser test toàn luồng (Dashboard, Map, Apartments, Building, Apartment)
+
+## Phase 6: Dashboard UI Refinement
+
+### FE: DashboardPage.tsx
+- [x] Chỉnh bộ lọc thời gian responsive: mobile 1 cột, tablet/desktop vừa 2x2, desktop rộng 4 input cùng hàng
+- [x] Đổi khối tỷ lệ lấp đầy theo tòa nhà từ list scroll sang biểu đồ thanh ngang top 8 bằng Recharts
+- [x] Đổi khối snapshot occupancy từ list scroll sang biểu đồ thanh ngang top 8, giữ summary card gọn
+- [x] Tooltip chart hiển thị đủ tên tòa nhà, tỷ lệ và số căn liên quan
+
+### Docs & Xác minh
+- [x] Cập nhật `docs/frontend/dashboard.md`
+- [x] `npm run lint` → 0 errors, 0 warnings
+- [ ] Browser responsive dashboard mobile/tablet/desktop
