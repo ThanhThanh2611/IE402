@@ -734,10 +734,11 @@ export default function MapPage() {
 
         const nextOccupancyMap: Record<number, BuildingOccupancyDetail> = {};
         for (const feature of snapshot.features) {
+          // Backend trả về decimal (0-1), chuyển sang percentage (0-100)
           nextOccupancyMap[feature.properties.id] = {
             totalApartments: feature.properties.totalApartments,
             rentedApartments: feature.properties.rentedApartments,
-            occupancyRate: feature.properties.occupancyRate,
+            occupancyRate: Number(feature.properties.occupancyRate ?? 0) * 100,
           };
         }
 
