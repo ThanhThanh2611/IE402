@@ -344,7 +344,7 @@ function ClusterMarker({ cluster, averageOccupancy, navigate, occupancyMap, near
                 return (
                   <div key={buildingId} className="flex flex-col gap-1.5 border-b border-border last:border-0 pb-2 last:pb-0">
                     <div>
-                      <p className={`font-semibold text-xs text-foreground line-clamp-1 ${isNearby ? 'text-primary' : ''}`}>
+                      <p className={`font-semibold text-xs line-clamp-1 ${isNearby ? 'text-primary' : ''}`}>
                         {feat.properties.name}
                       </p>
                       <p className="text-[10px] text-muted-foreground line-clamp-1">{feat.properties.address}</p>
