@@ -342,15 +342,31 @@ function ClusterMarker({ cluster, averageOccupancy, navigate, occupancyMap, near
                 const rate = toOccupancyRate(occ?.occupancyRate);
                 const isNearby = nearbyIds.includes(buildingId);
                 return (
-                  <div key={buildingId} className="flex flex-col gap-1 border-b border-border last:border-0 pb-1.5 last:pb-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`font-semibold text-xs text-foreground line-clamp-1 ${isNearby ? 'text-primary' : ''}`}>
+                  <div key={buildingId} className="flex flex-col gap-1.5 border-b border-border last:border-0 pb-2 last:pb-0">
+                    <div>
+                      <p className={`font-semibold text-xs text-foreground line-clamp-1 ${isNearby ? 'text-primary' : ''}`}>
                         {feat.properties.name}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{rate.toFixed(0)}%</span>
+                      </p>
+                      <p className="text-[10px] text-muted-foreground line-clamp-1">{feat.properties.address}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">Tỷ lệ lấp đầy</span>
+                        <span className="font-semibold">{rate.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(rate, 100)}%` }} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {occ?.rentedApartments ?? 0}/{occ?.totalApartments ?? 0} căn hộ đang thuê
+                      </p>
+                    </div>
+                    <div className="flex gap-3 text-[10px] text-muted-foreground">
+                      <span>Quận: {feat.properties.district || "-"}</span>
+                      <span>Tầng: {feat.properties.totalFloors}</span>
                     </div>
                     <Button
-                      className="text-[10px] h-6 px-2 w-full mt-0.5"
+                      className="text-[10px] h-6 px-2 w-full"
                       onClick={() => navigate(`/buildings/${buildingId}`)}
                     >
                       Xem chi tiết
