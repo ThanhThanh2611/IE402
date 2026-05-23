@@ -14,5 +14,6 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/drizzle.config.js ./drizzle.config.js
 COPY backend/drizzle ./drizzle
+COPY frontend/public/models /frontend/public/models
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
