@@ -803,6 +803,15 @@ export default function BuildingDetailPage() {
     }
   }, [selectedFloorId]);
 
+  // Preload GLB ngay khi URL biết — không chờ Canvas mount
+  useEffect(() => {
+    if (modelUrl) useGLTF.preload(modelUrl);
+  }, [modelUrl]);
+
+  useEffect(() => {
+    if (selectedFloorModelUrl) useGLTF.preload(selectedFloorModelUrl);
+  }, [selectedFloorModelUrl]);
+
   const fetchPopupData = useCallback(
     async (apartmentId: number) => {
       setPopupLoading(true);

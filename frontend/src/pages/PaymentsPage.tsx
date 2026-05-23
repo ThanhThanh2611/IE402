@@ -268,7 +268,9 @@ export default function PaymentsPage() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Trạng thái" />
+                  <SelectValue placeholder="Trạng thái">
+                    {statusFilter && statusFilter !== "__all__" ? statusLabels[statusFilter as keyof typeof statusLabels] : "Tất cả trạng thái"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">Tất cả trạng thái</SelectItem>

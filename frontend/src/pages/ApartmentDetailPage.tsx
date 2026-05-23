@@ -73,11 +73,13 @@ import type {
 type LayoutTemplate = FurnitureLayoutTemplate;
 
 import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye, Info, AlertTriangle } from "lucide-react";
-import { 
-  LAYOUT_1PN_ROOMS, 
-  LAYOUT_1PN_WALLS, 
-  LAYOUT_2PN_ROOMS, 
-  LAYOUT_2PN_WALLS 
+import { useGLTF } from "@react-three/drei";
+import { resolveUploadUrl } from "@/lib/api";
+import {
+  LAYOUT_1PN_ROOMS,
+  LAYOUT_1PN_WALLS,
+  LAYOUT_2PN_ROOMS,
+  LAYOUT_2PN_WALLS
 } from "@/components/apartment/ApartmentScene";
 import { FurnitureModelPreview } from "@/components/apartment/FurnitureModelPreview";
 
@@ -558,6 +560,17 @@ export default function ApartmentDetailPage() {
     [detail?.spaces],
   );
   const catalog = detail?.furnitureCatalog ?? [];
+
+  // Preload model 3D catalog dùng trong layout — chỉ local uploads
+  useEffect(() => {
+    catalog.forEach((item) => {
+      if (item.model3dUrl?.startsWith("/uploads/")) {
+        useGLTF.preload(resolveUploadUrl(item.model3dUrl));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.furnitureCatalog]);
+
   const selectedLayout = useMemo(
     () => detail?.layouts.find((layout) => layout.id === selectedLayoutId) ?? null,
     [detail?.layouts, selectedLayoutId],

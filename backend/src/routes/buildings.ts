@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { buildings, floors, apartments } from "../db/schema";
-import { eq, and, sql, count, SQL } from "drizzle-orm";
+import { eq, and, sql, count, SQL, gte, lte } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -104,50 +104,56 @@ function uploadBuildingModel(req: Request, res: Response, next: NextFunction) {
 // GET /api/buildings - Lấy danh sách tòa nhà (UC03 - Filter)
 router.get("/", async (req: Request, res: Response) => {
   try {
-    // Dùng typeof để triệt tiêu hoàn toàn lỗi string | string[]
     const district = typeof req.query.district === "string" ? req.query.district : undefined;
     const city = typeof req.query.city === "string" ? req.query.city : undefined;
     const ward = typeof req.query.ward === "string" ? req.query.ward : undefined;
-    const minPrice = typeof req.query.minPrice === "string" ? req.query.minPrice : undefined;
-    const maxPrice = typeof req.query.maxPrice === "string" ? req.query.maxPrice : undefined;
+    const minPrice = typeof req.query.minPrice === "string" ? Number(req.query.minPrice) : undefined;
+    const maxPrice = typeof req.query.maxPrice === "string" ? Number(req.query.maxPrice) : undefined;
 
-    const conditions: SQL[] = [];
-    
-    if (district) conditions.push(eq(buildings.district, district));
-    if (city) conditions.push(eq(buildings.city, city));
-    if (ward) conditions.push(eq(buildings.ward, ward));
+    const whereConditions: SQL[] = [];
+    if (district) whereConditions.push(eq(buildings.district, district));
+    if (city) whereConditions.push(eq(buildings.city, city));
+    if (ward) whereConditions.push(eq(buildings.ward, ward));
+
+    const havingConditions: SQL[] = [];
+    if (minPrice !== undefined) havingConditions.push(gte(sql<number>`avg(${apartments.rentalPrice}::numeric)`, minPrice));
+    if (maxPrice !== undefined) havingConditions.push(lte(sql<number>`avg(${apartments.rentalPrice}::numeric)`, maxPrice));
 
     let result;
-    if (conditions.length > 0) {
+    if (havingConditions.length > 0) {
+      // Khi lọc theo giá, dùng single JOIN query với HAVING
       result = await db
-        .select(buildingSelectFields)
-        .from(buildings)
-        .where(and(...conditions));
-    } else {
-      result = await db.select(buildingSelectFields).from(buildings);
-    }
-
-    if (minPrice || maxPrice) {
-      const buildingsWithPrice = await db
         .select({
-          buildingId: buildings.id,
-          avgPrice: sql<string>`avg(${apartments.rentalPrice}::numeric)`,
+          ...buildingSelectFields,
+          avgPrice: sql<string | null>`avg(${apartments.rentalPrice}::numeric)`,
         })
         .from(buildings)
         .leftJoin(floors, eq(floors.buildingId, buildings.id))
         .leftJoin(apartments, eq(apartments.floorId, floors.id))
-        .groupBy(buildings.id);
-
-      const validIds = buildingsWithPrice
-        .filter((b) => {
-          const avg = Number(b.avgPrice);
-          if (minPrice && avg < Number(minPrice)) return false;
-          if (maxPrice && avg > Number(maxPrice)) return false;
-          return true;
-        })
-        .map((b) => b.buildingId);
-
-      result = result.filter((b) => validIds.includes(b.id));
+        .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
+        .groupBy(
+          buildings.id,
+          buildings.name,
+          buildings.address,
+          buildings.ward,
+          buildings.district,
+          buildings.city,
+          buildings.location,
+          buildings.footprint,
+          buildings.totalFloors,
+          buildings.lodLevel,
+          buildings.description,
+          buildings.imageUrl,
+          buildings.model3dUrl,
+          buildings.createdAt,
+          buildings.updatedAt,
+        )
+        .having(and(...havingConditions));
+    } else {
+      result = await db
+        .select(buildingSelectFields)
+        .from(buildings)
+        .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
     }
 
     res.json(

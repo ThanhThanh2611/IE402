@@ -306,7 +306,9 @@ export default function ContractsPage() {
                       onValueChange={(val) => setSearchStatus(val === "__all__" ? "" : (val ?? ""))}
                     >
                       <SelectTrigger className="rounded-md">
-                        <SelectValue placeholder="Tất cả trạng thái" />
+                        <SelectValue placeholder="Tất cả trạng thái">
+                          {searchStatus ? statusLabels[searchStatus as keyof typeof statusLabels] : "Tất cả trạng thái"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__all__">Tất cả trạng thái</SelectItem>

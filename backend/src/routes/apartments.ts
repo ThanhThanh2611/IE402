@@ -181,51 +181,49 @@ async function getApartmentDetailData(
   const apartment = await getApartmentOrNull(apartmentId);
   if (!apartment) return null;
 
-  const floorResult = await db
-    .select()
-    .from(floors)
-    .where(eq(floors.id, apartment.floorId));
-  const floor = floorResult[0] ?? null;
-
-  const buildingResult = floor
-    ? await db.select().from(buildings).where(eq(buildings.id, floor.buildingId))
-    : [];
-  const building = buildingResult[0] ?? null;
-
-  const spaces = await db
-    .select({
-      id: apartmentSpaces.id,
-      apartmentId: apartmentSpaces.apartmentId,
-      parentSpaceId: apartmentSpaces.parentSpaceId,
-      name: apartmentSpaces.name,
-      spaceType: apartmentSpaces.spaceType,
-      roomType: apartmentSpaces.roomType,
-      lodLevel: apartmentSpaces.lodLevel,
-      boundary: sql<string | null>`case when ${apartmentSpaces.boundary} is null then null else ST_AsText(${apartmentSpaces.boundary}) end`,
-      model3dUrl: apartmentSpaces.model3dUrl,
-      metadata: apartmentSpaces.metadata,
-      createdAt: apartmentSpaces.createdAt,
-      updatedAt: apartmentSpaces.updatedAt,
-    })
-    .from(apartmentSpaces)
-    .where(eq(apartmentSpaces.apartmentId, apartmentId))
-    .orderBy(asc(apartmentSpaces.name));
-
-  const layouts = await db
-    .select()
-    .from(furnitureLayouts)
-    .where(
-      and(
-        eq(furnitureLayouts.apartmentId, apartmentId),
-        viewer.id
-          ? or(
-              eq(furnitureLayouts.userId, viewer.id),
-              isNull(furnitureLayouts.userId)
-            )
-          : isNull(furnitureLayouts.userId)
+  // Chạy song song các queries độc lập
+  const [floorResult, spaces, layouts, catalog, contracts] = await Promise.all([
+    db.select().from(floors).innerJoin(buildings, eq(buildings.id, floors.buildingId)).where(eq(floors.id, apartment.floorId)),
+    db
+      .select({
+        id: apartmentSpaces.id,
+        apartmentId: apartmentSpaces.apartmentId,
+        parentSpaceId: apartmentSpaces.parentSpaceId,
+        name: apartmentSpaces.name,
+        spaceType: apartmentSpaces.spaceType,
+        roomType: apartmentSpaces.roomType,
+        lodLevel: apartmentSpaces.lodLevel,
+        boundary: sql<string | null>`case when ${apartmentSpaces.boundary} is null then null else ST_AsText(${apartmentSpaces.boundary}) end`,
+        model3dUrl: apartmentSpaces.model3dUrl,
+        metadata: apartmentSpaces.metadata,
+        createdAt: apartmentSpaces.createdAt,
+        updatedAt: apartmentSpaces.updatedAt,
+      })
+      .from(apartmentSpaces)
+      .where(eq(apartmentSpaces.apartmentId, apartmentId))
+      .orderBy(asc(apartmentSpaces.name)),
+    db
+      .select()
+      .from(furnitureLayouts)
+      .where(
+        and(
+          eq(furnitureLayouts.apartmentId, apartmentId),
+          viewer.id
+            ? or(eq(furnitureLayouts.userId, viewer.id), isNull(furnitureLayouts.userId))
+            : isNull(furnitureLayouts.userId)
+        )
       )
-    )
-    .orderBy(desc(furnitureLayouts.updatedAt), desc(furnitureLayouts.id));
+      .orderBy(desc(furnitureLayouts.updatedAt), desc(furnitureLayouts.id)),
+    db.select().from(furnitureCatalog).where(eq(furnitureCatalog.isActive, true)).orderBy(asc(furnitureCatalog.name)),
+    db
+      .select()
+      .from(rentalContracts)
+      .where(and(eq(rentalContracts.apartmentId, apartmentId), isNull(rentalContracts.deletedAt)))
+      .orderBy(desc(rentalContracts.createdAt), desc(rentalContracts.id)),
+  ]);
+
+  const floor = floorResult[0]?.floors ?? null;
+  const building = floorResult[0]?.buildings ?? null;
 
   const items =
     layouts.length > 0
@@ -249,50 +247,25 @@ async function getApartmentDetailData(
             updatedAt: furnitureItems.updatedAt,
           })
           .from(furnitureItems)
-          .where(inArray(
-            furnitureItems.layoutId,
-            layouts.map((layout) => layout.id)
-          ))
+          .where(inArray(furnitureItems.layoutId, layouts.map((l) => l.id)))
           .orderBy(asc(furnitureItems.id))
       : [];
-
-  const catalog = await db
-    .select()
-    .from(furnitureCatalog)
-    .where(eq(furnitureCatalog.isActive, true))
-    .orderBy(asc(furnitureCatalog.name));
-
-  const contracts = await db
-    .select()
-    .from(rentalContracts)
-    .where(
-      and(
-        eq(rentalContracts.apartmentId, apartmentId),
-        isNull(rentalContracts.deletedAt)
-      )
-    )
-    .orderBy(desc(rentalContracts.createdAt), desc(rentalContracts.id));
 
   const activeContract =
     contracts.find((contract) => contract.status === "active") ??
     contracts[0] ??
     null;
 
-  const tenantRecord = activeContract
-    ? (
-        await db
+  const [tenantRecord, accessGrant] = await Promise.all([
+    activeContract
+      ? db
           .select()
           .from(tenants)
-          .where(
-            and(
-              eq(tenants.id, activeContract.tenantId),
-              isNull(tenants.deletedAt)
-            )
-          )
-      )[0] ?? null
-    : null;
-
-  const accessGrant = await getApartmentAccessForUser(apartmentId, viewer.id);
+          .where(and(eq(tenants.id, activeContract.tenantId), isNull(tenants.deletedAt)))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+    getApartmentAccessForUser(apartmentId, viewer.id),
+  ]);
   const isLinkedTenant = tenantRecord?.linkedUserId === viewer.id;
   const canViewTenant =
     viewer.role === "manager" ||

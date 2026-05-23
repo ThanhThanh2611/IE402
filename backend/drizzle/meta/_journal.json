@@ -29,6 +29,13 @@
       "when": 1778842510516,
       "tag": "0003_clever_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1748016000000,
+      "tag": "0005_performance_indexes",
+      "breakpoints": true
     }
   ]
 }

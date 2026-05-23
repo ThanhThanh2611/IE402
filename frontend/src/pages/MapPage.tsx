@@ -1049,7 +1049,9 @@ export default function MapPage() {
                       }}
                     >
                       <SelectTrigger className="rounded-md h-9">
-                        <SelectValue placeholder="Tất cả tỷ lệ lấp đầy" />
+                        <SelectValue placeholder="Tất cả tỷ lệ lấp đầy">
+                          {({ under_50: "Dưới 50%", "50_80": "50% - 79%", over_80: "Từ 80% trở lên" } as Record<string, string>)[filters.occupancyRange] ?? "Tất cả tỷ lệ lấp đầy"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__all__">Tất cả tỷ lệ lấp đầy</SelectItem>
@@ -1380,6 +1382,7 @@ export default function MapPage() {
             ) : (
               <div className="h-[calc(100vh-140px)] xl:flex-1 min-h-80 w-full relative">
                 <MapContainer
+                  key="main-map"
                   center={DEFAULT_CENTER}
                   zoom={12}
                   scrollWheelZoom

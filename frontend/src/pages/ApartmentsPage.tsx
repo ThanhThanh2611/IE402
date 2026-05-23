@@ -372,7 +372,9 @@ export default function ApartmentsPage() {
                   onValueChange={(v) => handleFilterChange(setSearchStatus, !v || v === "__all__" ? "" : v)}
                 >
                   <SelectTrigger className="w-full rounded-md h-9">
-                    <SelectValue placeholder="Tất cả trạng thái" />
+                    <SelectValue placeholder="Tất cả trạng thái">
+                      {searchStatus ? statusLabels[searchStatus as keyof typeof statusLabels] : "Tất cả trạng thái"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Tất cả trạng thái</SelectItem>

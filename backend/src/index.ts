@@ -27,7 +27,17 @@ app.use(cors());
 app.use(express.json());
 
 // Mở Public thư mục uploads để FE có thể truy cập link Model 3D
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+// Filename gồm timestamp nên immutable — browser/CDN cache 1 năm, không re-download
+app.use(
+  "/uploads",
+  express.static(path.join(process.cwd(), "uploads"), {
+    maxAge: "365d",
+    immutable: true,
+    setHeaders(res) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  })
+);
 
 // Public routes
 app.use("/api/auth", authRouter);

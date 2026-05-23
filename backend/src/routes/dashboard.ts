@@ -48,29 +48,27 @@ function buildMonthRange(from: Date, to: Date): string[] {
 // GET /api/dashboard/overview - Tổng quan (UC22)
 router.get("/overview", async (_req, res) => {
   try {
-    const [buildingCount] = await db
-      .select({ count: count() })
-      .from(buildings);
-    const [apartmentCount] = await db
-      .select({ count: count() })
-      .from(apartments);
-    const [rentedCount] = await db
-      .select({ count: count() })
-      .from(apartments)
-      .where(eq(apartments.status, "rented"));
-    const [contractCount] = await db
-      .select({ count: count() })
-      .from(rentalContracts)
-      .where(eq(rentalContracts.status, "active"));
+    const [
+      [buildingCount],
+      [apartmentStats],
+      [contractCount],
+    ] = await Promise.all([
+      db.select({ count: count() }).from(buildings),
+      db.select({
+        total: count(),
+        rented: sql<number>`count(case when ${apartments.status} = 'rented' then 1 end)`,
+      }).from(apartments),
+      db.select({ count: count() }).from(rentalContracts).where(eq(rentalContracts.status, "active")),
+    ]);
+
+    const total = Number(apartmentStats.total);
+    const rented = Number(apartmentStats.rented);
 
     res.json({
       totalBuildings: buildingCount.count,
-      totalApartments: apartmentCount.count,
-      rentedApartments: rentedCount.count,
-      occupancyRate:
-        apartmentCount.count > 0
-          ? Number((Number(rentedCount.count) / Number(apartmentCount.count)).toFixed(3))
-          : 0,
+      totalApartments: total,
+      rentedApartments: rented,
+      occupancyRate: total > 0 ? Number((rented / total).toFixed(3)) : 0,
       activeContracts: contractCount.count,
     });
   } catch (error) {
@@ -238,8 +236,8 @@ router.get("/map-snapshot", async (req, res) => {
 
     const snapshotDate = String(date);
 
-    // Lấy tất cả buildings kèm tọa độ (PostGIS ST_X, ST_Y)
-    const allBuildings = await db
+    // Single aggregation query thay vì N+1
+    const result = await db
       .select({
         id: buildings.id,
         name: buildings.name,
@@ -248,77 +246,36 @@ router.get("/map-snapshot", async (req, res) => {
         city: buildings.city,
         lng: sql<number>`ST_X(${buildings.location})`,
         lat: sql<number>`ST_Y(${buildings.location})`,
+        totalApartments: sql<number>`count(distinct ${apartments.id})`,
+        rentedApartments: sql<number>`count(distinct case when ${rentalContracts.status} = 'active' and ${rentalContracts.startDate} <= ${snapshotDate} and ${rentalContracts.endDate} >= ${snapshotDate} then ${apartments.id} end)`,
       })
-      .from(buildings);
+      .from(buildings)
+      .leftJoin(floors, eq(floors.buildingId, buildings.id))
+      .leftJoin(apartments, eq(apartments.floorId, floors.id))
+      .leftJoin(rentalContracts, eq(rentalContracts.apartmentId, apartments.id))
+      .groupBy(buildings.id, buildings.name, buildings.address, buildings.district, buildings.city, buildings.location);
 
-    // Với mỗi building, tính số căn hộ có hợp đồng active tại thời điểm đó
-    const result = await Promise.all(
-      allBuildings.map(async (building) => {
-        // Tổng căn hộ của tòa nhà
-        const [totalResult] = await db
-          .select({ count: count() })
-          .from(apartments)
-          .innerJoin(floors, eq(apartments.floorId, floors.id))
-          .where(eq(floors.buildingId, building.id));
-
-        // Số căn hộ đang được thuê tại thời điểm date
-        // (có hợp đồng active mà start_date <= date và end_date >= date)
-        const [rentedResult] = await db
-          .select({ count: count() })
-          .from(rentalContracts)
-          .innerJoin(apartments, eq(rentalContracts.apartmentId, apartments.id))
-          .innerJoin(floors, eq(apartments.floorId, floors.id))
-          .where(
-            and(
-              eq(floors.buildingId, building.id),
-              lte(rentalContracts.startDate, snapshotDate),
-              gte(rentalContracts.endDate, snapshotDate),
-              eq(rentalContracts.status, "active")
-            )
-          );
-
-        const total = Number(totalResult.count);
-        const rented = Number(rentedResult.count);
-
-        return {
-          id: building.id,
-          name: building.name,
-          address: building.address,
-          district: building.district,
-          city: building.city,
-          lng: building.lng,
-          lat: building.lat,
-          totalApartments: total,
-          rentedApartments: rented,
-          availableApartments: total - rented,
-          occupancyRate: total > 0 ? Number((rented / total).toFixed(3)) : 0,
-        };
-      })
-    );
-
-    // Trả về dạng GeoJSON FeatureCollection
-    res.json({
-      type: "FeatureCollection",
-      metadata: { date: snapshotDate },
-      features: result.map((b) => ({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [b.lng, b.lat],
-        },
+    const features = result.map((b) => {
+      const total = Number(b.totalApartments);
+      const rented = Number(b.rentedApartments);
+      return {
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [b.lng, b.lat] },
         properties: {
           id: b.id,
           name: b.name,
           address: b.address,
           district: b.district,
           city: b.city,
-          totalApartments: b.totalApartments,
-          rentedApartments: b.rentedApartments,
-          availableApartments: b.availableApartments,
-          occupancyRate: b.occupancyRate,
+          totalApartments: total,
+          rentedApartments: rented,
+          availableApartments: total - rented,
+          occupancyRate: total > 0 ? Number((rented / total).toFixed(3)) : 0,
         },
-      })),
+      };
     });
+
+    res.json({ type: "FeatureCollection", metadata: { date: snapshotDate }, features });
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi lấy dữ liệu bản đồ theo thời gian" });
   }
