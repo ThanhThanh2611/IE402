@@ -263,7 +263,7 @@ export default function PaymentsPage() {
               <Select
                 value={statusFilter || "__all__"}
                 onValueChange={(val) => {
-                  setStatusFilter(val === "__all__" ? "" : val);
+                  setStatusFilter(val === "__all__" ? "" : (val ?? ""));
                   setCurrentPage(1);
                 }}
               >

@@ -342,6 +342,7 @@ export interface FurnitureLayout {
   name: string;
   status: FurnitureLayoutStatus;
   version: number;
+  userId: number | null;
   createdById: number | null;
   updatedById: number | null;
   createdAt: string;

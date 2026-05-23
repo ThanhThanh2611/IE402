@@ -75,7 +75,7 @@ export default function TenantsPage() {
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase().trim();
       const nameMatch = t.fullName.toLowerCase().includes(keyword);
-      const phoneMatch = t.phone.toLowerCase().includes(keyword);
+      const phoneMatch = t.phone?.toLowerCase().includes(keyword) ?? false;
       const idCardMatch = t.idCard.toLowerCase().includes(keyword);
       if (!nameMatch && !phoneMatch && !idCardMatch) return false;
     }

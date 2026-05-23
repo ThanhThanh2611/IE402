@@ -303,7 +303,7 @@ export default function ContractsPage() {
                   <div className="w-full sm:w-48">
                     <Select
                       value={searchStatus || "__all__"}
-                      onValueChange={(val) => setSearchStatus(val === "__all__" ? "" : val)}
+                      onValueChange={(val) => setSearchStatus(val === "__all__" ? "" : (val ?? ""))}
                     >
                       <SelectTrigger className="rounded-md">
                         <SelectValue placeholder="Tất cả trạng thái" />
