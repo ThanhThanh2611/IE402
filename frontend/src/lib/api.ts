@@ -1,4 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
+const UPLOAD_BASE = API_BASE.replace(/\/api$/, "");
+
+export function resolveUploadUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("/uploads/")) return `${UPLOAD_BASE}${url}`;
+  return url;
+}
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
 const LEGACY_TOKEN_KEY = "token";

@@ -46,7 +46,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, resolveUploadUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageErrorState } from "@/components/PageFeedback";
 import type {
@@ -137,15 +137,7 @@ function formatArea(value: string | number | null | undefined): string {
 
 function resolveModelUrl(model3dUrl: string | null): string | null {
   if (!model3dUrl) return null;
-  if (model3dUrl.startsWith("http://") || model3dUrl.startsWith("https://")) {
-    return model3dUrl;
-  }
-
-  if (model3dUrl.startsWith("/uploads")) {
-    return model3dUrl;
-  }
-
-  return model3dUrl;
+  return resolveUploadUrl(model3dUrl) || null;
 }
 
 function extractFloorNumberFromText(text: string): number | null {
