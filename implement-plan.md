@@ -148,3 +148,11 @@
 - [x] Cập nhật `docs/frontend/dashboard.md`
 - [x] `npm run lint` → 0 errors, 0 warnings
 - [ ] Browser responsive dashboard mobile/tablet/desktop
+
+## Phase 7: Furniture Interaction & UI Improvements
+- [x] FE: Khắc phục lỗi Khóa item (isLocked), chặn di chuyển 2D/3D và ẩn TransformControls khi bị khóa.
+- [x] FE: Đồng bộ góc xoay nội thất (Rotation) dùng đơn vị Độ (Degrees) và tự động quy đổi sang Radians ở 3D.
+- [x] FE: Đồng bộ tỉ lệ thực tế (Scale = Meters) của nội thất giữa 2D/3D và Form, ánh xạ chuẩn hệ trục Three.js (Y=GIS Z, Z=GIS Y) để mô hình đứng thẳng.
+- [x] FE: Tối ưu mượt mà thao tác xoay 3D bằng cách dùng DOM ref thay vì React state update liên tục.
+- [x] FE: Nâng cấp bảng danh sách Items của Layout: Hiển thị đầy đủ thông tin Kích thước (X×Y×Z), Vị trí (X, Y, Z), Góc xoay (X, Y, Z) trên cùng một dòng cùng font/size chữ đồng bộ.
+
