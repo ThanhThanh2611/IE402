@@ -170,7 +170,10 @@ router.put("/:id", async (req, res) => {
       .where(and(eq(rentalContracts.id, contractId), isNull(rentalContracts.deletedAt)))
       .returning();
 
-    // Nếu đổi căn hộ: hoàn trạng thái căn hộ cũ, cập nhật căn hộ mới
+    const targetApartmentId = apartmentId && apartmentId !== old.apartmentId ? apartmentId : old.apartmentId;
+    const targetStatus = status ?? old.status;
+
+    // Đổi căn hộ: hoàn trạng thái căn hộ cũ về available, cập nhật căn hộ mới
     if (apartmentId && apartmentId !== old.apartmentId) {
       await db
         .update(apartments)
@@ -178,14 +181,27 @@ router.put("/:id", async (req, res) => {
         .where(eq(apartments.id, old.apartmentId));
       await db
         .update(apartments)
-        .set({ status: "rented", rentalPrice: monthlyRent, updatedAt: new Date() })
+        .set({ status: "rented", rentalPrice: monthlyRent ?? old.monthlyRent, updatedAt: new Date() })
         .where(eq(apartments.id, apartmentId));
-    } else if (monthlyRent && monthlyRent !== old.monthlyRent) {
-      // Chỉ đổi tiền thuê: đồng bộ rentalPrice của căn hộ
-      await db
-        .update(apartments)
-        .set({ rentalPrice: monthlyRent, updatedAt: new Date() })
-        .where(eq(apartments.id, old.apartmentId));
+    } else {
+      // Đồng bộ status apartment theo status contract
+      if (targetStatus === "active") {
+        await db
+          .update(apartments)
+          .set({ status: "rented", rentalPrice: monthlyRent ?? old.monthlyRent, updatedAt: new Date() })
+          .where(eq(apartments.id, targetApartmentId));
+      } else if (targetStatus === "cancelled" || targetStatus === "expired") {
+        await db
+          .update(apartments)
+          .set({ status: "available", updatedAt: new Date() })
+          .where(eq(apartments.id, targetApartmentId));
+      } else if (monthlyRent && monthlyRent !== old.monthlyRent) {
+        // status không đổi, chỉ đổi tiền thuê: đồng bộ rentalPrice
+        await db
+          .update(apartments)
+          .set({ rentalPrice: monthlyRent, updatedAt: new Date() })
+          .where(eq(apartments.id, targetApartmentId));
+      }
     }
 
     res.json(result[0]);

@@ -575,19 +575,78 @@ router.put("/:id", async (req, res) => {
 });
 
 // PATCH /api/apartments/:id/status - Cập nhật trạng thái căn hộ (UC17)
+// Đồng bộ ngược sang hợp đồng để 2 bảng không lệch:
+// - available: huỷ hợp đồng đang active (nếu có)
+// - rented: kích hoạt lại hợp đồng gần nhất; chặn nếu chưa có contract
+//   hoặc contract gần nhất đã quá end_date
+// - maintenance: không động đến hợp đồng
 router.patch("/:id/status", async (req, res) => {
   try {
-    const { status } = req.body;
+    const apartmentId = Number(req.params.id);
+    const { status } = req.body as { status?: "available" | "rented" | "maintenance" };
+
+    if (status !== "available" && status !== "rented" && status !== "maintenance") {
+      return res.status(400).json({ error: "Trạng thái căn hộ không hợp lệ" });
+    }
+
+    const apartment = await getApartmentOrNull(apartmentId);
+    if (!apartment) {
+      return res.status(404).json({ error: "Không tìm thấy căn hộ" });
+    }
+
+    if (status === "rented") {
+      const latest = await db
+        .select()
+        .from(rentalContracts)
+        .where(
+          and(
+            eq(rentalContracts.apartmentId, apartmentId),
+            isNull(rentalContracts.deletedAt)
+          )
+        )
+        .orderBy(desc(rentalContracts.createdAt), desc(rentalContracts.id))
+        .limit(1);
+
+      if (latest.length === 0) {
+        return res.status(400).json({
+          error: "Căn hộ chưa có hợp đồng nào, vui lòng tạo hợp đồng trước khi đặt trạng thái Đã thuê",
+        });
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      if (String(latest[0].endDate) < today) {
+        return res.status(400).json({
+          error: "Hợp đồng gần nhất đã hết hạn, vui lòng tạo hợp đồng mới",
+        });
+      }
+
+      if (latest[0].status !== "active") {
+        await db
+          .update(rentalContracts)
+          .set({ status: "active", updatedAt: new Date(), updatedById: req.user?.id })
+          .where(eq(rentalContracts.id, latest[0].id));
+      }
+    } else if (status === "available") {
+      await db
+        .update(rentalContracts)
+        .set({ status: "cancelled", updatedAt: new Date(), updatedById: req.user?.id })
+        .where(
+          and(
+            eq(rentalContracts.apartmentId, apartmentId),
+            eq(rentalContracts.status, "active"),
+            isNull(rentalContracts.deletedAt)
+          )
+        );
+    }
+
     const result = await db
       .update(apartments)
       .set({ status, updatedAt: new Date() })
       .where(
-        and(eq(apartments.id, Number(req.params.id)), isNull(apartments.deletedAt))
+        and(eq(apartments.id, apartmentId), isNull(apartments.deletedAt))
       )
       .returning();
-    if (result.length === 0) {
-      return res.status(404).json({ error: "Không tìm thấy căn hộ" });
-    }
+
     res.json(result[0]);
   } catch (error) {
     res.status(500).json({ error: "Lỗi khi cập nhật trạng thái" });

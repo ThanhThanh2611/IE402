@@ -13,7 +13,8 @@
     "db:push": "drizzle-kit push --config drizzle.config.js",
     "db:studio": "drizzle-kit studio --config drizzle.config.js",
     "db:seed": "tsx src/db/seed.ts",
-    "db:import:geojson": "tsx src/db/import-buildings-geojson.ts"
+    "db:import:geojson": "tsx src/db/import-buildings-geojson.ts",
+    "db:sync-status": "tsx src/db/sync-apartment-contract-status.ts"
   },
   "keywords": [],
   "author": "",

@@ -18,6 +18,7 @@ import navigationRouter from "./routes/navigation";
 import furnitureCatalogRouter from "./routes/furnitureCatalog";
 import furnitureLayoutTemplatesRouter from "./routes/furnitureLayoutTemplates";
 import { syncFurnitureCatalog } from "./db/sync-catalog";
+import { syncApartmentContractStatus } from "./db/sync-apartment-contract-status";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,9 +64,41 @@ app.use("/api/navigation", authenticate, navigationRouter);
 app.use("/api/furniture-catalog", authenticate, furnitureCatalogRouter);
 app.use("/api/furniture-layout-templates", authenticate, furnitureLayoutTemplatesRouter);
 
+function scheduleDailyContractSync() {
+  const runSync = () =>
+    syncApartmentContractStatus()
+      .then(({ expiredContracts, releasedApartments }) => {
+        if (expiredContracts > 0 || releasedApartments > 0) {
+          console.log(
+            `[contract-sync] Expired ${expiredContracts} hợp đồng, ` +
+              `chuyển ${releasedApartments} căn hộ về 'available'.`
+          );
+        }
+      })
+      .catch((err) => console.error("[contract-sync] Lỗi:", err));
+
+  // Chạy ngay lúc khởi động để dọn dữ liệu lệch
+  void runSync();
+
+  // Tính thời gian tới 00:05 hôm sau rồi lặp mỗi 24h
+  const scheduleNext = () => {
+    const now = new Date();
+    const next = new Date(now);
+    next.setDate(now.getDate() + 1);
+    next.setHours(0, 5, 0, 0);
+    const delay = next.getTime() - now.getTime();
+    setTimeout(() => {
+      void runSync();
+      setInterval(() => void runSync(), 24 * 60 * 60 * 1000);
+    }, delay);
+  };
+  scheduleNext();
+}
+
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
   void syncFurnitureCatalog().catch((err) => {
     console.error("Lỗi khi đồng bộ danh mục nội thất:", err);
   });
+  scheduleDailyContractSync();
 });
