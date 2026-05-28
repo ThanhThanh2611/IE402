@@ -265,9 +265,50 @@ function Wall({ p1, p2, thickness, offsetX, offsetZ, openings = [], type = "wall
 }
 
 // Component riêng để dùng useGLTF hợp lệ (không vi phạm Rules of Hooks)
-function GltfModel({ url }: { url: string }) {
+function GltfModel({ url, scaleX, scaleY, scaleZ }: { url: string; scaleX: number; scaleY: number; scaleZ: number }) {
   const { scene } = useGLTF(url);
-  return <primitive object={scene.clone()} />;
+  const normalizedScene = useMemo(() => {
+    const clone = scene.clone();
+    
+    // Store original rotation and scale
+    const origRot = clone.rotation.clone();
+    const origScale = clone.scale.clone();
+    
+    // Temporarily reset rotation and scale to measure raw local dimensions
+    clone.rotation.set(0, 0, 0);
+    clone.scale.set(1, 1, 1);
+    
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    
+    const sizeX = size.x || 1;
+    const sizeY = size.y || 1;
+    const sizeZ = size.z || 1;
+    
+    // Scale local axes: X (width) -> scaleX, Y (height) -> scaleY, Z (depth) -> scaleZ
+    clone.scale.set(
+      (scaleX / sizeX) * origScale.x,
+      (scaleY / sizeY) * origScale.y,
+      (scaleZ / sizeZ) * origScale.z
+    );
+    
+    // Restore original rotation
+    clone.rotation.copy(origRot);
+    
+    // Recalculate bounding box with final transformations to align position
+    const newBox = new THREE.Box3().setFromObject(clone);
+    const center = new THREE.Vector3();
+    newBox.getCenter(center);
+    
+    clone.position.x -= center.x;
+    clone.position.z -= center.z;
+    clone.position.y -= newBox.min.y;
+    
+    return clone;
+  }, [scene, scaleX, scaleY, scaleZ]);
+
+  return <primitive object={normalizedScene} />;
 }
 
 interface FurnitureNodeProps {
@@ -296,16 +337,27 @@ function FurnitureNode({
   const meshRef = useRef<THREE.Group>(null);
   const [meshNode, setMeshNode] = useState<THREE.Group | null>(null);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
-  const [liveRotationY, setLiveRotationY] = useState<number>(Number(item.rotationY) || 0);
+  const degSpanRef = useRef<HTMLSpanElement>(null);
+  // liveRotationY state is kept in Radians for Smooth orbit manipulation
+  const [liveRotationY, setLiveRotationY] = useState<number>(
+    ((Number(item.rotationY) || 0) * Math.PI) / 180
+  );
+
+  React.useEffect(() => {
+    setLiveRotationY(((Number(item.rotationY) || 0) * Math.PI) / 180);
+  }, [item.rotationY]);
 
   const matched = item.position.match(/POINT\s+Z\s*\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\)/i);
   const px = Number(matched?.[1] || 0);
   const pz = Number(matched?.[2] || 0);
   const py = Number(matched?.[3] || 0);
-  const rotY = Number(item.rotationY) || 0;
-  const h = Number(catalogItem?.defaultHeight) || 0.8;
-  const w = Number(catalogItem?.defaultWidth) || 0.8;
-  const d = Number(catalogItem?.defaultDepth) || 0.8;
+  
+  const rotX = ((Number(item.rotationX) || 0) * Math.PI) / 180;
+  const rotZ = ((Number(item.rotationZ) || 0) * Math.PI) / 180;
+
+  const scaleX = Number(item.scaleX) || 1;
+  const scaleY = Number(item.scaleY) || 1;
+  const scaleZ = Number(item.scaleZ) || 1;
 
   const degrees = useMemo(() => {
     let deg = (liveRotationY * 180) / Math.PI;
@@ -324,39 +376,42 @@ function FurnitureNode({
           }
         }} 
         position={[px + offsetX, py, pz + offsetZ]} 
-        rotation={[0, rotY, 0]}
+        rotation={[rotX, liveRotationY, rotZ]}
         onClick={(e) => {
           e.stopPropagation();
           if (readOnly) return;
           onSelect(item.id);
         }}
       >
-        <Suspense fallback={<mesh><boxGeometry args={[w, h, d]} /><meshStandardMaterial color="gray" /></mesh>}>
+        <Suspense fallback={<mesh><boxGeometry args={[scaleX, scaleZ, scaleY]} /><meshStandardMaterial color="gray" /></mesh>}>
           {catalogItem?.model3dUrl ? (
-            <GltfModel url={catalogItem.model3dUrl} />
+            <GltfModel url={catalogItem.model3dUrl} scaleX={scaleX} scaleY={scaleZ} scaleZ={scaleY} />
           ) : (
-            <mesh position={[0, h/2, 0]} castShadow receiveShadow>
-              <boxGeometry args={[w, h, d]} />
+            <mesh position={[0, scaleZ/2, 0]} castShadow receiveShadow>
+              <boxGeometry args={[scaleX, scaleZ, scaleY]} />
               <meshStandardMaterial 
-                color={selected && !readOnly ? "#3b82f6" : "#cbd5e1"} 
-                emissive={selected && !readOnly ? "#3b82f6" : "#000000"}
-                emissiveIntensity={selected && !readOnly ? 0.2 : 0}
+                color={selected && !readOnly && !item.isLocked ? "#3b82f6" : "#cbd5e1"} 
+                emissive={selected && !readOnly && !item.isLocked ? "#3b82f6" : "#000000"}
+                emissiveIntensity={selected && !readOnly && !item.isLocked ? 0.2 : 0}
               />
             </mesh>
           )}
         </Suspense>
 
-        <Html position={[0, h + 0.4, 0]} center distanceFactor={10}>
+        <Html position={[0, scaleZ + 0.4, 0]} center distanceFactor={10}>
           <div className="flex flex-col items-center gap-1.5 pointer-events-none select-none">
             <div className={`px-2.5 py-1 rounded-md text-[9px] font-bold shadow-lg whitespace-nowrap transition-all flex items-center gap-2 ${
-              selected && !readOnly ? "bg-blue-600 text-white scale-110 ring-2 ring-white/50" : "bg-slate-800/80 text-slate-200 backdrop-blur-sm"
+              selected && !readOnly && !item.isLocked ? "bg-blue-600 text-white scale-110 ring-2 ring-white/50" : "bg-slate-800/80 text-slate-200 backdrop-blur-sm"
              }`}>
-              <span>{item.label || catalogItem?.name || "Nội thất"}</span>
-              {selected && !readOnly && transformMode === "rotate" && (
-                <span className="bg-white/20 px-1 rounded font-mono">{degrees}°</span>
+              <span>
+                {item.label || catalogItem?.name || "Nội thất"}
+                {item.isLocked && " 🔒"}
+              </span>
+              {selected && !readOnly && !item.isLocked && transformMode === "rotate" && (
+                <span ref={degSpanRef} className="bg-white/20 px-1 rounded font-mono">{degrees}°</span>
               )}
             </div>
-            {selected && !readOnly && (
+            {selected && !readOnly && !item.isLocked && (
               <div className="flex gap-1.5 pointer-events-auto mt-0.5">
                 <button 
                   className={`px-3 py-1 rounded-md text-[9px] font-extrabold shadow-md transition-all active:scale-95 ${
@@ -384,7 +439,7 @@ function FurnitureNode({
         </Html>
       </group>
 
-      {selected && !readOnly && (
+      {selected && !readOnly && !item.isLocked && (
         <TransformControls 
           object={meshNode ?? undefined} 
           mode={transformMode}
@@ -394,7 +449,14 @@ function FurnitureNode({
           rotationSnap={Math.PI / 12}
           onChange={() => {
             if (meshRef.current && transformMode === "rotate") {
-              setLiveRotationY(meshRef.current.rotation.y);
+              const currentRotY = meshRef.current.rotation.y;
+              let deg = (currentRotY * 180) / Math.PI;
+              deg = deg % 360;
+              if (deg < 0) deg += 360;
+              const roundedDeg = Math.round(deg / 15) * 15;
+              if (degSpanRef.current) {
+                degSpanRef.current.textContent = `${roundedDeg}°`;
+              }
             }
           }}
           onMouseUp={() => {
@@ -411,9 +473,10 @@ function FurnitureNode({
               );
             } else if (transformMode === "rotate" && onItemRotate) {
               const snap = Math.PI / 12;
-              const snappedRotY = Math.round(newRot.y / snap) * snap;
-              onItemRotate(item.id, Number(snappedRotY.toFixed(3)));
-              setLiveRotationY(snappedRotY);
+              const snappedRotYRad = Math.round(newRot.y / snap) * snap;
+              const snappedRotYDeg = Math.round((snappedRotYRad * 180) / Math.PI);
+              onItemRotate(item.id, snappedRotYDeg);
+              setLiveRotationY(snappedRotYRad);
             }
           }}
         />

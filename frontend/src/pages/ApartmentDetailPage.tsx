@@ -72,7 +72,7 @@ import type {
 // Type alias dùng nội bộ cho template
 type LayoutTemplate = FurnitureLayoutTemplate;
 
-import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye, Info, AlertTriangle } from "lucide-react";
+import { Pencil, Plus, Trash2, Box, Map as MapIcon, Upload, Eye, Info, AlertTriangle, Lock } from "lucide-react";
 import { useGLTF } from "@react-three/drei";
 import { resolveUploadUrl } from "@/lib/api";
 import {
@@ -215,17 +215,6 @@ function parsePointZ(value: string): { x: number; y: number; z: number } {
     y: Number(matched[2]) || 0,
     z: Number(matched[3]) || 0,
   };
-}
-
-function formatPointZ(value: string): string {
-  const matched = value.match(/POINT\s+Z?\s*\(\s*([-\d.]+)\s+([-\d.]+)(?:\s+([-\d.]+))?\s*\)/i);
-  if (!matched) return value;
-
-  const x = Number(matched[1]);
-  const y = Number(matched[2]);
-  const z = Number(matched[3] ?? 0);
-
-  return `X: ${x}, Y: ${y}, Z: ${z}`;
 }
 
 type WorkspacePolygonPoint = {
@@ -1168,6 +1157,11 @@ export default function ApartmentDetailPage() {
         const item = selectedLayout.items.find((entry) => entry.id === payload.itemId);
         if (!item) return;
 
+        if (item.isLocked) {
+          toast.error("Nội thất này đã bị khóa, không thể di chuyển!");
+          return;
+        }
+
         const nextPosition = `POINT Z (${ptX} ${ptY} ${parsePointZ(item.position).z})`;
         const resolvedSpaceId = resolveDropSpaceId(pctX * 100, pctY * 100);
         await api.put(
@@ -1218,7 +1212,7 @@ export default function ApartmentDetailPage() {
   const handleItemMove3D = async (itemId: number, x: number, z: number, yHover: number) => {
     if (!selectedLayout) return;
     const item = selectedLayout.items.find((entry) => entry.id === itemId);
-    if (!item) return;
+    if (!item || item.isLocked) return;
 
     const nextPosition = `POINT Z (${x} ${z} ${yHover})`;
     const pctX = (x / currentWidth) * 100;
@@ -1262,7 +1256,7 @@ export default function ApartmentDetailPage() {
   const handleItemRotate3D = async (itemId: number, rotationY: number) => {
     if (!selectedLayout) return;
     const item = selectedLayout.items.find((entry) => entry.id === itemId);
-    if (!item) return;
+    if (!item || item.isLocked) return;
 
     const nextRotationY = String(rotationY);
 
@@ -1778,7 +1772,9 @@ export default function ApartmentDetailPage() {
                       <TableHead>Nhãn</TableHead>
                       <TableHead>Mẫu</TableHead>
                       <TableHead>Không gian</TableHead>
-                      <TableHead>Vị trí</TableHead>
+                      <TableHead>Kích thước (X×Y×Z)</TableHead>
+                      <TableHead>Vị trí (X, Y, Z)</TableHead>
+                      <TableHead>Góc xoay (X, Y, Z)</TableHead>
                       <TableHead>Khóa</TableHead>
                       <TableHead className="text-right">Hành động</TableHead>
                     </TableRow>
@@ -1793,8 +1789,57 @@ export default function ApartmentDetailPage() {
                             ? spaces.find((space) => space.id === item.spaceId)?.name ?? `#${item.spaceId}`
                             : "-"}
                         </TableCell>
-                        <TableCell className="max-w-[280px] truncate">{formatPointZ(item.position)}</TableCell>
-                        <TableCell>{item.isLocked ? "Có" : "Không"}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {Number(item.scaleX).toFixed(2)} × {Number(item.scaleY).toFixed(2)} × {Number(item.scaleZ).toFixed(2)} m
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {(() => {
+                            const pos = parsePointZ(item.position);
+                            return `${pos.x}, ${pos.y}, ${pos.z}`;
+                          })()}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {Number(item.rotationX)}°, {Number(item.rotationY)}°, {Number(item.rotationZ)}°
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={item.isLocked}
+                            disabled={!editMode}
+                            onCheckedChange={async (checked) => {
+                              try {
+                                await api.put(
+                                  `/apartments/${detail.apartment.id}/layouts/${selectedLayout.id}/items/${item.id}`,
+                                  {
+                                    catalogId: item.catalogId,
+                                    spaceId: item.spaceId,
+                                    label: item.label,
+                                    position: item.position,
+                                    rotationX: item.rotationX,
+                                    rotationY: item.rotationY,
+                                    rotationZ: item.rotationZ,
+                                    scaleX: item.scaleX,
+                                    scaleY: item.scaleY,
+                                    scaleZ: item.scaleZ,
+                                    isLocked: checked,
+                                    metadata: item.metadata,
+                                  },
+                                );
+                                setDetail((prev) => {
+                                  if (!prev) return prev;
+                                  return replaceLayoutInDetail(prev, selectedLayout.id, (layout) => ({
+                                    ...layout,
+                                    items: layout.items.map((it) =>
+                                      it.id === item.id ? { ...it, isLocked: checked } : it,
+                                    ),
+                                  }));
+                                });
+                                toast.success(checked ? "Đã khóa nội thất" : "Đã mở khóa nội thất");
+                              } catch (error) {
+                                toast.error("Không thể thay đổi trạng thái khóa");
+                              }
+                            }}
+                          />
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button variant="outline" size="sm" onClick={() => openEditItem(item)}>
@@ -1809,7 +1854,7 @@ export default function ApartmentDetailPage() {
                     ))}
                     {selectedLayout.items.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                           Layout này chưa có item nội thất nào.
                         </TableCell>
                       </TableRow>
@@ -1995,9 +2040,9 @@ export default function ApartmentDetailPage() {
                       <button
                         key={item.id}
                         type="button"
-                        draggable={editMode}
+                        draggable={editMode && !item.isLocked}
                         onDragStart={(event) => {
-                          if (editMode) {
+                          if (editMode && !item.isLocked) {
                             event.dataTransfer.setData(
                               "application/json",
                               JSON.stringify({ type: "item", itemId: item.id }),
@@ -2005,7 +2050,7 @@ export default function ApartmentDetailPage() {
                           }
                         }}
                         className={`absolute z-10 min-w-20 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
-                          editMode ? "cursor-grab" : "cursor-default"
+                          editMode && !item.isLocked ? "cursor-grab" : "cursor-default"
                         }`}
                         style={{
                           left: `${clamp((point.x / currentWidth) * 100, 0, 100)}%`,
@@ -2013,7 +2058,10 @@ export default function ApartmentDetailPage() {
                           transform: "translate(-50%, -50%)",
                         }}
                       >
-                        <span className="block">{item.label || currentCatalogName(item.catalogId)}</span>
+                        <span className="block flex items-center justify-center gap-1">
+                          {item.label || currentCatalogName(item.catalogId)}
+                          {item.isLocked && <Lock className="h-3 w-3 inline text-muted-foreground shrink-0" />}
+                        </span>
                         {assignedSpace && (
                           <span className="mt-1 block text-[10px] text-muted-foreground">
                             {assignedSpace.name}
