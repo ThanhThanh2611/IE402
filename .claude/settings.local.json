@@ -35,7 +35,9 @@
       "Bash(curl -s \"http://localhost:3000/api/floors\" -H \"Authorization: Bearer $TOKEN\")",
       "Bash(python3 -c \":*)",
       "Bash(curl -s \"http://localhost:3000/api/apartments\" -H \"Authorization: Bearer $TOKEN\")",
-      "Bash(powershell -c \"\\(Get-Item 'd:\\\\Workspace\\\\IE402\\\\Nhom_2-Checkpoint4.pdf'\\).Length\")"
+      "Bash(powershell -c \"\\(Get-Item 'd:\\\\Workspace\\\\IE402\\\\Nhom_2-Checkpoint4.pdf'\\).Length\")",
+      "Bash(git -C \"d:\\\\Workspace\\\\IE402\" show bc3ab5e --stat)",
+      "Bash(git -C \"d:\\\\Workspace\\\\IE402\" show bc3ab5e -- backend/src/routes/apartments.ts)"
     ]
   }
 }

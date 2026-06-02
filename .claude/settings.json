@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(xargs grep *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(dir /b \"d:\\\\Workspace\\\\IE402\")",
+      "Bash(dir \"d:\\\\Workspace\\\\IE402\\\\backend\\\\src\" /b)",
+      "Bash(dir \"d:\\\\Workspace\\\\IE402\\\\frontend\" /b)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\connect\\\\|SET search_path\\\\|relation\\\\|payments\" d:/Workspace/IE402/data_dump.sql)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Workspace\\\\IE402\\\\backend\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(cd /d/Workspace/IE402/frontend && grep -E \"base-ui|@base-ui\" package.json)",
+      "Read(//d/d/Workspace/IE402/frontend/**)",
+      "Bash(cd /d/Workspace/IE402/backend && cat package.json | grep -E \"compression|helmet|cache\")",
+      "Read(//d/d/Workspace/IE402/backend/**)",
+      "Bash(npm ci *)",
+      "Bash(git -C /d/Workspace/IE402 log --oneline -3 -- backend/package-lock.json)",
+      "Bash(git -C /d/Workspace/IE402 diff origin/main -- backend/package-lock.json)",
+      "Bash(npm install *)",
+      "Bash(git -C /d/Workspace/IE402 diff --stat HEAD -- backend/package-lock.json)"
     ]
   }
 }

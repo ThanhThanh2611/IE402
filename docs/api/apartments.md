@@ -291,6 +291,14 @@ PUT /api/apartments/:id
 PATCH /api/apartments/:id/status
 ```
 
+API đồng bộ ngược sang bảng `rental_contracts` để 2 bảng không lệch nhau:
+
+| Trạng thái mới | Hành động với hợp đồng |
+| --- | --- |
+| `rented` | Kích hoạt lại hợp đồng gần nhất (set `active`). Chặn nếu chưa có hợp đồng hoặc hợp đồng gần nhất đã quá `endDate` |
+| `available` | Huỷ tất cả hợp đồng đang `active` của căn hộ (set `cancelled`) |
+| `maintenance` | Không thay đổi hợp đồng |
+
 **Body:**
 
 | Field | Type | Bắt buộc | Mô tả |
@@ -299,7 +307,12 @@ PATCH /api/apartments/:id/status
 
 **Response:** `200` - Object căn hộ đã cập nhật
 
-**Lỗi:** `404` - Không tìm thấy
+**Lỗi:**
+
+- `400` - Trạng thái không hợp lệ
+- `400` - Khi đặt `rented` nhưng căn hộ chưa có hợp đồng nào
+- `400` - Khi đặt `rented` nhưng hợp đồng gần nhất đã hết hạn
+- `404` - Không tìm thấy căn hộ
 
 ---
 

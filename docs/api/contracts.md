@@ -2,8 +2,7 @@
 
 Base URL: `/api/contracts`
 
-> Khi tạo hợp đồng, trạng thái căn hộ tự động chuyển thành `rented`.
-> Khi xóa hợp đồng, trạng thái căn hộ tự động chuyển về `available`.
+> Hợp đồng và trạng thái căn hộ được **đồng bộ hai chiều** — thay đổi một bên sẽ kéo bên kia cập nhật theo.
 > Hợp đồng dùng **soft delete**.
 
 ---
@@ -85,6 +84,15 @@ PUT /api/contracts/:id
 ```
 
 **Body:** Các field cần cập nhật
+
+Đồng bộ trạng thái căn hộ theo thay đổi:
+
+| Tình huống | Hành động với căn hộ |
+| --- | --- |
+| `status` đổi thành `active` | Căn hộ → `rented`, cập nhật `rentalPrice` |
+| `status` đổi thành `cancelled` hoặc `expired` | Căn hộ → `available` |
+| Đổi sang căn hộ khác (`apartmentId` thay đổi) | Căn hộ cũ → `available`; căn hộ mới → `rented` |
+| Chỉ đổi `monthlyRent`, không đổi `status` | Căn hộ cập nhật `rentalPrice` |
 
 **Response:** `200` - Object hợp đồng đã cập nhật
 
